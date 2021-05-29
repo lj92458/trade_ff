@@ -1,0 +1,45 @@
+<!DOCTYPE html >
+<html xmlns:th="http://www.thymeleaf.org" lang="zh">
+<head>
+    <title th:replace="/resources.html" ></title>
+    <link th:href="@{'/'+${#objects.nullSafe(session.PAGE_SKIN,'')}+'css/index.css'}" rel="stylesheet">
+    <title>自动交易</title>
+</head>
+<body onbeforeunload="stomp_disconnect()">
+<div th:replace="/header.html" ></div>
+
+
+<div id="main" style="height:400px;width:1500px;"></div>
+<div style="">
+    时间间隔
+    <a class="timeGape" href="#" title="1">1分钟</a>
+    <a class="timeGape" href="#" title="5">5分钟</a>
+    <a class="timeGape" href="#" title="10">10分钟</a>
+    <a class="timeGape" href="#" title="30">30分钟</a>
+    <a class="timeGape" href="#" title="60">60分钟</a>
+</div>
+<div id="balance"></div>
+
+<br/>
+<form id="adjustForm" action="#" method="post" title="">
+    价格偏差：
+    <table id="table_adjPrice" cellpadding=0   cellspacing=0 >
+
+    </table>
+    <br><br>
+    <input type="button" id="setPrice" value="设置偏差" style="width:70px;height: 30px"/> &nbsp;&nbsp;&nbsp;
+    <input type="button" id="stop" value="停止" style="width:70px;height: 30px"/>&nbsp;&nbsp;&nbsp;
+    <input type="button" id="start" value="启动" style="width:70px;height: 30px"/>
+    <div id="retMsg" style="color: red;"></div>
+</form>
+<div id="rootLog" class="console" > </div>
+
+<div th:replace="/footer.html" ></div>
+
+<script th:src="@{/js/echarts.min.js}" ></script>
+<script th:src="@{/js/index.js}" ></script>
+<script th:src="@{/js/chat_room/sockjs.min.js}"></script>
+<script th:src="@{/js/chat_room/stomp.min.js}"></script>
+<script th:src="@{/js/chat_room/stomp_manager.js}"></script>
+</body>
+</html>

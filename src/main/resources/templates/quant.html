@@ -1,0 +1,17 @@
+<!DOCTYPE html >
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title th:replace="/resources.html" ></title>
+    <link th:href="@{'/'+${#objects.nullSafe(session.PAGE_SKIN,'')}+'css/index.css'}" rel="stylesheet">
+    <title>量化交易</title>
+</head>
+<body onbeforeunload="">
+<div th:replace="/header.html" ></div>
+<div>
+
+</div>
+
+<div th:replace="/footer.html" ></div>
+
+</body>
+</html>

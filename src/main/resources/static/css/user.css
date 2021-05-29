@@ -1,0 +1,85 @@
+/* 注册/登录 start */
+.content-all .rs-box-left{
+    width: 42%;
+    height: 100%;
+    min-height: 500px;
+    display: inline-block;
+    float: left;
+    margin-left: 25px;
+}
+.content-all .rs-box-left P{
+    width: 100%;
+    height: 100%;
+}
+.content-all .rs-box-left P.signin-bg{
+    height: 565px;
+    /*background: url("../images/res/res_signin_bg.jpg") no-repeat left center; */
+}
+.content-all .rs-box-left .register-bg{
+    height: 565px;
+    background: url("../images/res/res_register_bg.jpg") no-repeat left center;
+}
+.content-all .rs-box-left P img{
+    border: 1px solid #737373;
+}
+.content-all .rs-box-right{
+    width: 50%;
+    height: 100%;
+    float: right;
+    margin-right: 25px;
+}
+.content-all .rs-box-right .title-container{
+    width: 100%;
+    height: auto;
+}
+.content-all .rs-box-right .title-container .title{
+    width: 100%;
+    height: 30px;
+    line-height: 30px;
+    font-size: 20px;
+}
+.content-all .rs-box-right .content{
+    width: 100%;
+    height: auto;
+    font-size: 12px;
+}
+.content-all .rs-box-right .content #retrieve_by_mobile{
+    display: inline-block;
+}
+.content-all .rs-box-right .content #retrieve_by_email{
+    display: none;
+}
+.content-all .rs-box-right .bottom-line{
+    border-bottom: 1px dashed #0A0A0A;
+}
+.content-all .rs-box-center{
+    float: none;
+    margin: 0 25% 0 25%;
+}
+.content-all .rs-box-right .checkbox-label{
+    margin: 8px 0 8px 0;
+}
+.content-all .rs-box-right #is_auto_sign_desc{
+    margin-left: 10px;
+}
+.content-all .rs-box-right .submit-form-line input[type="submit"]{
+    width: 188px;
+    height: 38px;
+    background: url(../images/submit_btn_bg.png) no-repeat center top transparent;
+    border-radius: 23px;
+    font-size: 16px;
+    font-weight: bold;
+    margin: 0;
+    box-shadow: 0 3px 3px rgba(0,0,0,0.175);
+}
+.content-all .rs-box-right .submit-form-line input[type="submit"]:hover{
+    background: url(../images/submit_btn_bg.png) no-repeat center -50px transparent;
+}
+.content-all .rs-box-right .submit-form-line input[type="submit"]:active{
+    box-shadow: 0 2px 1px rgba(0,0,0,0.175);
+}
+.content-all .rs-box-right .submit-form-line .form-link{
+    height: 22px;
+    line-height: 22px;
+    margin: 8px 0 8px 10px;
+}

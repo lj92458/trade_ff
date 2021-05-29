@@ -1,0 +1,107 @@
+#---------------------------       prd       ------------------------------------------------
+#余额文件的路径
+balanceFilePath: /var/trade/logs/balance.txt
+
+
+spring:
+  datasource:
+    type: com.zaxxer.hikari.HikariDataSource
+    url: jdbc:sqlite:/var/trade/db/trade_coin2coin.db
+    username:
+    password:
+    hikari: #Springboot2.0以后默认数据库连接池选择了Hikari（性能高）
+      pool-name: Retail_HikariCP
+      minimum-idle: 5 #最小空闲连接数量
+      idle-timeout: 600000 #空闲连接存活最大时间，默认600000（10分钟）
+      maximum-pool-size: 10 #连接池最大连接数，默认是10
+      auto-commit: true  #此属性控制从池返回的连接的默认自动提交行为,默认值：true
+      max-lifetime: 1800000 #此属性控制池中连接的最长生命周期，值0表示无限生命周期，默认1800000即30分钟
+      connection-timeout: 30000 #数据库连接超时时间,默认30秒，即30000
+      connection-test-query: SELECT 1
+
+properties.location: classpath:application-dev.yml
+
+chat.maxHistory:  3
+
+trade:
+  core.package: com.liujun.trade_ff.core
+  goods: BTC #交易哪种商品
+  money: USD #用哪种货币完成交易
+  formatGoodsStr: 0.000000
+  formatMoneyStr: 0.00
+  earnMoney: false #赚取什么？钱还是货
+  minCoinNum: 0.0001 #买卖币时，最小交易金额。如果是合约，最少买一手
+  moneyPrice: 6.46 #计价货币值多少人民币
+  marketOrderSize: 100 #获取市场深度时，买单、卖单分别获取多少个？【对okcoin有效,chbtc固定是50】
+  orderStepLength: 0.000001 #查询市场挂单时， 按价格合并订单，例如：0.1或0.001(只保留一位有效数字,例如0.03。不能是0.123456，) 比特币价格高，太小的差距显得没有意义。建议为万一到万五.
+  #交易一次(不包含"调节商品数量"等特殊交易)，最少要赚多少人民币？如果扣除了各种成本，那么一毛钱也值得赚。亏损频率越高，atLeastEarn就应该越高。
+  # 如果是dex交易所，考虑到矿工费：uniswap是：122694Gas，gas费76GW，总共0.009325eth 如果执行失败，需要0.0058228eth，那么就是eth数量乘以价格
+  atLeastEarn: 50
+  atLeastRate: 0.005 #最低利润率(差价除以价格)，跟滑点有关：因为uniswap上面建议的滑点是0.5%,比原链超导兑换建议1%
+  positionRate: 1 #仓位上限，占余额的比例。0.5表示50%，那么下跌2/3时爆仓。1表示100%，那么下跌50%时爆仓
+time_queryOrder: 3 #间隔多久查询一次市场挂单.【单位：秒】
+time_oneCycle: 13 #每循环一次，最大允许占用的时间.【单位：秒】
+time_sleep: 1000 #每次对平台进行写操作后，休眠时间.【单位：毫秒】
+
+
+waitSecondAfterException: 3 #如果抛出异常，暂停多少秒？【单位：秒】
+trade_model: simple #采取哪种模式匹配订单？simple, exact
+time_beginBalance: 0 #每天几点开始记录余额【单位：小时】
+time_waitBalance: 6 #间隔多久,记录余额？ 【单位：小时】
+
+######################       平台相关的配置            #########################################
+#-------------okcoin-------------------------------
+okcoin:
+  apiKey: 9120a61b-98f9-4217-8a35-f2bad9fdee5d
+  secretKey: B2787E9B97409B539B206AEAE056A46F
+  url: https://www.okex.com
+  passphrase: liujun924586
+  feeRate: 0.0015
+
+okcoinF: #期货标的
+  underlying: BTC-USD
+  alias: quarter #期货类别。本周 this_week  次周 next_week  季度 quarter  次季度 bi_quarter
+  feeRate: 0.0005
+okcoinF2.alias: bi_quarter
+#------------chbtc-------------------------------
+chbtc.apiKey: 0d55320a-141d-41ac-98c7-1bea8ba5c820
+chbtc.secretKey: 92afa14f-3c53-4b03-b9a5-84c881aef98f
+#------------btce -----------------
+btce.apiKey: 4ULE8CE2-W04270M7-EBSNA653-7JRRDCUZ-9TALW0DI
+btce.secretKey: 3dc69727529ae4ff59f440181137360841339ea505c0d6d5bf1e1a1513c703a5
+#------------btcchina -----------------
+btcchina.apiKey: a92b39d1-dad8-4ba6-8e4d-967c1bd80469
+btcchina.secretKey: f093f92f-aa04-4677-bd0a-d57572781125
+  #--------- bitfinex liujun1----------------
+  #bitfinex.apiKey: yqumV6MvnzbxvJ7A8QQIXNEgFH0SIEMMOvRVNlH0D9D
+  #bitfinex.secretKey: nsyeE74vZGC6HFQAC868TBGMh5GE4SeVvcJamw5fMMq
+#---------  bitfinex liujun2
+bitfinex.apiKey: ZiPkmu74WueMT8Ewo0ckRt8MBU9QIRH44AeajOc6Vfa
+bitfinex.secretKey: Os8W2NBsOknX86zdwwZMeY9KmimzsPPP1TJBwRsH5Fn
+#------------huobi -----------------
+huobi.apiKey: vfd5ghr532-b7b99598-fb760722-98117
+huobi.secretKey: 0d4d0ced-221743d0-d83b34d6-952d1
+huobi.feeRate: 0.002
+huobi.url: https://api.huobi.com
+#------------poloniex-----------------------  https://poloniex.com/support/api/    https://github.com/TheCookieLab/poloniex-api-java
+poloniex.apiKey: 2T6JBKDG-QKWFZK6R-8L9P74W0-LHFC7ILZ
+poloniex.secretKey: a620d6783c2e8d806f8c1b3254d0c73a03f7efe75466f08e6cc96212200610ad651c73a3722e340c409f0a8741741b519305a5f3defd3832aedb10e47bf39f4c
+# ---------  binance  ------
+binance.apiKey: 1mAOQOu33xJixjS2yI7BpT1w0QsVCKPdLYS5RbQOYBPDuug5VxQXnWtmOe0FjhsA
+binance.secretKey: 8StAUYBofm79mKfil9rRTgwePOKGMVYvSH4bnUJHCXbL9qW7qlYLxzWNCFlneX2W
+binance.feeRate: 0.001
+binance.url: https://api.binance.com
+#合约交易，币本位
+binanceF.url: https://dapi.binance.com
+binanceF.feeRate: 0.0004
+#合约类型：本季：CURRENT_QUARTER， 下季：NEXT_QUARTER， 永续合约：PERPETUAL
+binanceF.contractType: CURRENT_QUARTER
+binanceF.pair: BTCUSD
+  #-------------uniswap-------------------------------gas limit: 162773，实际使用：122694，总共0.009325eth
+#矿工费21元人民币。要求利润大于这个数，才能交易。
+uniswap.apiKey:
+uniswap.secretKey:
+uniswap.url: http://127.0.0.1:8090
+uniswap.ethAddress: 0xB0d1435590B4f14A5f4414f93489945546162ffc
+uniswap.feeRate: 0
+uniswap.gasPercent: 1.2

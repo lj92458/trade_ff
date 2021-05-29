@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<conf>
+    <!-- 启用的平台 -->
+    <enablePlat>okcoinF,binanceF</enablePlat>
+    <!-- 开仓时，两个平台之间的差价。跟配置文件中平台出现的先后顺序有关：用前一个平台减后一个 -->
+    <openPriceGap>0</openPriceGap>
+    <lastChange>2016-01-02 10:01:01</lastChange>
+    
+    <!-- changePrice属性为：为了在差价长期不出现反转的平台之间搬运，给查询到的市场挂单价格减去该值，给发送出去的订单加上该值。 -->
+    <!-- changePrice = 平台的价格 - 平均值    -->
+    
+    <!-- 币从huobi平台流向其它平台时需满足 的最小差价 -->
+    <huobi changePrice="0">
+        <okcoin>0.0</okcoin>
+        <binance>0.0</binance>
+        <okcoinF>0.0</okcoinF>
+        <binanceF>0.0</binanceF>
+    </huobi>
+    <!-- 币从okcoin平台流向其它平台时需满足 的最小差价 -->
+    <okcoin changePrice="0">
+        <okcoinF>0.0</okcoinF>
+        <huobi>0.0</huobi>
+        <binance>0.0</binance>
+        <binanceF>0.0</binanceF>
+    </okcoin>
+    <binance changePrice="0">
+        <okcoinF>0.0</okcoinF>
+        <huobi>0.0</huobi>
+        <okcoin>0.0</okcoin>
+        <binanceF>0.0</binanceF>
+    </binance>
+    <okcoinF changePrice="0">
+        <okcoin>0.0</okcoin>
+        <huobi>0.0</huobi>
+        <binance>0.0</binance>
+        <binanceF>0.0</binanceF>
+    </okcoinF>
+    <binanceF changePrice="0">
+        <okcoinF>0.0</okcoinF>
+        <huobi>0.0</huobi>
+        <okcoin>0.0</okcoin>
+        <binance>0.0</binance>
+    </binanceF>
+    <!-- 第一条余额记录。格式：时间,总收入,本次收入,当前money,当前btc,okcoinMoney,okcoinGoods,chbtcMoney,chbtcGoods,当前价格, -->
+    <firstBalance>dateTime:2021-05-11 00:00:00,totalEarn:0,thisEarn:0,totalMoney:-1410900,totalGoods:26.8594,{okcoinMoney:0,okcoinGoods:0.0018,binanceFMoney:0,binanceFGoods:26.392497},price:55270,</firstBalance>
+</conf>

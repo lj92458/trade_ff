@@ -1,0 +1,74 @@
+.content-all{
+    text-align: center;
+}
+.content-all .error-page-content{
+    width: 360px;
+    height: auto;
+    display: inline-block;
+    margin: 50px 0 100px 0;
+    font-size: 12px;
+}
+
+.content-all .error-page-content .up{
+    width: 100%;
+    height: 120px;
+    background: url(../images/error/error_page_bg.png) no-repeat left center;
+}
+
+.content-all .error-page-content .down{
+    width: 100%;
+    height: auto;
+    min-height: 50px;
+    background-color: #FFF;
+    padding: 10px 0 10px 0;
+}
+.content-all .error-page-content .down .content{
+    width: 100%;
+    height: auto;
+    text-align: left;
+}
+
+.content-all .error-page-content .down .content span{
+    width: 90%;
+    height: 30px;
+    line-height: 30px;
+    color: #a36019;
+    font-size: 14px;
+    font-weight: bold;
+    display: inline-block;
+    padding: 0 5% 0 5%;
+}
+.content-all .error-page-content .down .content P{
+    width: 90%;
+    height: 50px;
+    line-height: 25px;
+    padding: 0 5% 0 5%;
+    color: #666;
+}
+
+.content-all .error-page-content .down .buttons{
+    width: 90%;
+    height: 30px;
+    line-height: 30px;
+    padding: 0 5% 0 5%;
+    text-align: left;
+}
+
+.content-all .error-page-content .down .buttons A{
+    height: 24px;
+    line-height: 24px;
+    background-color: #b27a32;
+    border: 1px solid #b27a32;
+    color: #FFFFFF;
+    display: inline-block;
+    padding: 0 10px 0 10px;
+    margin: 0 20px 0 0;
+}
+.content-all .error-page-content .down .buttons A:HOVER{
+    background-color: #a36019;
+    border: 1px solid #a36019;
+    color: #FFFFFF;
+}
+.content-all .error-page-content .down .buttons A:VISITED{
+    color: #FFFFFF;
+}

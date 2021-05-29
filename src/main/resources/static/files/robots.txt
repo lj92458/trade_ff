@@ -1,0 +1,27 @@
+# robots.txt
+User-agent: Slurp
+Disallow: /
+User-agent: Teoma
+Disallow: /
+User-agent: ia_archiver
+Disallow: /
+User-agent: twiceler
+Disallow: /
+User-agent: MSNBot
+Disallow: /
+User-agent: Scrubby
+Disallow: /
+User-agent: Robozilla
+Disallow: /
+User-agent: Gigabot
+Disallow: /
+User-agent: *
+Disallow: 
+Disallow: /account/
+Disallow: /checkout/
+Disallow: /user/
+Disallow: /callback/
+Disallow: /common/
+Disallow: /pay/
+Disallow: /service/
+Sitemap: https://www.lifegolds.com/sitemap.xml

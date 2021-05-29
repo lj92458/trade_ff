@@ -1,0 +1,31 @@
+debug: false
+logging.config: classpath:logback-spring.xml
+
+server:
+  port: 8080
+  servlet:
+    context-path: /trade_ff
+    session:
+      timeout: P0DT0H0M300.0S #300秒，必须是合法的Duration
+
+
+spring:
+  profiles.active: dev
+  messages:
+    basename: languages/messages
+    cache-duration: -1
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 40960
+      max-request-size: 20971520
+  devtools:
+    restart:
+      enabled: true
+
+
+mybatis:
+  mapper-locations: classpath*:mybatis/sqlMap/**/*Mapper.xml
+  config-location:  classpath:mybatis/mybatis-config.xml
+
+

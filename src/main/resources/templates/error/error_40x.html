@@ -1,0 +1,32 @@
+<!DOCTYPE html >
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+	<title th:replace="/resources.html" ></title>
+<link th:href="@{/css/error.css}" rel="stylesheet">
+<title>资源不存在或无法访问 </title>
+</head>
+<body>
+
+<div th:replace="/header.html" ></div>
+
+<div class="content-all">
+	<div class="error-page-content">
+		<div class="up"></div>
+		<div class="down">
+			<div class="content">
+				<span>404：</span>
+				<p>抱歉，页面不存在或无权限访问...</p>
+			</div>
+			<div class="buttons">
+				<a href="javascript:go(-1)">返回上一页</a>
+				<a th:href="@{/index.html}">返回首页</a>
+			</div>
+		</div>
+	</div>
+</div>
+
+
+<div th:replace="/footer.html" ></div>
+
+</body>
+</html>

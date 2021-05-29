@@ -1,0 +1,17 @@
+<!DOCTYPE html >
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title th:replace="/resources.html" ></title>
+    <link th:href="@{'/'+${#objects.nullSafe(session.PAGE_SKIN,'')}+'css/index.css'}" rel="stylesheet">
+    <title>期现套利</title>
+</head>
+<body onbeforeunload="">
+<div th:replace="/header.html" ></div>
+<div>
+    【期现套利】：风险高，收益高。有待研究
+    https://www.jianshu.com/p/527172733e01
+</div>
+<div th:replace="/footer.html" ></div>
+
+</body>
+</html>

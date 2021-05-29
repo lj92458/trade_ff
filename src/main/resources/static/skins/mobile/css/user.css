@@ -1,0 +1,61 @@
+/* 注册/登录 start */
+.content-all .rs-box-right{
+    width: 98%;
+    height: 100%;
+    float: right;
+    margin: 0 1% 0 1%;
+}
+.content-all .rs-box-right .title-container{
+    width: 100%;
+    height: auto;
+}
+.content-all .rs-box-right .title-container .title{
+    width: 100%;
+    height: 30px;
+    line-height: 30px;
+    font-size: 20px;
+}
+.content-all .rs-box-right .content{
+    width: 100%;
+    height: auto;
+    font-size: 12px;
+}
+.content-all .rs-box-right .content #retrieve_by_mobile{
+    display: inline-block;
+}
+.content-all .rs-box-right .content #retrieve_by_email{
+    display: none;
+}
+.content-all .rs-box-right .bottom-line{
+    border-bottom: 1px dashed #0A0A0A;
+}
+.content-all .rs-box-right .checkbox-label{
+    margin: 8px 0 8px 0;
+}
+.content-all .rs-box-right #is_auto_sign_desc{
+    margin-left: 10px;
+}
+.content-all .rs-box-right .form-line{
+    margin-top: 0;
+}
+.content-all .rs-box-right .form-line span{
+    display: inline-block;
+    height: 20px;
+    line-height: 20px;
+    width: 182px;
+    padding: 0 3px 0 3px;
+    margin: 0 0 0 80px;
+    text-align: left;
+}
+.content-all .rs-box-right .content-center{
+    text-align: center;
+    display: block;
+}
+.content-all .rs-box-right .content-center *{
+    float: none;
+}
+.content-all .rs-box-right .submit-form-line .form-link{
+    height: 22px;
+    line-height: 22px;
+    margin: 8px 0 8px 10px;
+}

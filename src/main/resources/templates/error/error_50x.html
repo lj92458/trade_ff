@@ -1,0 +1,32 @@
+<!DOCTYPE html >
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<title th:replace="/resources.html" ></title>
+<link th:href="@{/css/error.css}" rel="stylesheet">
+<title>服务器内部错误 </title>
+</head>
+<body>
+
+<div th:replace="/header.html" ></div>
+
+<div class="content-all">
+	<div class="error-page-content">
+		<div class="up"></div>
+		<div class="down">
+			<div class="content">
+				<span>Error [${errCode}]：</span>
+				<p th:text="${errMsg}"></p>
+			</div>
+			<div class="buttons">
+				<a href="javascript:history.go(-1)">返回上一页</a>
+				<a th:href="@{/index.html}">返回首页</a>
+			</div>
+		</div>
+	</div>
+</div>
+
+
+<div th:replace="/footer.html" ></div>
+
+</body>
+</html>

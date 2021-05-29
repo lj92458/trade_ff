@@ -1,0 +1,71 @@
+<!-- header start -->
+<html xmlns:th="http://www.thymeleaf.org" lang="zh">
+<script type="text/javascript" th:src="@{/js/js.cookie.js}"></script>
+<script type="text/javascript" th:inline="javascript">
+    var contextPath = "[(@{/})]";
+</script>
+
+<!-- header start -->
+<div class="header-all">
+
+        <div class="header-top" th:if="${session.PAGE_SKIN ne '/skins/mobile'}">
+            <div class="header-top-inner">
+                <div class="account-area">
+                    <span th:if="${session.userAccount eq null}">
+                        <a th:href="@{/user/signin.html}">登录</a>
+                        <a href="#">注册</a>
+                    </span>
+                    <span th:if="${session.userAccount ne null}">
+                        <em>欢迎您，</em><a href="#" th:text="${session?.userAccount?.userAccount}"></a>
+                        <a th:href="@{/user/signout.html}" style="color:#a41e22">[退出]</a>
+                    </span>
+
+                </div>
+
+            </div>
+        </div>
+
+    <!-- <div class="header-top-bg"></div> -->
+    <div class="header-content">
+        <div class="nav-menu-main">
+            <a href="javascript:void(0)"></a>
+        </div>
+
+        <div class="nav-main">
+            <span th:if="${session.PAGE_SKIN eq '/skins/mobile'}">
+                <div class="mob-nav-top">
+                    <span class="shopping-cart-area">
+                        <!--<a href="#" class="shopping-bag-link"><em id="shopping_bag_count">0</em></a> -->
+                        <a class="nav-close"></a>
+                    </span>
+
+                    <span class="account-area">
+                    <span th:if="${session.userAccount eq null}">
+                        <a class="btn" th:href="@{/user/signin.html}">登录</a>
+                        <a class="btn" href="#">注册</a>
+                    </span>
+                    <span th:if="${session.userAccount ne null}">
+                        <em class="nick-name">欢迎您，${session.userAccount.userAccount}</em>
+                        <a class="sign-out" th:href="@{/user/signout.html}">[退出]</a>
+                    </span>
+                </span>
+                </div>
+            </span>
+            <ul class="nav-box">
+
+                <li><a th:href="@{/index.html}">跨平台对冲</a></li>
+                <li><a th:href="@{/menu_over_coin.html}">跨币种对冲</a></li>
+                <li><a th:href="@{/menu_over_futuer.html}">期现对冲</a></li>
+                <li><a th:href="@{/menu_quant.html}">量化交易Quant</a></li>
+                <li><a th:href="@{/menu_low_rate.html}">低频策略</a></li>
+                <li><a th:href="@{/menu_cfmm.html}">恒定函数CFMM</a></li>
+                <li><a th:href="@{/menu_dex.html}">dex交易</a></li>
+            </ul>
+
+        </div>
+        <div class="logo-main">
+            <a th:href="@{/index.html}"></a>
+        </div>
+    </div>
+</div>
+<!-- header end -->

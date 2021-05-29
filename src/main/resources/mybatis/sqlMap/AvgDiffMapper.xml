@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.liujun.trade_ff.dao.AvgDiffMapper">
+  <resultMap id="BaseResultMap" type="com.liujun.trade_ff.model.AvgDiff">
+    <id column="date_time" jdbcType="VARCHAR" property="dateTime" />
+    <id column="plat_name" jdbcType="VARCHAR" property="platName" />
+    <result column="diff_price" jdbcType="FLOAT" property="diffPrice" />
+  </resultMap>
+  <sql id="Base_Column_List">
+    date_time, plat_name, diff_price
+  </sql>
+  <select id="selectByPrimaryKey" parameterType="com.liujun.trade_ff.model.AvgDiffKey" resultMap="BaseResultMap">
+    select 
+    <include refid="Base_Column_List" />
+    from avg_diff
+    where date_time = #{dateTime,jdbcType=VARCHAR}
+      and plat_name = #{platName,jdbcType=VARCHAR}
+  </select>
+  <delete id="deleteByPrimaryKey" parameterType="com.liujun.trade_ff.model.AvgDiffKey">
+    delete from avg_diff
+    where date_time = #{dateTime,jdbcType=VARCHAR}
+      and plat_name = #{platName,jdbcType=VARCHAR}
+  </delete>
+  <insert id="insert" parameterType="com.liujun.trade_ff.model.AvgDiff">
+    insert into avg_diff (date_time, plat_name, diff_price
+      )
+    values (#{dateTime,jdbcType=VARCHAR}, #{platName,jdbcType=VARCHAR}, #{diffPrice,jdbcType=FLOAT}
+      )
+  </insert>
+  <insert id="insertSelective" parameterType="com.liujun.trade_ff.model.AvgDiff">
+    insert into avg_diff
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+      <if test="dateTime != null">
+        date_time,
+      </if>
+      <if test="platName != null">
+        plat_name,
+      </if>
+      <if test="diffPrice != null">
+        diff_price,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+      <if test="dateTime != null">
+        #{dateTime,jdbcType=VARCHAR},
+      </if>
+      <if test="platName != null">
+        #{platName,jdbcType=VARCHAR},
+      </if>
+      <if test="diffPrice != null">
+        #{diffPrice,jdbcType=FLOAT},
+      </if>
+    </trim>
+  </insert>
+  <update id="updateByPrimaryKeySelective" parameterType="com.liujun.trade_ff.model.AvgDiff">
+    update avg_diff
+    <set>
+      <if test="diffPrice != null">
+        diff_price = #{diffPrice,jdbcType=FLOAT},
+      </if>
+    </set>
+    where date_time = #{dateTime,jdbcType=VARCHAR}
+      and plat_name = #{platName,jdbcType=VARCHAR}
+  </update>
+  <update id="updateByPrimaryKey" parameterType="com.liujun.trade_ff.model.AvgDiff">
+    update avg_diff
+    set diff_price = #{diffPrice,jdbcType=FLOAT}
+    where date_time = #{dateTime,jdbcType=VARCHAR}
+      and plat_name = #{platName,jdbcType=VARCHAR}
+  </update>
+  <select id="select"  resultMap="BaseResultMap">
+    select
+    <include refid="Base_Column_List" />
+    from avg_diff
+    where date_time >= #{beginTime,jdbcType=VARCHAR}
+    and plat_name = #{plat,jdbcType=VARCHAR}
+    and cast(strftime('%M',date_time) as int )%#{timeUnit,jdbcType=INTEGER}==0
+    order by date_time
+  </select>
+
+
+</mapper>

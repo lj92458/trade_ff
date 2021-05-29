@@ -1,0 +1,31 @@
+table {
+    display: inline-table;
+    text-align: left;
+    border-collapse: collapse;
+
+}
+
+table tr, table td {
+    border: 0px black;
+    border-style: solid;
+
+}
+
+input {
+    border-bottom: 1px solid black;
+    margin: 3px;
+}
+
+.console{
+    height: 300px;
+    width: 1500px;
+    background: black;
+    color: white;
+    text-align: left;
+    overflow: hidden;
+}
+.console div{
+    text-align: left;
+    overflow: hidden;
+}
+

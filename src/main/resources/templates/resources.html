@@ -1,0 +1,54 @@
+<html xmlns:th="http://www.thymeleaf.org" lang="zh">
+<link rel="shortcut icon" th:href="@{/images/favicon.ico}" type="image/x-icon">
+<meta name="force-rendering" contect="webkit">
+<meta name="renderer" content="webkit">
+<meta http-equiv="X-UA-Compatible" content="chrome=1">
+<meta charset="utf-8">
+<meta name="keywords" content="${seoKeyWords}" />
+<meta name="description" content="${seoDescription}" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width,initial-scale=1, user-scalable=no">
+<meta name="format-detection" content="telephone=no" />
+
+<link th:href="@{'/'+${#objects.nullSafe(session.PAGE_SKIN,'')}+'css/comm.css'}" rel="stylesheet">
+
+    <script th:if="${session.PAGE_SKIN eq '/skins/mobile'}" type="text/javascript" th:src="@{'/'+${#objects.nullSafe(session.PAGE_SKIN,'')}+'js/fastclick.js'}"></script>
+
+
+<script type="text/javascript" th:src="@{/js/jquery-3.5.1.min.js}"></script>
+
+
+
+<script type="text/javascript" th:src="@{'/'+${#objects.nullSafe(session.PAGE_SKIN,'')}+'js/common.js'}"></script>
+<script type="text/javascript" th:src="@{/js/md5_util.js}"></script>
+
+<!--[if lte IE 9]>
+<style type="text/css">
+html{
+    overflow: auto !important;
+}
+body{
+    margin: 0 !important;
+}
+.content-all{
+    min-height: 500px !important;
+}
+.footer-all{
+    position: relative !important;
+}
+input[type=checkbox]{
+    visibility: visible !important;
+    display: inline-block !important;
+}
+.checkbox-label{
+    display: none !important;
+}
+.nav-main .nav-box{
+    width: 800px;
+}
+.footer-content .footer-down .contact UL{
+    width: 80% !important;
+}
+</style>
+<![endif]-->
+

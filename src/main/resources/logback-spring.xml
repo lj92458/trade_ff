@@ -1,0 +1,217 @@
+<configuration scan="true" scanPeriod="30 seconds">
+    <property name="log.base" value="/var/trade/logs"/>
+    <property name="pattern"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{sessionId}] %-5level [%thread] %logger{80} :%msg%n"/>
+
+    <!-- 控制台输出 -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${pattern}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- webSocket 输出 -->
+    <appender name="root_webSocket" class="ch.qos.logback.core.OutputStreamAppender">
+        <outputStream name="webSocketOutputStream" class="com.liujun.trade_ff.common.logback.WebSocketOutputStream">
+            <destination>/topic/rootLog</destination>
+        </outputStream>
+        <encoder>
+            <pattern>%-5level [%thread] :%msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!--根日志  -->
+    <appender name="ROOT_FILE"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${log.base}/trade-root.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${log.base}/%d{yyyy-MM-dd}/trade-root-%i.%d{yyyy-MM-dd}.log.gz
+            </fileNamePattern>
+            <maxFileSize>30MB</maxFileSize>
+            <maxHistory>60</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${pattern}</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="exception"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${log.base}/trade-exception.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${log.base}/%d{yyyy-MM-dd}/trade-exception-%i.%d{yyyy-MM-dd}.log.gz
+            </fileNamePattern>
+            <maxFileSize>30MB</maxFileSize>
+            <maxHistory>60</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${pattern}</pattern>
+        </encoder>
+    </appender>
+
+
+    <!-- 可搬运-日志Appender定义 -->
+    <appender name="need_trade"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${log.base}/need_trade.txt</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${log.base}/%d{yyyy-MM-dd}/need_trade.txt.%i
+            </fileNamePattern>
+            <maxFileSize>30MB</maxFileSize>
+            <maxHistory>60</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${pattern}</pattern>
+        </encoder>
+    </appender>
+
+
+    <!-- 已搬运-日志Appender定义 -->
+    <appender name="have_trade"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${log.base}/have_trade.txt</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${log.base}/%d{yyyy-MM-dd}/have_trade.txt.%i
+            </fileNamePattern>
+            <maxFileSize>30MB</maxFileSize>
+            <maxHistory>60</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${pattern}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 差价-日志Appender定义 -->
+    <appender name="diff_price"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${log.base}/diff_price.txt</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${log.base}/%d{yyyy-MM-dd}/diff_price.txt.%i
+            </fileNamePattern>
+            <maxFileSize>30MB</maxFileSize>
+            <maxHistory>60</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${pattern}</pattern>
+        </encoder>
+    </appender>
+    <!-- 各平台价格与平均值之间的偏差-日志Appender定义 -->
+    <appender name="avgDiff"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${log.base}/avgDiff.txt</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${log.base}/%d{yyyy-MM-dd}/avgDiff.txt.%i
+            </fileNamePattern>
+            <maxFileSize>30MB</maxFileSize>
+            <maxHistory>60</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+        <encoder>
+            <pattern>{time:'%d{yyyy-MM-dd HH:mm}:00', %msg }%n</pattern>
+        </encoder>
+
+
+    </appender>
+    <!-- 限价调整日志 -->
+    <appender name="changeLimit"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${log.base}/changeLimit.txt</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${log.base}/%d{yyyy-MM-dd}/changeLimit.txt.%i
+            </fileNamePattern>
+            <maxFileSize>30MB</maxFileSize>
+            <maxHistory>60</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${pattern}</pattern>
+        </encoder>
+    </appender>
+    <!-- 应用 Logger节点定义======================================================== -->
+
+    <logger name="need_trade" level="info" additivity="false">
+        <appender-ref ref="root_webSocket"/>
+        <appender-ref ref="ROOT_FILE"/>
+
+        <appender-ref ref="need_trade"/>
+    </logger>
+
+    <logger name="have_trade" level="info" additivity="false">
+        <appender-ref ref="root_webSocket"/>
+        <appender-ref ref="ROOT_FILE"/>
+
+        <appender-ref ref="have_trade"/>
+    </logger>
+
+    <logger name="diff_price" level="error" additivity="false">
+        <appender-ref ref="root_webSocket"/>
+        <appender-ref ref="ROOT_FILE"/>
+
+        <appender-ref ref="diff_price"/>
+    </logger>
+    <logger name="avgDiff" level="info" additivity="false">
+        <appender-ref ref="avgDiff"/>
+    </logger>
+    <logger name="changeLimit" level="info" additivity="false">
+        <appender-ref ref="root_webSocket"/>
+        <appender-ref ref="ROOT_FILE"/>
+
+        <appender-ref ref="changeLimit"/>
+
+    </logger>
+    <!-- 日志过滤 -->
+    <logger name="org.springframework">
+        <level value="INFO"/>
+    </logger>
+    <logger name="java.sql">
+        <level value="INFO"/>
+    </logger>
+    <logger name="org.apache">
+        <level value="INFO"/>
+    </logger>
+
+    <logger name="jdbc.sqltiming">
+        <level value="INFO"/>
+    </logger>
+    <logger name="jdbc.sqlonly">
+        <level value="OFF"/>
+    </logger>
+    <logger name="jdbc.audit">
+        <level value="OFF"/>
+    </logger>
+    <logger name="jdbc.resultset">
+        <level value="OFF"/>
+    </logger>
+    <logger name="jdbc.connection">
+        <level value="OFF"/>
+    </logger>
+    <logger name="org.jdbcdslog.StatementLogger">
+        <level value="WARN"/>
+    </logger>
+    <logger name="org.jdbcdslog.ResultSetLogger">
+        <level value="WARN"/>
+    </logger>
+
+    <logger name="org.springframework.jms.listener.DefaultMessageListenerContainer" level="debug" additivity="false">
+        <appender-ref ref="STDOUT"/>
+    </logger>
+
+    <!-- root级别控制 -->
+    <root level="info">
+        <!-- <appender-ref ref="STDOUT"/> -->
+        <appender-ref ref="ROOT_FILE"/>
+        <appender-ref ref="root_webSocket"/>
+    </root>
+</configuration>
