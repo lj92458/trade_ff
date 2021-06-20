@@ -11,7 +11,7 @@ import org.springframework.context.annotation.ImportResource;
 import org.springframework.core.io.ClassPathResource;
 
 @SpringBootApplication
-public class TradeFfApplication {
+public class TradeFfApplication {//不好归类的配置就放在这里
 
 	public static void main(String[] args) {
 		SpringApplication.run(TradeFfApplication.class, args);

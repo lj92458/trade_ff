@@ -60,11 +60,7 @@
             <scope>test</scope>
         </dependency>
 
-        <dependency><!-- 以前的Java项目中，充斥着太多不友好的代码：POJO的getter/setter/toString；异常处理；I/O流的关闭操作等等，
-		这些样板代码既没有技术含量，又影响着代码的美观，Lombok应运而生。SpringBoot和IDEA官方都要支持它！ -->
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-        </dependency>
+
 
         <!-- spring websocket -->
         <dependency>
