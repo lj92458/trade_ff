@@ -24,7 +24,8 @@
         <commons-logging.version>1.2</commons-logging.version>
         <jcaptcha.veresion>1.0</jcaptcha.veresion>
         <jackson.version>2.12.3</jackson.version>
-        <swagger.version>2.5.0</swagger.version>
+        <swagger.version>3.0.0</swagger.version>
+        <mybatis-plus.version>3.4.3</mybatis-plus.version>
     </properties>
     <dependencies>
         <!--
@@ -42,10 +43,22 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-thymeleaf</artifactId>
         </dependency>
-        <dependency><!-- mybatis会加载jdbc模块，会扫描所有的Mapper注解 -->
+        <!-- mybatis会加载jdbc模块，会扫描所有的Mapper注解
+        <dependency>
             <groupId>org.mybatis.spring.boot</groupId>
             <artifactId>mybatis-spring-boot-starter</artifactId>
             <version>2.1.4</version>
+        </dependency> -->
+        <!-- mybatis plus 代码生成器 -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-boot-starter</artifactId>
+            <version>${mybatis-plus.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-generator</artifactId>
+            <version>3.5.0</version>
         </dependency>
 
         <dependency>
@@ -92,23 +105,7 @@
             <optional>true</optional>
         </dependency>
 
-        <dependency>
-            <groupId>com.okcoin.commons</groupId>
-            <artifactId>okex-java-sdk-api</artifactId>
-            <version>1.0.0</version>
-            <exclusions>
-                <exclusion>
-                    <artifactId>slf4j-log4j12</artifactId>
-                    <groupId>org.slf4j</groupId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>com.huobi.sdk</groupId>
-            <artifactId>huobi-client</artifactId>
-            <version>1.0.14-SNAPSHOT</version>
 
-        </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>jcl-over-slf4j</artifactId>
