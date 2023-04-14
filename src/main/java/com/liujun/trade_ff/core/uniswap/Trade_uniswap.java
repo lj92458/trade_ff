@@ -67,11 +67,25 @@ public class Trade_uniswap extends Trade {
     private double gasPercent;
 
     @Value("${uniswap.feeRate}")
-    private double feeRate;
+    private double feeRate;// 对于uniswap来说，不要用feeRate调整挂单价格，因为返回的市场挂单价格，已经把手续费考虑进去了。
+    @Value("${uniswap.goods}")
+    private String goods;
+    @Value("${uniswap.money}")
+    private String money;
     private String coinPair;
     private double gasPriceGwei;
+    @Value("${uniswap.naitveToken}")
+    private String naitveToken;
     //------------------------
 
+    /**
+     * 计算资金池的手续费费率:用feeRate乘以一百万。PoolFee=500，表示百万分之500，也就是0.0005，也就是0.05%
+     *
+     * @return 100，500，3000，10000
+     */
+    private int getPoolFee() {
+        return new Double(feeRate * 100_0000).intValue();
+    }
 
     public Trade_uniswap(HttpUtil httpUtil, int platId, double usdRate, Prop prop, Engine engine) throws Exception {
         super(httpUtil, platId, usdRate, prop, engine);
@@ -84,13 +98,13 @@ public class Trade_uniswap extends Trade {
         this.config = new APIConfiguration();
         config.setUri(url_prex);
         config.setAddress(ethAddress);
-        config.setMaxWaitSeconds(80);
+        config.setMaxWaitSeconds(30);
 
         this.productAPIService = new ProductAPIServiceImpl(this.config);
         this.orderAPIService = new OrderApiServiceImpl(this.config);
         this.accountAPIService = new AccountAPIServiceImpl(this.config);
         this.walletAPIService = new WalletAPIServiceImpl(this.config);
-        coinPair = prop.goods + "-" + prop.money;
+        coinPair = goods + "-" + money;
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
@@ -114,7 +128,7 @@ public class Trade_uniswap extends Trade {
         depth.getAskList().clear();
         depth.getBidList().clear();
         try {
-            Book book = productAPIService.bookProductsByProductId(coinPair, prop.marketOrderSize + "", "" + prop.orderStepLength);
+            Book book = productAPIService.bookProductsByProductId(coinPair, prop.marketOrderSize + "", "" + (feeRate + 0.001), getPoolFee());
 
             // 卖方挂单
             List<String[]> askArr = book.getAsks();
@@ -138,7 +152,7 @@ public class Trade_uniswap extends Trade {
             }
 
             sort(depth);// 排序
-            changeMarketPrice(1 - feeRate, 1 + feeRate);
+            changeMarketPrice(1 - 0, 1 + 0);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了
             backupUsefulOrder();
             // 设置当前价格
             double askPrice = depth.getAskList().get(0).getPrice();
@@ -157,13 +171,13 @@ public class Trade_uniswap extends Trade {
     public void flushAccountInfo() throws Exception {
         try {
             AccountInfo accountInfo = new AccountInfo();
-            List<Account> list = accountAPIService.getAccounts(prop.goods, prop.money);
+            List<Account> list = accountAPIService.getAccounts(goods, money);
             for (Account acc : list) {
-                if (acc.getCurrency().equalsIgnoreCase(prop.goods)) {
+                if (acc.getCurrency().equalsIgnoreCase(goods)) {
                     accountInfo.setFreeGoods(Double.parseDouble(acc.getAvailable()));
                     accountInfo.setFreezedGoods(Double.parseDouble(acc.getHold()));
                 }
-                if (acc.getCurrency().equalsIgnoreCase(prop.money)) {
+                if (acc.getCurrency().equalsIgnoreCase(money)) {
                     accountInfo.setFreeMoney(Double.parseDouble(acc.getAvailable()));
                     accountInfo.setFreezedMoney(Double.parseDouble(acc.getHold()));
                 }
@@ -173,33 +187,18 @@ public class Trade_uniswap extends Trade {
             super.setAccInfo(accountInfo);
             //查询gas费，然后设置矿工费
             double[] priceArr;
-            //如果goods是eth，就直接采用当前市场价
-            if (prop.goods.equals("eth") && getCurrentPrice() != 0) {
-                double gasPrice = productAPIService.getGasPriceGweiAndEthPrice("eth")[0];
+            //如果goods是eth，就直接采用当前市场价。因为市场价综合考虑了多平台的价格。这好过直接从uniswap查询价格。
+            if (goods.equalsIgnoreCase(naitveToken) && getCurrentPrice() != 0) {
+                double gasPrice = productAPIService.getGasPriceGweiAndEthPrice(goods, getPoolFee())[0];
                 double ethPrice = getCurrentPrice();
                 priceArr = new double[]{gasPrice, ethPrice};
             } else {
-                priceArr = productAPIService.getGasPriceGweiAndEthPrice(prop.money);
+                priceArr = productAPIService.getGasPriceGweiAndEthPrice(money, getPoolFee());
             }
             this.gasPriceGwei = adjustGasPrice(priceArr[0]);
             double limit = 0;
-            /*
-            approve  44,339
-            removeLiquidityETHWithPermit   178198  189810     172680
-            addLiquidity 157,282
-            addLiquidityETH 2706648
-            swapExactTokensForTokens 192253    156245  184603     178443    178614  130113
-            swapExactTokensForTokensSupportingFeeOnTransferTokens 232,635
-            swapETHForExactTokens 132,772
-            swapExactETHForTokens 117,096    111404    135285
-            swapExactTokensForETH 110,876    113087   127844  100526 110590  139288~151304
-            swapTokensForExactETH
-
-
-
-             */
-            if (prop.goods.equals("eth") || prop.money.equals("eth")) {//swapExactETHForTokens或swapExactTokensForETH
-                limit = 155000;
+            if (goods.equalsIgnoreCase(naitveToken) || money.equalsIgnoreCase(naitveToken)) {
+                limit = 200000;
             } else {//swapExactTokensForTokens
                 limit = 200000;
             }
@@ -207,7 +206,7 @@ public class Trade_uniswap extends Trade {
             //把eth价值，转化成本交易对中的money
             double feeInMoney;
             feeInMoney = feeInEth * priceArr[1];
-            log.info("gas价格：" + this.gasPriceGwei + "Gwei,矿工费:" + feeInMoney + prop.money + "(" + prop.formatMoney(feeInMoney * prop.moneyPrice) + "人民币)");
+            log.info("gas价格：" + this.gasPriceGwei + "Gwei,矿工费:" + feeInMoney + money + "(" + prop.formatMoney(feeInMoney * prop.moneyPrice) + "人民币)");
             super.setFixFee(feeInMoney);
 
         } catch (Exception e) {
@@ -256,12 +255,12 @@ public class Trade_uniswap extends Trade {
     }
 
     /**
-     * 各平台都完成预处理后,删掉已失效的订单,对没失效的订单,进行挂单操作,并记录订单号,然后删除挂单失败的
+     * 各平台都完成预处理后,删掉已失效的订单,对没失效的订单,进行挂单操作,并记录订单号,然后删除挂单失败的。
+     * dex平台挂单时，程序会阻塞，直到交易被打包。
      */
     public int tradeOrder() throws Exception {
         log.info(getPlatName() + "开始下单");
         List<UserOrder> userOrderList = getUserOrderList();
-
         int orderCount = 0;// 有效订单的数量
         // 删掉无效订单
         for (int i = userOrderList.size() - 1; i >= 0; i--) {
@@ -269,28 +268,24 @@ public class Trade_uniswap extends Trade {
                 userOrderList.remove(i);// 无效订单要及时删掉，否则help_tradeOneBatch里面定位错误。但是不能在预处理时删。
             }
         }// end for
-
         merge();//对订单进行合并
-        changeMyOrderPrice(1 - feeRate, 1 + feeRate);
+        changeMyOrderPrice(1 - 0, 1 + 0);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了
         for (; orderCount < userOrderList.size(); orderCount++) {
             UserOrder order = userOrderList.get(orderCount);
-
             // 为了确保能成交，可以将卖单价格降低。买单不能动。因为可能导致money不够。
             double addPrice = (order.getType().equals("sell") ? -1 * prop.huaDian2 : prop.huaDian2);
-
-            AddOrderResult result = this.orderAPIService.addOrder(coinPair, order.getType(),
+            AddOrderResult result = this.orderAPIService.addOrder(
+                    coinPair,
+                    order.getType(),
                     (order.getPrice() * (1 + addPrice)) + "",
                     order.getVolume() + "",
                     this.gasPriceGwei + "",
-                    super.profitRate);
+                    super.profitRate,
+                    getPoolFee()
+            );
             // 设置orderId
-
             order.setOrderId("" + result.getOrderId());
-
-
         }// end for
-
-
         return userOrderList.size();
     }
 

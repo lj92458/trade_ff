@@ -33,7 +33,7 @@ public class SpotOrderAPIServiceImpl implements SpotOrderAPIService {
 
         param.setNewOrderRespType(NewOrderRespType.ACK);// NewOrderRespType.ACK
 
-        return this.client.executeSync(spotOrderAPI.addOrderACK(PropertyUtils.describe(param)));
+        return (AddOrderResultACK)this.client.executeSync(spotOrderAPI.addOrderACK(PropertyUtils.describe(param)));
     }
 
     @Override

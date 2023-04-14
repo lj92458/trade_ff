@@ -1,5 +1,6 @@
 <configuration scan="true" scanPeriod="30 seconds">
-    <property name="log.base" value="/var/trade/logs"/>
+    <!-- logback-spring.xml可以让你把参数配置在application.yml中，而且可以用springProperty标签读取application.yml中的任意参数 -->
+    <springProperty name="log.base" source="log.path" defaultValue="/var/trade/logs" />
     <property name="pattern"
               value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{sessionId}] %-5level [%thread] %logger{80} :%msg%n"/>
 

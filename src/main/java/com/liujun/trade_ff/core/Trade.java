@@ -5,6 +5,8 @@ import com.liujun.trade_ff.core.modle.MarketDepth;
 import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
 import com.liujun.trade_ff.core.util.HttpUtil;
+import lombok.Getter;
+import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +16,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+@Getter
+@Setter
 public abstract class Trade {
     private static final Logger log = LoggerFactory.getLogger(Trade.class);
     public final int platId;
@@ -51,7 +55,8 @@ public abstract class Trade {
     public HttpUtil httpUtil;
 
     /**
-     * 程序将要挂的单。包括买单、卖单
+     * 程序将要挂的单。包括买单、卖单。买单按照价格从低往高排列，卖单从高往低。
+     * 这是由于helpCreateOrders()方法的机制导致的，因为这里的买单，是为了吃掉市场的卖单，而卖单价格是从低到高
      */
     private List<UserOrder> userOrderList;
 
@@ -188,8 +193,8 @@ public abstract class Trade {
     }
 
     /**
-     * 订单预处理：对每个订单逐个检查：若账户余额不够,则将订单设为失效。 各平台预处理需要一起做
-     *
+     * 订单预处理：对每个订单逐个检查：若账户余额不够,则将订单设为失效(backupUsefulOrder方法确保了账户余额不可能不够)。
+     * 各平台预处理需要一起做，因为订单是成双成对的失效!
      * @see 【不要在本方法内删除失效订单，因为删不干净】
      */
     public void processOrders() {
@@ -377,12 +382,17 @@ public abstract class Trade {
         if (buyList.size() > 0) {
             log.info(getPlatName() + "存在买单:" + buyList.toString());
             double totalMoney = 0;
+            double totalVolume = 0;//给一个准确的总数量，先不考虑资金不足的情况
             for (UserOrder order : buyList) {
                 totalMoney += order.getPrice() * order.getVolume();
+                totalVolume += order.getVolume();
             }
-            UserOrder lastOrder = buyList.get(buyList.size() - 1);
-            double volume = (totalMoney / lastOrder.getPrice()) * 0.998;
+            UserOrder lastOrder = buyList.get(buyList.size() - 1);//todo 买单按照价格从低往高排列，所以用最高价买，更容易成交?
+            /*
+            double volume = (totalMoney / lastOrder.getPrice()) * 0.998;//让预备消耗的资金等于totalMoney，防止资金不足。但是这会导致成交量不足
             lastOrder.setVolume(volume);
+            */
+            lastOrder.setVolume(totalVolume);
             lastOrder.setPrice(lastOrder.getPrice() + 0.1 / prop.moneyPrice);//为了确保成交，就提高买价
             if (lastOrder.getVolume() >= prop.minCoinNum) {
                 userOrderList.add(lastOrder);
@@ -397,10 +407,10 @@ public abstract class Trade {
             for (UserOrder order : sellList) {
                 totalVolume += order.getVolume();
             }
-            UserOrder lastOrder = sellList.get(sellList.size() - 1);
+            UserOrder lastOrder = sellList.get(sellList.size() - 1);//todo 卖单按照价格从高往低排列，所以用最低价卖，更容易成交?
 
             lastOrder.setVolume(totalVolume - 0.00);
-            lastOrder.setPrice(lastOrder.getPrice() - 0.1 / prop.moneyPrice);//为了确保成交，就降低买价
+            lastOrder.setPrice(lastOrder.getPrice() - 0.1 / prop.moneyPrice);//为了确保成交，就降低卖价
             if (lastOrder.getVolume() >= prop.minCoinNum) {
                 userOrderList.add(lastOrder);
             } else {
@@ -450,65 +460,7 @@ public abstract class Trade {
 
 
     // ==========getter_setter========================================================
-    public MarketDepth getMarketDepth() {
-        return marketDepth;
-    }
 
-    public void setMarketDepth(MarketDepth marketDepth) {
-        this.marketDepth = marketDepth;
-    }
-
-    public AccountInfo getAccInfo() {
-        return accInfo;
-    }
-
-    public void setAccInfo(AccountInfo accInfo) {
-        this.accInfo = accInfo;
-    }
-
-    public List<UserOrder> getUserOrderList() {
-        return userOrderList;
-    }
-
-    public void setUserOrderList(List<UserOrder> userOrderList) {
-        this.userOrderList = userOrderList;
-    }
-
-    public double getCurrentPrice() {
-        return currentPrice;
-    }
-
-    public void setCurrentPrice(double currentPrice) {
-        this.currentPrice = currentPrice;
-    }
-
-    public MarketDepth getBackupDepth() {
-        return backupDepth;
-    }
-
-    public int getModeLock() {
-        return modeLock;
-    }
-
-    public void setModeLock(int modeLimit) {
-        this.modeLock = modeLimit;
-    }
-
-    public double getChangePrice() {
-        return changePrice;
-    }
-
-    public void setChangePrice(double changePrice) {
-        this.changePrice = changePrice;
-    }
-
-    public double getFixFee() {
-        return fixFee;
-    }
-
-    public void setFixFee(double fixFee) {
-        this.fixFee = fixFee;
-    }
 
     public double getTotalGoods() {
         return accInfo.getFreeGoods() + accInfo.getFreezedGoods();

@@ -4,13 +4,14 @@ logging.config: classpath:logback-spring.xml
 server:
   port: 8080
   servlet:
-    context-path: /trade_ff
+    context-path: /trade_celo
     session:
       timeout: P0DT0H0M300.0S #300秒，必须是合法的Duration
 
 
 spring:
-  profiles.active: dev
+  profiles:
+    active: @env@
   messages:
     basename: languages/messages
     cache-duration: -1

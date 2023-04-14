@@ -35,7 +35,7 @@ import java.util.List;
 
  /*
 
-    API接口文档(包含杠杆）：https://binance-docs.github.io/apidocs/spot/en/#general-info
+    API接口文档(包含杠杆）：https://binance-docs.github.io/apidocs/spot/cn/#general-info
 期货接口文档：https://binance-docs.github.io/apidocs/futures/cn/#185368440e
 API报错自查链接：https://github.com/binance-exchange/binance-official-api-docs/blob/f92d9df35cd926a3514618666ca6ca494c1a734d/errors_CN.md
 API交易规则说明：https://binance.zendesk.com/hc/zh-cn/articles/115003235691
@@ -79,6 +79,10 @@ public class Trade_binance extends Trade {
     private String secretKey;
     @Value("${binance.feeRate}")
     private double feeRate;
+    @Value("${binance.goods}")
+    private String goods;
+    @Value("${binance.money}")
+    private String money;
     private String coinPair;
     //------------------------
 
@@ -103,8 +107,7 @@ public class Trade_binance extends Trade {
         this.spotAccountAPIService = new SpotAccountAPIServiceImpl(this.config);
         this.spotOrderAPIService = new SpotOrderAPIServiceImpl(this.config);
         this.walletAPIService = new WalletAPIServiceImpl(this.config);
-        String money2 = prop.money.endsWith("btc") ? "btc" : prop.money;
-        coinPair = prop.goods.toUpperCase() + money2.toUpperCase();
+        coinPair = goods.toUpperCase() + money.toUpperCase();
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
@@ -176,11 +179,11 @@ public class Trade_binance extends Trade {
             }
 
             for (Balance bal : account.getBalance()) {
-                if (bal.getAsset().equalsIgnoreCase(prop.goods)) {
+                if (bal.getAsset().equalsIgnoreCase(goods)) {
                     accountInfo.setFreeGoods(Double.parseDouble(bal.getFree()));
                     accountInfo.setFreezedGoods(Double.parseDouble(bal.getLocked()));
                 }
-                if (bal.getAsset().equalsIgnoreCase(prop.money)) {
+                if (bal.getAsset().equalsIgnoreCase(money)) {
                     accountInfo.setFreeMoney(Double.parseDouble(bal.getFree()));
                     accountInfo.setFreezedMoney(Double.parseDouble(bal.getLocked()));
                 }

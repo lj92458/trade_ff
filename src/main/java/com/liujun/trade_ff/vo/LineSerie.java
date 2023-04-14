@@ -2,7 +2,7 @@ package com.liujun.trade_ff.vo;
 
 import java.util.List;
 
-/** 一条曲线图的数据 */
+/** 一条曲线图的数据。用来给前端echart传递数据 */
 public class LineSerie {
 	/** 曲线名称 */
 	private String name;

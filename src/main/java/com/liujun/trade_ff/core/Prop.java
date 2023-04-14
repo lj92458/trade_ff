@@ -20,56 +20,73 @@ public class Prop {
     public Double minCoinNum;//买卖币时，最小交易金额
     @Value("${trade.moneyPrice}")
     public Double moneyPrice;//计价货币的人民币价格
-    public Double minMoney;//一次最少要赚的钱
+    public Double minMoney;//一次最少要赚的money,可能是美元
     public Double huaDian;//滑点，用来强制调平资金。这是一个比例
     public Double huaDian2;//滑点，正常下单时，为了买到。这是一个比例
-    public DecimalFormat fmt_goods;
-    public DecimalFormat fmt_money;
+    //public DecimalFormat fmt_goods;
+    //public DecimalFormat fmt_money;
     public String earnWhat;//是钱增加，还是币增加
 
     @Value("${trade.goods}")
     public String goods;
     @Value("${trade.money}")
     public String money;
-    @Value("${time_sleep}")
+    @Value("${engine.time_sleep}")
     public int time_sleep;
     @Value("${trade.orderStepLength}")
     public String orderStepLength;//按价格合并订单，例如：0.1或0.001
     @Value("${trade.marketOrderSize}")
     public int marketOrderSize;// 获取多少个市场挂单？
     @Value("${trade.atLeastEarn}")
-    public Double atLeastEarn;
+    public Double atLeastEarn;//交易一次，最少要赚多少人民币
     @Value("${trade.atLeastRate}")
     public double atLeastRate;//最低利润率(差价除以价格)
     @Value("${trade.earnMoney}")
     public boolean earnMoney;
     @Value("${trade.positionRate}")
     public double positionRate;//仓位上限，占余额的比例。0.5表示50%
+    @Value("${log.path}")
+    public String logPath;
+
+    public static ThreadLocal<DecimalFormat> fmt_goods;
+    public static ThreadLocal<DecimalFormat> fmt_money;
 
     @PostConstruct
     public void init() {
         minMoney = atLeastEarn / this.moneyPrice;//一次最少要赚的钱
         huaDian = 5.0 / 100;//滑点，用来强制调平资金.这是一个比例
         huaDian2 = 0.03 / 100;//滑点，正常下单时，为了买到。这是一个比例
+        /*
         fmt_goods = new DecimalFormat(this.formatGoodsStr);
         fmt_goods.setRoundingMode(RoundingMode.HALF_UP);
 
         fmt_money = new DecimalFormat(this.formatMoneyStr);
         fmt_money.setRoundingMode(RoundingMode.HALF_UP);
+        */
+        fmt_goods = ThreadLocal.withInitial(() -> {
+            DecimalFormat fmt = new DecimalFormat(this.formatGoodsStr);
+            fmt.setRoundingMode(RoundingMode.HALF_UP);
+            return fmt;
+        });
+        fmt_money = ThreadLocal.withInitial(() -> {
+            DecimalFormat fmt = new DecimalFormat(this.formatMoneyStr);
+            fmt.setRoundingMode(RoundingMode.HALF_UP);
+            return fmt;
+        });
 
         earnWhat = earnMoney ? money : goods;
 
     }
 
     public Double formatMoney(Double money) {
-        synchronized (fmt_money) {
-            return Double.parseDouble(fmt_money.format(money));
-        }
+
+            return Double.parseDouble(fmt_money.get().format(money));
+
     }
 
     public Double formatGoods(Double goods) {
-        synchronized (fmt_goods) {
-            return Double.parseDouble(fmt_goods.format(goods));
-        }
+
+            return Double.parseDouble(fmt_goods.get().format(goods));
+
     }
 }

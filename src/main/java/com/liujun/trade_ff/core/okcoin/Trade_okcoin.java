@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+// 第五版api https://github.com/CollmeYH/okex-java-sdk-api-v5
 @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
 @Component
 @Scope("prototype")
@@ -73,6 +74,10 @@ public class Trade_okcoin extends Trade {
     private String secretKey;
     @Value("${okcoin.feeRate}")
     private double feeRate;
+    @Value("${okcoin.goods}")
+    private String goods;
+    @Value("${okcoin.money}")
+    private String money;
     private String coinPair;
     //------------------------
 
@@ -97,8 +102,7 @@ public class Trade_okcoin extends Trade {
         this.spotAccountAPIService = new SpotAccountAPIServiceImpl(this.config);
         this.spotOrderAPIServive = new SpotOrderApiServiceImpl(this.config);
         this.accountAPIService = new AccountAPIServiceImpl(this.config);
-        String money2 = prop.money.endsWith("btc") ? "btc" : prop.money;
-        coinPair = prop.goods.toUpperCase() + "-" + money2.toUpperCase();
+        coinPair = goods.toUpperCase() + "-" + money.toUpperCase();
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
@@ -122,7 +126,7 @@ public class Trade_okcoin extends Trade {
         depth.getAskList().clear();
         depth.getBidList().clear();
         try {
-            Book book = spotProductAPIService.bookProductsByInstrumentId(coinPair, prop.marketOrderSize + "", "" + prop.orderStepLength);
+            Book book = spotProductAPIService.bookProductsByProductId(coinPair, prop.marketOrderSize + "", "" + prop.orderStepLength);
 
             // 卖方挂单
             List<String[]> askArr = book.getAsks();
@@ -167,11 +171,11 @@ public class Trade_okcoin extends Trade {
             AccountInfo accountInfo = new AccountInfo();
             List<Account> list = spotAccountAPIService.getAccounts();
             for (Account acc : list) {
-                if (acc.getCurrency().equalsIgnoreCase(prop.goods)) {
+                if (acc.getCurrency().equalsIgnoreCase(goods)) {
                     accountInfo.setFreeGoods(Double.parseDouble(acc.getAvailable()));
                     accountInfo.setFreezedGoods(Double.parseDouble(acc.getHold()));
                 }
-                if (acc.getCurrency().equalsIgnoreCase(prop.money)) {
+                if (acc.getCurrency().equalsIgnoreCase(money)) {
                     accountInfo.setFreeMoney(Double.parseDouble(acc.getAvailable()));
                     accountInfo.setFreezedMoney(Double.parseDouble(acc.getHold()));
                 }
@@ -243,7 +247,7 @@ public class Trade_okcoin extends Trade {
 
 
             // 结果数组
-            List<OrderResult> resultList = orderResult.get(prop.goods + "-" + prop.money);
+            List<OrderResult> resultList = orderResult.get(goods + "-" + money);
 
             if (resultList == null) {
                 log.warn(JSON.toJSONString(orderResult));
@@ -340,7 +344,7 @@ public class Trade_okcoin extends Trade {
             dto.setOrder_ids(order_ids);
             cancleOrders.add(dto);
 
-            this.spotOrderAPIServive.batchCancleOrdersByOrderId(cancleOrders);
+            this.spotOrderAPIServive.batchCancleOrders_2(cancleOrders);
         }
 
     }

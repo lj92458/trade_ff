@@ -10,15 +10,15 @@ public class Instrument {
         this.instruments = instruments;
     }
 
-    //get set
-    public int getCategory() {
-        return Integer.parseInt(instruments.getCategory());
-    }
+//    //get set
+//    public int getCategory() {
+//        return Integer.parseInt(instruments.getCategory());
+//    }
 
 
-    public String getUnderlying_index() {
-        return instruments.getUnderlying_index();
-    }
+//    public String getUnderlying_index() {
+//        return instruments.getUnderlying_index();
+//    }
 
 
     public String getInstrument_id() {

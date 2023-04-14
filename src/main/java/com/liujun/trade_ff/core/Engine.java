@@ -9,6 +9,8 @@ import com.liujun.trade_ff.core.util.HttpUtil;
 import com.liujun.trade_ff.core.util.StringUtil;
 import com.liujun.trade_ff.core.util.XmlConfigUtil;
 import com.liujun.trade_ff.utils.SpringContextUtil;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.input.ReversedLinesFileReader;
 import org.dom4j.Document;
 import org.dom4j.Node;
 import org.dom4j.io.OutputFormat;
@@ -23,6 +25,9 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.io.*;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -60,7 +65,6 @@ public class Engine {
     Prop prop;
     public boolean initSuccess = false;//初始化是否成功
     public boolean stop = false;//是否结束
-    public String basePath;
     public String firstBalance;
     public Document xmlDoc;// 可修改可存储的配置参数,xml文件。在jar文件外面
     public AvgpriceThread avgpriceThread;
@@ -69,29 +73,29 @@ public class Engine {
     /**
      * 间隔多久查询一次挂单.单位：秒
      */
-    @Value("${time_queryOrder}")
+    @Value("${engine.time_queryOrder}")
     public int time_queryOrder;
     /**
      * 每循环一次,最大允许占用的时间.单位：秒
      */
-    @Value("${time_oneCycle}")
+    @Value("${engine.time_oneCycle}")
     public int time_oneCycle;
 
     /**
      * 如果抛出异常,暂停多少分钟？
      */
-    @Value("${waitSecondAfterException}")
+    @Value("${engine.waitSecondAfterException}")
     public int waitSecondAfterException;
 
     /**
      * 每天几点开始记录余额
      */
-    @Value("${time_beginBalance}")
+    @Value("${engine.time_beginBalance}")
     public int time_beginBalance;
     /**
      * 间隔多久,计算余额并记录日志
      */
-    @Value("${time_waitBalance}")
+    @Value("${engine.time_waitBalance}")
     public int time_waitBalance;
     /**
      * 余额文件的路径
@@ -102,10 +106,16 @@ public class Engine {
     /**
      * 订单匹配模式.simple简单匹配, exact精细匹配
      */
-    @Value("${trade_model}")
+    @Value("${engine.trade_model}")
     public String tradeModel;
     @Value("${trade.core.package}")
     public String corePackage;
+    /**
+     * #dex和cex同步挂单吗？true同步，false不同步。如果dex失败率高，就不要同步挂单。而是先让dex执行，执行成功后会发现资金失衡，然后通过调平资金的方式去执行cex
+     */
+    public boolean dexSync;
+
+
     // ====重要属性=============
     /**
      * 存放各个平台的交易对象
@@ -116,7 +126,7 @@ public class Engine {
      */
     public String[] keyArray;
     /**
-     * 存放各平台价格限制
+     * xml文件中存放各平台价格限制
      */
     public double[] priceArray;
 
@@ -151,15 +161,7 @@ public class Engine {
     public void init() {
         try {
 
-            // 加载外层属性文件
-            basePath = Engine.class.getClassLoader().getResource("conf.xml").toString();
-            // jar:file:/D:/workspace/auto-trader/target/auto-trader-0.0.1-SNAPSHOT.jar!/conf.properties
-            // 不打包是file:/D:/workspace/auto-trader/target/classes/conf.properties
-            basePath = basePath.substring(basePath.indexOf("/"), basePath.lastIndexOf("/"));
-            //basePath = basePath.substring(0, basePath.lastIndexOf("/"));
-
-
-            try (InputStreamReader reader = new InputStreamReader(new FileInputStream(basePath + "/conf.xml"), charset)) {
+            try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(Paths.get(prop.logPath + "/conf.xml")), charset)) {
                 SAXReader sax = new SAXReader();
                 xmlDoc = sax.read(reader);
 
@@ -171,40 +173,9 @@ public class Engine {
             firstBalance = readXmlProp("firstBalance");
 
             openPriceGap = Double.parseDouble(readXmlProp("openPriceGap"));
+            dexSync = Boolean.parseBoolean(readXmlProp("dexSync"));
             //---------------
 
-        /*
-        //查询汇率
-        double rate1 = 0;
-        try {
-        	rate1 = usdrate1();
-        } catch (Exception e) {
-
-        	log.info("rate1", e);
-        }
-        double rate2 = 0;
-        try {
-        	rate2 = usdrate2();
-        } catch (Exception e) {
-        	log.info("rate2", e);
-        }
-
-        if (rate1 != 0 && rate2 != 0) {
-        	boolean isRateOk = Math.abs(rate1 - rate1) < 0.001;
-        	if (isRateOk) {
-        		usdRate = rate1;
-        		log.info("当前汇率:" + usdRate);
-        	} else {
-        		throw new Exception("汇率查询失败，相差过大:" + rate1 + " , " + rate2);
-        	}
-        } else if (rate1 != 0) {
-        	usdRate = rate1;
-        } else if (rate2 != 0) {
-        	usdRate = rate2;
-        } else {
-        	throw new Exception("汇率查询失败，两个来源都失败");
-        }
-        */
             // 存放各个平台的交易对象
             platList = new ArrayList<Trade>();
             String[] paltNameArr = readXmlProp("enablePlat").split(",");
@@ -250,22 +221,16 @@ public class Engine {
             changeLimit.setEngine(this);
             // ------设置余额记录--------------------------
             File balanceFile = new File(balanceFilePath);
-            // 如果余额文件不存在,就创建并写入初始记录,并赋值给lastBalance
-            if (!balanceFile.exists()) {
-                OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(balanceFilePath, true), charset);
-                writer.write(firstBalance);
-                writer.flush();
-                writer.close();
-                lastBalance = new Balance(prop, firstBalance);
-            } else {// 如果余额文件存在,就读取最后一行,赋值给lastBalance
-                BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(balanceFilePath),
-                        charset));
-                String lastBalanceStr = null;// 最后一次余额
-                // 读取最后一行记录
-                for (String lastLine = reader.readLine(); lastLine != null; lastLine = reader.readLine()) {
-                    lastBalanceStr = lastLine;
-                }
+
+            // 如果余额文件存在,就读取最后一行,赋值给lastBalance
+            try (ReversedLinesFileReader reversedLinesReader = new ReversedLinesFileReader(balanceFile, Charset.forName(charset))) {
+                String lastBalanceStr = reversedLinesReader.readLine();
+                reversedLinesReader.close();
                 lastBalance = new Balance(prop, lastBalanceStr);
+            } catch (Exception e) {
+                // 如果余额文件不存在,就创建并写入初始记录,并赋值给lastBalance
+                FileUtils.writeStringToFile(balanceFile, firstBalance, charset);
+                lastBalance = new Balance(prop, firstBalance);
             }
             currentBalance = getCurrentBalance();
             // end 设置余额记录---------------------------
@@ -301,8 +266,7 @@ public class Engine {
                 queryMarketDepthAndAccount(i);
                 //匹配/撮合市场挂单。
                 matchMarketDepth();
-                //匹配/撮合备份的市场挂单(我方有相应的资金，能吃掉这些挂单)
-                //这两种匹配是独立的，没有关系。
+                //匹配/撮合备份的市场挂单,并完成交易(已确保我方有相应的资金，能吃掉这些挂单)。这两种匹配是独立的，没有关系。
                 matchBackupDepth();
 
                 // 检查goods总数量,如果不跟初始值相等,就立即买卖调整
@@ -342,7 +306,7 @@ public class Engine {
     }
 
     /**
-     * 查询市场深度和账户余额
+     * 查询市场深度和账户余额。并设置到trade.marketDepth属性
      *
      * @throws Exception
      */
@@ -408,20 +372,20 @@ public class Engine {
         } else if (tradeModel.equals("exact")) {
             maxEarnCost = adjustLimitPrice2(totalDepth);
         }
-        //收益率要大于0.4%
+        //收益率要大于配置的值
         if (maxEarnCost.orderPair > 0 && (
                 (maxEarnCost.earn >= prop.minMoney && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate)
         )
         ) {// 只有模拟生成的订单存在时，才搬运
-            log_needTrade.info("(机会)市场最大差价" + prop.fmt_money.format(maxEarnCost.diffPrice) + prop.money +
+            log_needTrade.info("(机会)市场最大差价" + prop.fmt_money.get().format(maxEarnCost.diffPrice) + prop.money +
                     "，利润率" + prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) + "%," + maxEarnCost.diffPriceDirection
-                    + ",最多能赚" + prop.fmt_money.format(maxEarnCost.earn) + prop.money + ",模拟订单有" + maxEarnCost.orderPair + "对");
+                    + ",最多能赚" + prop.fmt_money.get().format(maxEarnCost.earn) + prop.money + ",模拟订单有" + maxEarnCost.orderPair + "对");
 
             isSuccess = true;
         } else {
             log.info("最多赚" + maxEarnCost.earn + prop.money + ",模拟订单有" + maxEarnCost.orderPair +
                     "对,利润率" + (maxEarnCost.earn > 0 ? prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) : 0) + "%," +
-                    maxEarnCost.diffPriceDirection + "----------------------最大差价" + prop.fmt_money.format(maxEarnCost.diffPrice) + prop.money);
+                    maxEarnCost.diffPriceDirection + "----------------------最大差价" + prop.fmt_money.get().format(maxEarnCost.diffPrice) + prop.money);
         }
         return isSuccess;
     }
@@ -472,11 +436,10 @@ public class Engine {
                 //收益率要大于0.4%
                 if (maxEarnCost.orderPair > 0 &&
                         (maxEarnCost.earn >= prop.minMoney && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate)
-
                 ) {// (正式生成的订单数量)
                     log_needTrade.info("实际能赚" + maxEarnCost.earn + prop.money + "，利润率" + prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) + "%，实际订单有" + maxEarnCost.orderPair + "对");
                     for (Trade trade : platList) {
-                        trade.processOrders();//订单预处理 。不需要，因为跟trade.backupUsefulOrder()方法功能是重复的
+                        trade.processOrders();//订单预处理 。其实不需要，因为跟【查询市场挂单时执行的trade.backupUsefulOrder】方法功能是重复的.账户余额不能可不够
                     }
                     //删掉无效订单
                     int usefulOrderCount = 0;
@@ -511,9 +474,11 @@ public class Engine {
                     //如果有需要执行的订单，才应该启动线程
                     if (usefulOrderCount > 0 && profitRateMatch) {
                         // 【多线程】对各平台执行挂单、查订单状态、撤销没完全成交的订单、刷新账户信息==================
-                        //先执行dex平台，如果成功，再执行cex平台？？？这样好吗？
-                        // 不好：dex平台浪费了一分钟时间，这时cex平台的情况已经变动了。生成的订单不应该被提交，应该直接作废。
-                        // 在下一轮循环时会调节goods数量，这样间接的执行了cex平台
+                        /*先执行dex平台，如果成功，再执行cex平台？？？这样好吗？
+                         不好：dex平台浪费了一分钟时间，这时cex平台的情况已经变动了。生成的订单不应该被提交，应该直接作废。
+                         更好的办法是：在下一轮循环时会调节goods数量(只用cex来调节)，这样间接的执行了cex平台.
+                         更美妙的是：在dex执行成功之前，系统不会检查出资金失衡.一旦发现资金失衡，就说明dex执行成功了
+                        */
                         executeTrade();
 
                         // end 【多线程】对各平台执行挂单、查订单状态、撤销没完全成交的订单、刷新账户信息============
@@ -581,9 +546,10 @@ public class Engine {
         for (Trade trade : platList) {
             if (trade.getUserOrderList().size() == 0)
                 continue;
-            //如果有dex平台存在，跳过cex平台，只执行dex，如果dex执行成功，在下个循环通过调节goods数量，间接执行了cex。
-            // 这样作的好处是:一旦dex踏空，cex也就没必要执行了。因为dex踏空率太高了。
-            if (totalFixFee > 0 && trade.getFixFee() == 0) {
+            /*如果有dex平台存在，跳过cex平台，只执行dex，如果dex执行成功，在下个循环通过调节goods数量，间接执行了cex。
+             这样作的好处是：dex踏空率太高了，一旦dex踏空，cex也就没必要执行了。
+             */
+            if (!dexSync && totalFixFee > 0 && trade.getFixFee() == 0) {
                 continue;
             }
             TradeThread tradeThread = SpringContextUtil.getBean(TradeThread.class, trade, this);
@@ -593,7 +559,7 @@ public class Engine {
         }// end for
         // 等待各个线程结束,最多等time_oneCycle秒-------
         for (TradeThread thread : tradeThreadList) {
-            thread.join(time_oneCycle * 1000);
+            thread.join(time_oneCycle * 1000L);
         }
         // 检查线程超时
         for (TradeThread thread : tradeThreadList) {
@@ -649,7 +615,7 @@ public class Engine {
                 maxEarnCost.earn += thisEarnCost.earn;
                 maxEarnCost.cost += thisEarnCost.cost;
             } else {
-                //如果差价达不到阈值，就不会扣减双方的volume.导致该挂单没机会被删除。 就必须跳出循环，否则就是死循环。
+                //如果差价达不到阈值，就不会扣减双方的volume.导致该挂单没机会被删除。 就必须跳出while循环，否则就是死循环。
                 break;
             }
         }//end while
@@ -701,7 +667,7 @@ public class Engine {
             }
 
             maxEarnCost.orderPair++;
-            log_diff_price.info("有差价:" + prop.fmt_money.format(diffPrice) + ",数量:" + prop.fmt_goods.format(amount) + ",方向:"
+            log_diff_price.info("有差价:" + prop.fmt_money.get().format(diffPrice) + ",数量:" + prop.fmt_goods.get().format(amount) + ",方向:"
                     + keyArray[arrayIndex] + "," + bid.getPrice() + "_" + ask.getPrice() + "");
 
             // =======从卖方挂单扣除amount,===========
@@ -747,21 +713,21 @@ public class Engine {
                 break;
             }
             EarnCost thisEarnCost = helpCreateOrders(askList.get(0), bidList.get(0), passArr, platIdSet, maxEarnCost);
-            if (thisEarnCost.earn > FIRST_FAIL) {// 如果差价达到限制条件，才累计金额（thisMoney不一定是正数）
+            if (thisEarnCost.earn > FIRST_FAIL) {// 如果差价达到限制条件，才累计金额（thisEarnCost.earn不一定是正数）
                 maxEarnCost.earn += thisEarnCost.earn;
                 maxEarnCost.cost += thisEarnCost.cost;
 
             } else {
-                //如果差价达不到阈值，就不会扣减双方的volume.导致该挂单没机会被删除。 就必须跳出循环，否则就是死循环。
+                //如果差价达不到阈值，就不会扣减双方的volume.导致该挂单没机会被删除。 就必须跳出while循环，否则就是死循环。
                 break;
             }
         }
 
         //如果市场订单被全部用掉，说明获取的订单太少
         if (askList.size() == 0 || bidList.size() == 0) {
-            //log.warn("市场深度不足（获取的挂单太少）");
+            log.warn("市场深度不足（获取的挂单太少）");
         }
-        //maxMoney需要减去平台固定费用(矿工费)
+        //maxEarnCost.earn需要减去平台固定费用(矿工费)
         for (Trade plate : platList) {
             if (platIdSet.contains(plate.platId)) {
                 maxEarnCost.earn -= plate.getFixFee();
@@ -791,7 +757,7 @@ public class Engine {
             }
 
             maxEarnCost.orderPair++;
-            log_diff_price.info("(实际订单)有差价:" + prop.fmt_money.format(diffPrice) + ",数量:" + prop.fmt_goods.format(amount) + ",方向:"
+            log_diff_price.info("(实际订单)有差价:" + prop.fmt_money.get().format(diffPrice) + ",数量:" + prop.fmt_goods.get().format(amount) + ",方向:"
                     + keyArray[arrayIndex] + "," + bid.getPrice() + "_" + ask.getPrice() + "");
 
             // =======从卖方挂单扣除amount,并生成买单===========
@@ -803,7 +769,7 @@ public class Engine {
             order_buy.setDiffPrice(diffPrice);
             order_buy.setVolume(amount);
             Trade trade1 = platList.get(ask.getPlatId());
-            trade1.getUserOrderList().add(order_buy);
+            trade1.getUserOrderList().add(order_buy);//这里面买单，价格是逐步升高的
 
             // =====从买方挂单扣除amount,并生成卖单==========
             bid.setVolume(bid.getVolume() - amount);
@@ -814,14 +780,15 @@ public class Engine {
             order_sell.setDiffPrice(diffPrice);
             order_sell.setVolume(amount);
             Trade trade2 = platList.get(bid.getPlatId());
-            trade2.getUserOrderList().add(order_sell);
+            trade2.getUserOrderList().add(order_sell);//这里面卖单，价格是逐步降低的
             // ======设置配对订单============================
             order_buy.setAnotherOrder(order_sell);
             order_sell.setAnotherOrder(order_buy);
             //把平台id记下来
             platIdSet.add(ask.getPlatId());
             platIdSet.add(bid.getPlatId());
-            return new EarnCost(diffPrice * amount, (bid.getPrice() + ask.getPrice()) / 2 * amount);
+            // cost真的应该用买单和卖单的平均值吗？不是，用order_buy所需的资金即可
+            return new EarnCost(diffPrice * amount, order_buy.getPrice() * amount);
         } else {// 如果不满足条件
             if (passArr[arrayIndex]) {// 如果早已不满足条件了
                 return new EarnCost(SECOND_FAIL, 0);
@@ -863,17 +830,8 @@ public class Engine {
                 if (thisEarnCost.earn > FIRST_FAIL) {// 如果满足条件，才累计金额
                     maxEarnCost.earn += thisEarnCost.earn;
                     maxEarnCost.cost += thisEarnCost.cost;
-                    /*
-                    if (thisMoney != 0.00) {
-                    	log.info(keyArray[arrayIndex] + ":(" + bidIndex + " , " + askI + ")");
-                    } */
                 }
-                /*
-                if (thisMoney == FIRST_FAIL) {// 如果是首次不满足，就记录日志
-                	log.info(keyArray[arrayIndex] + ":(" + bidIndex + " | " + askI + ")");
-                } */
             }// end for
-
         }// end for
         if (bidI >= maxOrderNum || askI >= maxOrderNum) {
             //log.warn("市场深度不足（获取的挂单太少）");
@@ -911,15 +869,7 @@ public class Engine {
                 if (thisEarnCost.earn > FIRST_FAIL) {// 如果满足条件，才累计金额
                     maxEarnCost.earn += thisEarnCost.earn;
                     maxEarnCost.cost += thisEarnCost.cost;
-                    /*
-                    if (thisMoney != 0.00) {
-                    	log.info(keyArray[arrayIndex] + ":(" + bidIndex + " , " + askI + ")");
-                    } */
                 }
-                /*
-                if (thisMoney == FIRST_FAIL) {// 如果是首次不满足，就记录日志
-                	log.info(keyArray[arrayIndex] + ":(" + bidIndex + " | " + askI + ")");
-                } */
             }// end for
         }// end for
 
@@ -1005,11 +955,7 @@ public class Engine {
             // 将本次余额设置为最后一次余额
             lastBalance = currentBalance;
             // 将lastBalance写入文件
-            OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(balanceFilePath, true), charset);
-            writer.append("\n");
-            writer.append(lastBalance.toString());
-            writer.flush();
-            writer.close();
+            FileUtils.writeStringToFile(new File(balanceFilePath), "\n" + lastBalance.toString(), charset, true);
         }
         // end 盘点当前余额,计算盈亏-------------------
     }
@@ -1154,7 +1100,7 @@ public class Engine {
         synchronized (xmlDoc) {//对xmlDoc的写操作，可能引发线程安全问题，所以要加锁
             String path = key.replace("_", "/");
             xmlDoc.selectSingleNode("conf/" + path).setText(value);
-            FileOutputStream fos = new FileOutputStream(basePath + "/conf.xml", false);
+            FileOutputStream fos = new FileOutputStream(prop.logPath + "/conf.xml", false);
             OutputFormat format = OutputFormat.createPrettyPrint();
             format.setEncoding(charset);
             XMLWriter xmlWriter = new XMLWriter(fos, format);
@@ -1220,7 +1166,7 @@ public class Engine {
      */
     public void saveAdjustPrice(String adjustPrice) throws Exception {
         synchronized (this) {
-            String filePath = basePath + "/conf.xml";
+            String filePath = prop.logPath + "/conf.xml";
 
             String[] adjustArr = adjustPrice.split(",");
             for (int i = 0; i < adjustArr.length; i++) {//处理每一个平台

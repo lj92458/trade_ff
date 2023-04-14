@@ -93,8 +93,10 @@ public class Trade_binanceF extends Trade {
     private double feeRate;
     @Value("${binanceF.contractType}")
     private String contractType;
-    @Value("${binanceF.pair}")
-    private String pair;
+    @Value("${binanceF.goods}")
+    private String goods;
+    @Value("${binanceF.money}")
+    private String money;
     private String coinPair;
     //------------------------
 
@@ -119,8 +121,7 @@ public class Trade_binanceF extends Trade {
         this.futureAccountAPIService = new FutureAccountAPIServiceImpl(this.config);
         this.futureOrderAPIService = new FutureOrderAPIServiceImpl(this.config);
         this.walletAPIService = new WalletAPIServiceImpl(this.config);
-        String money2 = prop.money.endsWith("btc") ? "btc" : prop.money;
-        coinPair = prop.goods.toUpperCase() + money2.toUpperCase();
+        coinPair = goods.toUpperCase() + money.toUpperCase();
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
@@ -186,7 +187,7 @@ public class Trade_binanceF extends Trade {
      */
     public void flushAccountInfo() throws Exception {
         try {
-            this.instrument = getInstrument(contractType, pair);
+            this.instrument = getInstrument(contractType, coinPair);
             double contractVal = instrument.getContractSize();
             account = futureAccountAPIService.accountInfo(recvWindow);
             //寻找仓位。系统只开启了单向持仓模式。所以只需要提取positionSide=BOTH的仓位
@@ -214,7 +215,7 @@ public class Trade_binanceF extends Trade {
             AccountInfo accountInfo = new AccountInfo();
             double equity = asset.getMarginBalance();//权益
             //如果是币本位合约，余额是货
-            if (instrument.getMarginAsset().equalsIgnoreCase(prop.goods)) {
+            if (instrument.getMarginAsset().equalsIgnoreCase(goods)) {
                 //freeMoney=权益(或者余额)*持仓率-多仓仓位,   freeGoods=权益(或者余额)*持仓率-空仓仓位
                 //freezedMoney，根据持仓量表示的一个参数。用来检测平衡：确保钱恒定。做空，产生钱，消耗货。做多，消耗钱，产生货
                 //因为面额是美元
@@ -237,7 +238,7 @@ public class Trade_binanceF extends Trade {
             }
 
             //如果是usdt本位合约,余额是钱
-            if (instrument.getMarginAsset().equalsIgnoreCase(prop.money)) {
+            if (instrument.getMarginAsset().equalsIgnoreCase(money)) {
                 //因为面额是美元
                 if (longOrShort > 0) {//所需保证金*标记价格/合约面额
                     long_qty = position.getInitialMargin() / contractVal;

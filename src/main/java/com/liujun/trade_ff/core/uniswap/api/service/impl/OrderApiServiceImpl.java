@@ -20,12 +20,12 @@ public class OrderApiServiceImpl implements OrderAPIService {
     }
 
     @Override
-    public AddOrderResult addOrder(String coinPair, String orderType, String price, String volume, String gasPriceGwei, double slippage) {
+    public AddOrderResult addOrder(String coinPair, String orderType, String price, String volume, String gasPriceGwei, double slippage,int poolFee) {
 
         try {
             log.info("开始调用orderRpc.addOrder");
             //failed to meet quorum 不一定代表失败呢
-            AddOrderResult addOrderResult = orderRpc.addOrder(coinPair, orderType, price, volume, config.getMaxWaitSeconds(), gasPriceGwei, slippage).toFuture().get();
+            AddOrderResult addOrderResult = orderRpc.addOrder(coinPair, orderType, price, volume, config.getMaxWaitSeconds(), gasPriceGwei, slippage, poolFee).toFuture().get();
 
             return addOrderResult;
         } catch (Exception e) {

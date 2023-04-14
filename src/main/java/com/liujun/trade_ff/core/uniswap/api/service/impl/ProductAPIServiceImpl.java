@@ -19,12 +19,12 @@ public class ProductAPIServiceImpl implements ProductAPIService {
     }
 
     @Override
-    public Book bookProductsByProductId(String coinPair, String marketOrderSize, String orderStepLength) {
+    public Book bookProductsByProductId(String coinPair, String marketOrderSize, String orderStepRatio, int poolFee) {
 
         int maxRetry = 5;
         for (int retryCount = 0; ; retryCount++) {
             try {
-                Book book = productRpc.bookProduct(coinPair, marketOrderSize, orderStepLength).toFuture().get();
+                Book book = productRpc.bookProduct(coinPair, marketOrderSize, orderStepRatio, poolFee).toFuture().get();
                 return book;
             } catch (Exception e) {
                 if (e.getMessage().contains("failed to meet quorum")) {
@@ -53,12 +53,12 @@ public class ProductAPIServiceImpl implements ProductAPIService {
      * @return
      */
     @Override
-    public double[] getGasPriceGweiAndEthPrice(String moneySymbol) {
+    public double[] getGasPriceGweiAndEthPrice(String moneySymbol, int poolFee) {
 
         int maxRetry = 5;
         for (int retryCount = 0; ; retryCount++) {
             try {
-                double[] priceArr = productRpc.getGasPriceGweiAndEthPrice(moneySymbol).toFuture().get();
+                double[] priceArr = productRpc.getGasPriceGweiAndEthPrice(moneySymbol, poolFee).toFuture().get();
                 return priceArr;
             } catch (Exception e) {
                 if (e.getMessage().contains("failed to meet quorum")) {

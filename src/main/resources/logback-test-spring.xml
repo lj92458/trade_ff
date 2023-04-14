@@ -1,5 +1,5 @@
 <configuration scan="true" scanPeriod="30 seconds">
-    <property name="log.base" value="/var/trade/logs"/>
+    <springProperty name="log.base" source="log.path" defaultValue="/var/trade/logs" />
     <property name="pattern"
               value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{sessionId}] %-5level [%thread] %logger{80} :%msg%n"/>
 

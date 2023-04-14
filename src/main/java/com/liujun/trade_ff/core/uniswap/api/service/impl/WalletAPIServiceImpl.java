@@ -16,6 +16,7 @@ public class WalletAPIServiceImpl implements WalletAPIService {
 
     @Override
     public WithdrawResult withdraw(WithdrawParam param) throws Exception {
+        //todo 等需要实现时，再实现
         return null;
     }
 }

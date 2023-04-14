@@ -12,15 +12,13 @@
 #### 安装教程
 
 1.  在 linux系统 安装java8和sqlite3
-2.  将安装包传输到服务器
-3.  创建日志目录/var/trade_btcusdt/logs/，以及数据库目录/var/trade_btcusdt/db/
-4.  修改配置文件：
-web.xml,configurations-prd,logback.xml,conf.xml
-删除logback-test.xml
-5.  执行数据库建表/建库语句，插入初始化数据。
-6.  修改tomcat的server.xml，插入一条<Context>
-7.  需要授权某合约能花费自己的token
-8.  
+2.  根据yml文件中log.path的值，创建日志目录。这里也会用来存放数据库。
+3.  修改配置文件： applicaion-prd, conf.xml，并把conf.xml放到日志目录。
+    删除logback-test-spring.xml(不用删除，因为有logging.config参数决定用哪个)
+4. 激活maven的prd配置，并打包；将安装包传输到服务器
+5. 执行数据库建表/建库语句，插入初始化数据。
+6.需要授权某合约能花费自己的token 
+
 #### 使用说明
 
 1.  xxxx

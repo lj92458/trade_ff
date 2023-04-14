@@ -20,6 +20,6 @@ public class WalletAPIServiceImpl implements WalletAPIService {
 
     @Override
     public WithdrawResult withdraw(WithdrawParam param) throws Exception{
-        return this.client.executeSync(this.api.withdraw(PropertyUtils.describe(param)));
+        return (WithdrawResult)this.client.executeSync(this.api.withdraw(PropertyUtils.describe(param)));
     }
 }
