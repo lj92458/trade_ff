@@ -1,9 +1,7 @@
 package com.liujun.trade_ff.core;
 
 import com.liujun.trade_ff.core.modle.*;
-import com.liujun.trade_ff.core.thread.AccountThread;
 import com.liujun.trade_ff.core.thread.AvgpriceThread;
-import com.liujun.trade_ff.core.thread.MarketDepthThread;
 import com.liujun.trade_ff.core.thread.TradeThread;
 import com.liujun.trade_ff.core.util.HttpUtil;
 import com.liujun.trade_ff.core.util.StringUtil;
@@ -24,13 +22,19 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
-import java.io.*;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 
@@ -135,6 +139,8 @@ public class Engine {
     private String futureState;//期现套利状态：empty空仓，hold持仓
 
     private double openPriceGap;//开仓时，两个平台之间的差价.跟配置文件中平台出现的先后顺序有关：用前一个平台的价格减后一个平台
+
+    private java.util.concurrent.ThreadPoolExecutor threadPoolExecutor;
     // ====================
 
 
@@ -196,6 +202,13 @@ public class Engine {
                 trade.setChangePrice(Double.parseDouble(changePriceStr));
                 platList.add(trade);
             }
+            //创建threadPoolExecutor
+            threadPoolExecutor = new ThreadPoolExecutor(
+                    3 * platList.size() + 10,
+                    3 * platList.size() + 10,
+                    5L, TimeUnit.MINUTES,
+                    new LinkedBlockingQueue<>(10),
+                    new ThreadPoolExecutor.AbortPolicy());
 
 
             // 长度是 (n-1)*11+1
@@ -235,11 +248,10 @@ public class Engine {
             currentBalance = getCurrentBalance();
             // end 设置余额记录---------------------------
 
-            //启动差价记录线程
+            //启动差价记录线程. 把AvgpriceThread看作runnable
             avgpriceThread = SpringContextUtil.getBean(AvgpriceThread.class);
             avgpriceThread.setEngine(this);
-            avgpriceThread.setDaemon(true);
-            avgpriceThread.start();
+            CompletableFuture.runAsync(avgpriceThread, threadPoolExecutor);
             log.info("启动平均值线程");
 
             //
@@ -312,7 +324,7 @@ public class Engine {
      */
     private void queryMarketDepthAndAccount(long i) throws Exception {
         // ===== 【多线程】对各平台查询市场挂单，查询资金情况=======================
-        List<MarketDepthThread> marketDepthThreadList = new ArrayList<>();
+        List<CompletableFuture<?>> completableFutureList = new ArrayList<>();
         // 为每个平台启动一个线程
         for (Trade trade : platList) {
             // 设置“用户挂单”
@@ -320,29 +332,28 @@ public class Engine {
                 trade.setUserOrderList(new ArrayList<>());
             }
 
-            MarketDepthThread marketDepthThread = SpringContextUtil.getBean(MarketDepthThread.class, trade, this);
-            marketDepthThread.setDaemon(true);// 设为守护线程
-            marketDepthThreadList.add(marketDepthThread);
-            marketDepthThread.start();
+            completableFutureList.add(CompletableFuture.runAsync(() -> {
+                try {
+                    trade.flushMarketDeeps();
+                } catch (Exception e) {
+                    log.error(trade.getPlatName() + "查询市场深度异常:" + e.getMessage(), e);
+                }
+            }, threadPoolExecutor));
 
             //查询资金情况 -----------间隔小于3秒时，每隔3秒，查一次账户。否则每次都查
             if (time_queryOrder > 6 || (i * time_queryOrder) % 6 == 0) {
-                AccountThread accountThread = SpringContextUtil.getBean(AccountThread.class, trade, this);
-                accountThread.setDaemon(true);//设为守护线程
-                accountThread.start();
+                CompletableFuture.runAsync(() -> {
+                    try {
+                        trade.flushAccountInfo();
+                    } catch (Exception e) {
+                        log.error(trade.getPlatName() + "账户查询异常:" + e.getMessage(), e);
+                    }
+                }, threadPoolExecutor);
             }
         }
-        // 等待各个线程结束,最多等10秒-------
-        for (MarketDepthThread thread : marketDepthThreadList) {
-            thread.join(10 * 1000);
-        }
-        // 检查线程超时,
-        for (MarketDepthThread thread : marketDepthThreadList) {
-            if (!thread.isSuccess()) {
-                throw new Exception(thread.getName() + "获取市场深度异常");
-            }
+        // 等待各个线程结束,最多等25秒.因为uniswap获取市场行情，需要8秒，重复尝试3次就有24秒-------
+        CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture<?>[0])).get(25, TimeUnit.SECONDS);
 
-        }
         // ==== end【多线程】对各平台查询市场挂单=======================
     }
 
@@ -440,9 +451,7 @@ public class Engine {
                         (maxEarnCost.earn >= getMiniMoney() && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate)
                 ) {// (正式生成的订单数量)
                     log_needTrade.info("实际能赚" + maxEarnCost.earn + prop.money + "，利润率" + prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) + "%，实际订单有" + maxEarnCost.orderPair + "对");
-                    for (Trade trade : platList) {
-                        trade.processOrders();//订单预处理 。其实不需要，因为跟【查询市场挂单时执行的trade.backupUsefulOrder】方法功能是重复的.账户余额不能可不够
-                    }
+                    platList.forEach(Trade::processOrders);//订单预处理 。其实不需要，因为跟【查询市场挂单时执行的trade.backupUsefulOrder】方法功能是重复的.账户余额不能可不够
                     //删掉无效订单
                     int usefulOrderCount = 0;
                     for (Trade trade : platList) {
@@ -539,15 +548,10 @@ public class Engine {
      * @throws Exception 异常
      */
     private void executeTrade() throws Exception {
-        List<TradeThread> tradeThreadList = new ArrayList<>();
+        List<CompletableFuture<?>> completableFutureList = new ArrayList<>();
         // 为每个平台启动一个线程--------
         //计算总的固定费用，如果>0,说明有dex平台参与，那么就不执行cex
-        double totalFixFee = 0;
-        for (Trade trade : platList) {
-            if (trade.getUserOrderList().size() > 0) {
-                totalFixFee += trade.getFixFee();
-            }
-        }
+        double totalFixFee = platList.stream().filter(trade -> trade.getUserOrderList().size() > 0).mapToDouble(Trade::getFixFee).sum();
         for (Trade trade : platList) {
             if (trade.getUserOrderList().size() == 0)
                 continue;
@@ -557,21 +561,13 @@ public class Engine {
             if (!dexSync && totalFixFee > 0 && trade.getFixFee() == 0) {
                 continue;
             }
+            //把tradeThread看作runnable
             TradeThread tradeThread = SpringContextUtil.getBean(TradeThread.class, trade, this);
-            tradeThread.setDaemon(true);// 设为守护线程
-            tradeThreadList.add(tradeThread);
-            tradeThread.start();
+            completableFutureList.add(CompletableFuture.runAsync(tradeThread, threadPoolExecutor));
+
         }// end for
         // 等待各个线程结束,最多等time_oneCycle秒-------
-        for (TradeThread thread : tradeThreadList) {
-            thread.join(time_oneCycle * 1000L);
-        }
-        // 检查线程超时
-        for (TradeThread thread : tradeThreadList) {
-            if (!thread.isSuccess()) {
-                throw new Exception(thread.getName() + ":TradeThread异常");
-            }
-        }
+        CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture<?>[0])).get(time_oneCycle, TimeUnit.SECONDS);
         log_haveTrade.info("===================================================================================");
 
         log.info("各线程都已结束=========");
@@ -630,11 +626,7 @@ public class Engine {
             //log.warn("市场深度不足（获取的挂单太少）");
         }
         //maxMoney需要减去平台固定费用(矿工费)
-        for (Trade plate : platList) {
-            if (platIdSet.contains(plate.platId)) {
-                maxEarnCost.earn -= plate.getFixFee();
-            }
-        }
+        platList.stream().filter(trade -> platIdSet.contains(trade.platId)).forEach(trade -> maxEarnCost.earn -= trade.getFixFee());
         return maxEarnCost;
     }
 
@@ -733,11 +725,7 @@ public class Engine {
             log.warn("市场深度不足（获取的挂单太少）");
         }
         //maxEarnCost.earn需要减去平台固定费用(矿工费)
-        for (Trade plate : platList) {
-            if (platIdSet.contains(plate.platId)) {
-                maxEarnCost.earn -= plate.getFixFee();
-            }
-        }
+        platList.stream().filter(trade -> platIdSet.contains(trade.platId)).forEach(trade -> maxEarnCost.earn -= trade.getFixFee());
         return maxEarnCost;
     }
 
@@ -842,11 +830,7 @@ public class Engine {
             //log.warn("市场深度不足（获取的挂单太少）");
         }
         //maxMoney需要减去平台固定费用(矿工费)
-        for (Trade plate : platList) {
-            if (platIdSet.contains(plate.platId)) {
-                maxEarnCost.earn -= plate.getFixFee();
-            }
-        }
+        platList.stream().filter(trade -> platIdSet.contains(trade.platId)).forEach(trade -> maxEarnCost.earn -= trade.getFixFee());
         return maxEarnCost;
     }
 
@@ -882,11 +866,7 @@ public class Engine {
             //log.warn("市场深度不足（获取的挂单太少）");
         }
         //maxMoney需要减去平台固定费用(矿工费)
-        for (Trade plate : platList) {
-            if (platIdSet.contains(plate.platId)) {
-                maxEarnCost.earn -= plate.getFixFee();
-            }
-        }
+        platList.stream().filter(trade -> platIdSet.contains(trade.platId)).forEach(trade -> maxEarnCost.earn -= trade.getFixFee());
         return maxEarnCost;
     }
 
@@ -1097,7 +1077,7 @@ public class Engine {
     /**
      * 修改xmlDoc对象，并把xmlDoc保存到文件
      *
-     * @param key 路径
+     * @param key   路径
      * @param value 值
      * @throws Exception 异常
      */

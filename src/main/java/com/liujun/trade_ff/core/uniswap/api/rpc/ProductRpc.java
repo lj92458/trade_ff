@@ -4,7 +4,7 @@ import com.liujun.trade_ff.core.uniswap.api.bean.Book;
 import hprose.util.concurrent.Promise;
 
 public interface ProductRpc {
-    //最多需要6秒返回
+    //最多需要7秒返回
     Promise<Book> bookProduct(String coinPair, String marketOrderSize, String orderStepRatio, int poolFee);
 
     /**

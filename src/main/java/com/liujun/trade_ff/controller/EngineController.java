@@ -36,7 +36,7 @@ public class EngineController {
         } else {
             engineThread = new EngineThread();
             //如果创建成功，才启动
-            if ( engineThread.engine != null) {
+            if (engineThread.engine != null) {
                 if (engineThread.engine.initSuccess) {
                     engineThread.setDaemon(true);
                     engineThread.start();
@@ -112,7 +112,7 @@ public class EngineController {
                 throw new Exception("引擎启动失败！");
             }
             */
-            if(engineThread!=null&&engineThread.engine!=null) {
+            if (engineThread != null && engineThread.engine != null) {
                 String[] legend;//样本说明
 
                 LineSerie[] series;//多条线
@@ -142,9 +142,9 @@ public class EngineController {
                 map.put("totalEarn", totalEarn);
                 map.put("thisEarn", thisEarn);
                 //显示当前状态
-                if(!engineThread.engine.stop) {
+                if (!engineThread.engine.stop) {
                     map.put("engineState", "正在运行");
-                }else{
+                } else {
                     map.put("engineState", "已暂停");
                 }
                 //价格调整(adjustPrice)
@@ -159,9 +159,9 @@ public class EngineController {
                 //上次什么时候调整的偏差？
 
                 map.put("retCode", "0000");
-            }else{
+            } else {
                 map.put("retCode", "0001");
-                map.put("retMsg", "程序没有运行，请手工启动." );
+                map.put("retMsg", "程序没有运行，请手工启动.");
                 map.put("engineState", "没有创建引擎，请启动。");
             }
 

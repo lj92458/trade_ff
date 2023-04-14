@@ -8,6 +8,8 @@ import com.liujun.trade_ff.core.uniswap.api.service.ProductAPIService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.TimeUnit;
+
 public class ProductAPIServiceImpl implements ProductAPIService {
     private static final Logger log = LoggerFactory.getLogger(ProductAPIServiceImpl.class);
     APIConfiguration config;
@@ -18,13 +20,21 @@ public class ProductAPIServiceImpl implements ProductAPIService {
         this.productRpc = RpcClient.getInstance(config.getUri()).useService(ProductRpc.class);
     }
 
+    /**
+     * 查询订单。最多35秒返回。
+     * @param coinPair
+     * @param marketOrderSize
+     * @param orderStepRatio 两个相邻的挂单之间价格差距比例是多少？对少于这个差距的挂单合并。建议为价格的万一/万五。uniswap要求必须大于手续费费率
+     * @param poolFee 手续费。 500表示百万分之500，也就是0.0005，也就是0.05%
+     * @return
+     */
     @Override
     public Book bookProductsByProductId(String coinPair, String marketOrderSize, String orderStepRatio, int poolFee) {
 
         int maxRetry = 5;
         for (int retryCount = 0; ; retryCount++) {
             try {
-                Book book = productRpc.bookProduct(coinPair, marketOrderSize, orderStepRatio, poolFee).toFuture().get();
+                Book book = productRpc.bookProduct(coinPair, marketOrderSize, orderStepRatio, poolFee).toFuture().get(7L, TimeUnit.SECONDS);
                 return book;
             } catch (Exception e) {
                 if (e.getMessage().contains("failed to meet quorum")) {
@@ -47,7 +57,7 @@ public class ProductAPIServiceImpl implements ProductAPIService {
     }
 
     /**
-     * 查询gas费，以及eth相对某种币的价格
+     * 查询gas费，以及eth相对某种币的价格。最多25秒返回。
      *
      * @param moneySymbol 交易对中的计价货币
      * @return
@@ -58,7 +68,7 @@ public class ProductAPIServiceImpl implements ProductAPIService {
         int maxRetry = 5;
         for (int retryCount = 0; ; retryCount++) {
             try {
-                double[] priceArr = productRpc.getGasPriceGweiAndEthPrice(moneySymbol, poolFee).toFuture().get();
+                double[] priceArr = productRpc.getGasPriceGweiAndEthPrice(moneySymbol, poolFee).toFuture().get(5L, TimeUnit.SECONDS);
                 return priceArr;
             } catch (Exception e) {
                 if (e.getMessage().contains("failed to meet quorum")) {
