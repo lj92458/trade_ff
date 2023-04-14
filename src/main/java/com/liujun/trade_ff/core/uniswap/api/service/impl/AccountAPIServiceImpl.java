@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public class AccountAPIServiceImpl implements AccountAPIService {
     private static final Logger log = LoggerFactory.getLogger(AccountAPIServiceImpl.class);
@@ -20,6 +21,11 @@ public class AccountAPIServiceImpl implements AccountAPIService {
         this.accountRpc = RpcClient.getInstance(config.getUri()).useService(AccountRpc.class);
     }
 
+    /**
+     * 最多25秒返回。
+     * @param symbolArr
+     * @return
+     */
     @Override
     public List<Account> getAccounts(String... symbolArr) {
 
@@ -27,7 +33,7 @@ public class AccountAPIServiceImpl implements AccountAPIService {
         for (int retryCount = 0; ; retryCount++) {
             try {
 
-                List<Account> list = accountRpc.queryTokenBalance(config.getAddress(), symbolArr).toFuture().get();
+                List<Account> list = accountRpc.queryTokenBalance(config.getAddress(), symbolArr).toFuture().get(5L, TimeUnit.SECONDS);
 
 
                 return list;
