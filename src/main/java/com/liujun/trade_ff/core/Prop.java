@@ -20,6 +20,7 @@ public class Prop {
     public Double minCoinNum;//买卖币时，最小交易金额
     @Value("${trade.moneyPrice}")
     public Double moneyPrice;//计价货币的人民币价格
+    public Double minMoney;//一次最少要赚的money,可能是美元
     public Double huaDian;//滑点，用来强制调平资金。这是一个比例
     public Double huaDian2;//滑点，正常下单时，为了买到。这是一个比例
     //public DecimalFormat fmt_goods;
@@ -52,6 +53,7 @@ public class Prop {
 
     @PostConstruct
     public void init() {
+        minMoney = atLeastEarn / this.moneyPrice;//一次最少要赚的钱
         huaDian = 5.0 / 100;//滑点，用来强制调平资金.这是一个比例
         huaDian2 = 0.03 / 100;//滑点，正常下单时，为了买到。这是一个比例
         /*

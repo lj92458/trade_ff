@@ -386,7 +386,7 @@ public class Engine {
         //收益率要大于配置的值
         assert maxEarnCost != null;
         if (maxEarnCost.orderPair > 0 && (
-                (maxEarnCost.earn >= getMiniMoney() && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate)
+                (maxEarnCost.earn >= prop.minMoney && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate)
         )
         ) {// 只有模拟生成的订单存在时，才搬运
             log_needTrade.info("(机会)市场最大差价" + Prop.fmt_money.get().format(maxEarnCost.diffPrice) + prop.money +
@@ -448,7 +448,7 @@ public class Engine {
                 //收益率要大于0.4%
                 assert maxEarnCost != null;
                 if (maxEarnCost.orderPair > 0 &&
-                        (maxEarnCost.earn >= getMiniMoney() && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate)
+                        (maxEarnCost.earn >= prop.minMoney && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate)
                 ) {// (正式生成的订单数量)
                     log_needTrade.info("实际能赚" + maxEarnCost.earn + prop.money + "，利润率" + prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) + "%，实际订单有" + maxEarnCost.orderPair + "对");
                     platList.forEach(Trade::processOrders);//订单预处理 。其实不需要，因为跟【查询市场挂单时执行的trade.backupUsefulOrder】方法功能是重复的.账户余额不能可不够
@@ -1201,18 +1201,6 @@ public class Engine {
         } catch (Exception e) {
             log.error("", e);
         }
-    }
-
-    /**
-     * 计算最少要赚的钱。利润多于这个值，才能启动交易。
-     *
-     * @return 返回prop.atLeastEarn和【各个平台fixFee总和】之中最大的一个。
-     */
-    public double getMiniMoney() {
-        double atLeastEarn = prop.atLeastEarn / prop.moneyPrice;
-        //dex平台的fixFee，单位是trade.money。每隔6秒就会更新，所以比atLeastEarn更靠谱。
-        double totalFixFee = platList.stream().mapToDouble(t -> t.fixFee).sum();
-        return Math.max(atLeastEarn, totalFixFee);
     }
 
 }
