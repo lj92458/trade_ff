@@ -1,5 +1,5 @@
 # trade
-两个期货平台之间套利
+两个现货平台之间套利
 观测：将rpcServer端slippage提高到0.03，java端atLeastRate
 降到0.004
 #### 介绍

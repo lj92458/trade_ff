@@ -286,7 +286,7 @@ public class Engine {
 
                 // 睡眠一段时间,保证两次搬运间隔time_queryOrder秒
                 long useTime = System.currentTimeMillis() - beginTime;// 用时
-                TimeUnit.MILLISECONDS.sleep(time_queryOrder * 1000 - useTime);
+                TimeUnit.MILLISECONDS.sleep(time_queryOrder * 1000L - useTime);
 
             }// end for
             log.info("跳出for,   startEngine()结束");
@@ -308,7 +308,7 @@ public class Engine {
     /**
      * 查询市场深度和账户余额。并设置到trade.marketDepth属性
      *
-     * @throws Exception
+     * @throws Exception 异常
      */
     private void queryMarketDepthAndAccount(long i) throws Exception {
         // ===== 【多线程】对各平台查询市场挂单，查询资金情况=======================
@@ -325,8 +325,8 @@ public class Engine {
             marketDepthThreadList.add(marketDepthThread);
             marketDepthThread.start();
 
-            //查询资金情况 -----------间隔小于3秒时，每隔3秒，查一次账户.否则每次都查
-            if (time_queryOrder > 3 || (i * time_queryOrder) % 3 == 0) {
+            //查询资金情况 -----------间隔小于3秒时，每隔3秒，查一次账户。否则每次都查
+            if (time_queryOrder > 6 || (i * time_queryOrder) % 6 == 0) {
                 AccountThread accountThread = SpringContextUtil.getBean(AccountThread.class, trade, this);
                 accountThread.setDaemon(true);//设为守护线程
                 accountThread.start();
@@ -350,7 +350,7 @@ public class Engine {
      * 撮合市场挂单
      *
      * @return 是否撮合成功，是否有机会盈利
-     * @throws Exception
+     * @throws Exception 异常
      */
     private boolean matchMarketDepth() throws Exception {
         boolean isSuccess = false;
@@ -373,19 +373,20 @@ public class Engine {
             maxEarnCost = adjustLimitPrice2(totalDepth);
         }
         //收益率要大于配置的值
+        assert maxEarnCost != null;
         if (maxEarnCost.orderPair > 0 && (
-                (maxEarnCost.earn >= prop.minMoney && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate)
+                (maxEarnCost.earn >= getMiniMoney() && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate)
         )
         ) {// 只有模拟生成的订单存在时，才搬运
-            log_needTrade.info("(机会)市场最大差价" + prop.fmt_money.get().format(maxEarnCost.diffPrice) + prop.money +
+            log_needTrade.info("(机会)市场最大差价" + Prop.fmt_money.get().format(maxEarnCost.diffPrice) + prop.money +
                     "，利润率" + prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) + "%," + maxEarnCost.diffPriceDirection
-                    + ",最多能赚" + prop.fmt_money.get().format(maxEarnCost.earn) + prop.money + ",模拟订单有" + maxEarnCost.orderPair + "对");
+                    + ",最多能赚" + Prop.fmt_money.get().format(maxEarnCost.earn) + prop.money + ",模拟订单有" + maxEarnCost.orderPair + "对");
 
             isSuccess = true;
         } else {
             log.info("最多赚" + maxEarnCost.earn + prop.money + ",模拟订单有" + maxEarnCost.orderPair +
                     "对,利润率" + (maxEarnCost.earn > 0 ? prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) : 0) + "%," +
-                    maxEarnCost.diffPriceDirection + "----------------------最大差价" + prop.fmt_money.get().format(maxEarnCost.diffPrice) + prop.money);
+                    maxEarnCost.diffPriceDirection + "----------------------最大差价" + Prop.fmt_money.get().format(maxEarnCost.diffPrice) + prop.money);
         }
         return isSuccess;
     }
@@ -434,8 +435,9 @@ public class Engine {
                 }
 
                 //收益率要大于0.4%
+                assert maxEarnCost != null;
                 if (maxEarnCost.orderPair > 0 &&
-                        (maxEarnCost.earn >= prop.minMoney && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate)
+                        (maxEarnCost.earn >= getMiniMoney() && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate)
                 ) {// (正式生成的订单数量)
                     log_needTrade.info("实际能赚" + maxEarnCost.earn + prop.money + "，利润率" + prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) + "%，实际订单有" + maxEarnCost.orderPair + "对");
                     for (Trade trade : platList) {
@@ -474,10 +476,13 @@ public class Engine {
                     //如果有需要执行的订单，才应该启动线程
                     if (usefulOrderCount > 0 && profitRateMatch) {
                         // 【多线程】对各平台执行挂单、查订单状态、撤销没完全成交的订单、刷新账户信息==================
-                        /*先执行dex平台，如果成功，再执行cex平台？？？这样好吗？
-                         不好：dex平台浪费了一分钟时间，这时cex平台的情况已经变动了。生成的订单不应该被提交，应该直接作废。
+                        /*1.先执行dex平台，如果成功，再执行cex平台？？？这样好吗？
+                         不好：dex平台浪费了一分钟时间，这时cex平台的情况已经变动了。cex生成的订单不应该被提交，应该直接作废。
                          更好的办法是：在下一轮循环时会调节goods数量(只用cex来调节)，这样间接的执行了cex平台.
-                         更美妙的是：在dex执行成功之前，系统不会检查出资金失衡.一旦发现资金失衡，就说明dex执行成功了
+                         2.只有期货平台不需要自动调节goods，所以期货和现货，代码还是要分开的。
+                         3.dex订单一提交，系统就会阻塞，直到交易被打包。如果只有dex交易成功:
+                            a.如果dex消耗的是goods，系统会报money增多.平衡模块会自动买goods(从dex或cex,哪个便宜就买哪个)
+                            b.如果dex消耗的是money, 会导致goods增多，平衡模块会自动卖goods(从dex或cex,哪个便宜就买哪个)
                         */
                         executeTrade();
 
@@ -514,7 +519,7 @@ public class Engine {
         log.info("{" + currentBalance.getPlatInfo() + "}");
         if (useTime > 5 * 60 * 1000) {// 如果用时大于5分钟
             throw new Exception("本次超时！耗时" + (useTime / 1000.0) + "秒++++++++++++++++++++++++++++++++++++++");
-        } else if (useTime > (time_oneCycle * 1000)) {
+        } else if (useTime > (time_oneCycle * 1000L)) {
             log.warn("xxxxxxxxxxxxxx本次超时！耗时" + (useTime / 1000.0) + "秒xxxxxxxxxxxxxxxtotalEarn:"
                     + currentBalance.getTotalEarn() + prop.earnWhat + "===thisEarn:" + currentBalance.getThisEarn()
                     + prop.earnWhat + " xxxxx");
@@ -531,7 +536,7 @@ public class Engine {
     /**
      * 对各交易平台，进行挂单操作
      *
-     * @throws Exception
+     * @throws Exception 异常
      */
     private void executeTrade() throws Exception {
         List<TradeThread> tradeThreadList = new ArrayList<>();
@@ -587,8 +592,8 @@ public class Engine {
     /**
      * 简单型：任何平台差价达不到阈值，就全部停止匹配
      *
-     * @return
-     * @throws Exception
+     * @return EarnCost
+     * @throws Exception 异常
      */
     private EarnCost adjustLimitPrice1(MarketDepth totalDepth) throws Exception {
         EarnCost maxEarnCost = new EarnCost(0, 0);// 最多能赚多少钱
@@ -638,8 +643,8 @@ public class Engine {
      *
      * @param passArr        某平台是否早已不满足条件，应该跳过
      * @param passAdjust1Arr 某平台是否应该跳过adjust1的处理
-     * @return
-     * @throws Exception
+     * @return EarnCost
+     * @throws Exception 异常
      */
     private EarnCost helpadjustLimit(MarketOrder ask, MarketOrder bid, boolean[] passArr, boolean[] passAdjust1Arr, Set<Integer> platIdSet, EarnCost maxEarnCost) throws
             Exception {
@@ -667,7 +672,7 @@ public class Engine {
             }
 
             maxEarnCost.orderPair++;
-            log_diff_price.info("有差价:" + prop.fmt_money.get().format(diffPrice) + ",数量:" + prop.fmt_goods.get().format(amount) + ",方向:"
+            log_diff_price.info("有差价:" + Prop.fmt_money.get().format(diffPrice) + ",数量:" + Prop.fmt_goods.get().format(amount) + ",方向:"
                     + keyArray[arrayIndex] + "," + bid.getPrice() + "_" + ask.getPrice() + "");
 
             // =======从卖方挂单扣除amount,===========
@@ -692,7 +697,7 @@ public class Engine {
     /**
      * 寻找差价,生成订单。简单型：任何平台差价达不到阈值，就全部停止匹配
      *
-     * @throws Exception
+     * @throws Exception 异常
      */
     private EarnCost createOrders1(MarketDepth totalDepth) throws Exception {
         EarnCost maxEarnCost = new EarnCost(0, 0);// 最多能赚多少钱
@@ -740,8 +745,8 @@ public class Engine {
      * 返回预计赚的钱。如果是FIRST_FAIL，表示首次出现不满足的情况，如果是SECOND_FAIL表示多次出现不满足的情况
      *
      * @param passArr 不满足条件吗? true表示“不满足”，false表示满足
-     * @return
-     * @throws Exception
+     * @return EarnCost
+     * @throws Exception 异常
      */
     private EarnCost helpCreateOrders(MarketOrder ask, MarketOrder bid, boolean[] passArr, Set<Integer> platIdSet, EarnCost maxEarnCost) throws Exception {
 
@@ -757,7 +762,7 @@ public class Engine {
             }
 
             maxEarnCost.orderPair++;
-            log_diff_price.info("(实际订单)有差价:" + prop.fmt_money.get().format(diffPrice) + ",数量:" + prop.fmt_goods.get().format(amount) + ",方向:"
+            log_diff_price.info("(实际订单)有差价:" + Prop.fmt_money.get().format(diffPrice) + ",数量:" + Prop.fmt_goods.get().format(amount) + ",方向:"
                     + keyArray[arrayIndex] + "," + bid.getPrice() + "_" + ask.getPrice() + "");
 
             // =======从卖方挂单扣除amount,并生成买单===========
@@ -802,8 +807,8 @@ public class Engine {
     /**
      * 精细型(穷举所有可能)：一对平台差价达不到阈值，就继续找下去。因为这不代表其他平台也达不到阈值
      *
-     * @return
-     * @throws Exception
+     * @return EarnCost
+     * @throws Exception 异常
      */
     private EarnCost adjustLimitPrice2(MarketDepth totalDepth) throws Exception {
         EarnCost maxEarnCost = new EarnCost(0, 0);// 最多能赚多少钱
@@ -849,7 +854,7 @@ public class Engine {
     /**
      * 寻找差价,生成订单.精细型(穷举所有可能)：一对平台差价达不到阈值，就继续找下去.因为这不代表其他平台也达不到阈值
      *
-     * @throws Exception
+     * @throws Exception 异常
      */
     private EarnCost createOrders2(MarketDepth totalDepth) throws Exception {
         EarnCost maxEarnCost = new EarnCost(0, 0);// 最多能赚多少钱
@@ -893,7 +898,7 @@ public class Engine {
      * 单币手续费】,则开启goods自动转移功能,等转移完了,人工反向转移money. 3.1 其他的情况,无解。(如果没有 (差价>
      * 单币手续费)的时候,则无解；)
      *
-     * @throws Exception
+     * @throws Exception 异常
      */
     public void balanceGoods() throws Exception {
         /*
@@ -945,7 +950,7 @@ public class Engine {
         int currentHour = Integer.parseInt(dateFmt_HH.format(new Date()));
         String currentDateHour = dateFmt.format(new Date());
         String lastBalanceDateHour = lastBalance.getDateTime().substring(0, "yyyy-MM-dd HH".length());
-        /**
+        /*
          * 如果(当前hour)%(时间间隔)==(起始hour)%(时间间隔),
          * 且lastBalance中的"yyyy-MM-dd HH"不等于当前的时间
          */
@@ -1011,7 +1016,7 @@ public class Engine {
     /**
      * 检查goods总数量,如果不跟初始值相等,就立即调整。
      *
-     * @throws Exception
+     * @throws Exception 异常
      */
     public void checkTotalGoods() throws Exception {
         //initVirtualPlat();
@@ -1036,7 +1041,7 @@ public class Engine {
     /**
      * 检查goods总数量,如果不跟初始值相等,就立即调整。
      *
-     * @throws Exception
+     * @throws Exception 异常
      */
     public void checkTotalMoney() throws Exception {
         //initVirtualPlat();
@@ -1063,14 +1068,14 @@ public class Engine {
     /**
      * 从xml配置文件中读取参数
      *
-     * @param key
-     * @return
+     * @param key 路径
+     * @return 文本
      */
     private String readXmlProp(String key) {
         String path = key.replace("_", "/");
         Node node = xmlDoc.selectSingleNode("conf/" + path);
         if (node == null) {
-            return null;
+            return "";
         } else {
             return node.getText();
         }
@@ -1083,7 +1088,7 @@ public class Engine {
         String path = elementName.replace("_", "/") + "/@" + attrName;
         Node node = xmlDoc.selectSingleNode("conf/" + path);
         if (node == null) {
-            return null;
+            return "";
         } else {
             return node.getText();
         }
@@ -1092,9 +1097,9 @@ public class Engine {
     /**
      * 修改xmlDoc对象，并把xmlDoc保存到文件
      *
-     * @param key
-     * @param value
-     * @throws Exception
+     * @param key 路径
+     * @param value 值
+     * @throws Exception 异常
      */
     private void saveXmlProp(String key, String value) throws Exception {
         synchronized (xmlDoc) {//对xmlDoc的写操作，可能引发线程安全问题，所以要加锁
@@ -1114,7 +1119,7 @@ public class Engine {
     /**
      * 保存配置参数到文件
      *
-     * @throws Exception
+     * @throws Exception 异常
      */
     private void saveProp2(String name1, String name2, String value) throws Exception {
         String key = name1 + "_" + name2;
@@ -1216,6 +1221,18 @@ public class Engine {
         } catch (Exception e) {
             log.error("", e);
         }
+    }
+
+    /**
+     * 计算最少要赚的钱。利润多于这个值，才能启动交易。
+     *
+     * @return 返回prop.atLeastEarn和【各个平台fixFee总和】之中最大的一个。
+     */
+    public double getMiniMoney() {
+        double atLeastEarn = prop.atLeastEarn / prop.moneyPrice;
+        //dex平台的fixFee，单位是trade.money。每隔6秒就会更新，所以比atLeastEarn更靠谱。
+        double totalFixFee = platList.stream().mapToDouble(t -> t.fixFee).sum();
+        return Math.max(atLeastEarn, totalFixFee);
     }
 
 }

@@ -25,7 +25,10 @@ public abstract class Trade {
     protected Prop prop;
     protected Engine engine;
     public boolean initSuccess = false;
-    public double fixFee = 0.0;//每次交易需要的固定费用(例如uniswap的矿工费)
+    /**
+     * 每次交易需要的固定费用(例如uniswap的矿工费)，单位是trade.money，例如usdt、btc
+     */
+    public double fixFee = 0.0;
     public double profitRate;//利润率，也就是滑点
     /**
      * 为了在差价长期不出现翻转的平台之间搬运， 对查到的市场挂单，减去该价格，对要发送出的订单，加上该价格。
@@ -195,6 +198,7 @@ public abstract class Trade {
     /**
      * 订单预处理：对每个订单逐个检查：若账户余额不够,则将订单设为失效(backupUsefulOrder方法确保了账户余额不可能不够)。
      * 各平台预处理需要一起做，因为订单是成双成对的失效!
+     *
      * @see 【不要在本方法内删除失效订单，因为删不干净】
      */
     public void processOrders() {
