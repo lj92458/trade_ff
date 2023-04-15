@@ -202,6 +202,11 @@ public class Engine {
                 trade.setChangePrice(Double.parseDouble(changePriceStr));
                 platList.add(trade);
             }
+
+            //添加虚拟平台
+            virtualTrade = SpringContextUtil.getBean(VirtualTrade.class, httpUtil, platList.size(), usdRate, prop, this);
+            platList.add(virtualTrade);
+
             //创建threadPoolExecutor
             threadPoolExecutor = new ThreadPoolExecutor(
                     3 * platList.size() + 10,
@@ -209,10 +214,6 @@ public class Engine {
                     5L, TimeUnit.MINUTES,
                     new LinkedBlockingQueue<>(10),
                     new ThreadPoolExecutor.AbortPolicy());
-
-            //添加虚拟平台
-            virtualTrade = SpringContextUtil.getBean(VirtualTrade.class, httpUtil, platList.size(), usdRate, prop, this);
-            platList.add(virtualTrade);
 
             // 长度是 (n-1)*11+1
             keyArray = new String[(platList.size() - 1) * 11 + 1];
@@ -335,6 +336,11 @@ public class Engine {
                 trade.setUserOrderList(new ArrayList<>());
             }
 
+            //如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与。因为这个过程需要花费好几秒钟，为什么不节省掉呢。【这时还是应该清空dex的userOrderList】
+            if (needSkipDexWhenAdjustGoods(trade)) {
+                continue;
+            }
+
             completableFutureList.add(CompletableFuture.runAsync(() -> {
                 try {
                     trade.flushMarketDeeps();
@@ -371,7 +377,10 @@ public class Engine {
         // 设置综合深度
         MarketDepth totalDepth = new MarketDepth();
         for (Trade trade : platList) {
-
+            //如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与
+            if (needSkipDexWhenAdjustGoods(trade)) {
+                continue;
+            }
             totalDepth.getAskList().addAll(trade.getMarketDepth().getAskList());
             totalDepth.getBidList().addAll(trade.getMarketDepth().getBidList());
 
@@ -414,8 +423,8 @@ public class Engine {
         MarketDepth totalDepth = new MarketDepth();
 
         for (Trade trade : platList) {
-            //如果是调节goods数量，那么就不能让收矿工费的平台(uniswap)参与
-            if (virtualTrade.isActive() && trade.getFixFee() > 0) {
+            //如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与
+            if (needSkipDexWhenAdjustGoods(trade)) {
                 continue;
             }
             //如果允许跨平台搬运
@@ -509,8 +518,8 @@ public class Engine {
                          更好的办法是：在下一轮循环时会调节goods数量(只用cex来调节)，这样间接的执行了cex平台.
                          2.只有期货平台不需要自动调节goods，所以期货和现货，代码还是要分开的。
                          3.dex订单一提交，系统就会阻塞，直到交易被打包。如果只有dex交易成功:
-                            a.如果dex消耗的是goods，系统会报money增多.平衡模块会自动买goods(从dex或cex,哪个便宜就买哪个)
-                            b.如果dex消耗的是money, 会导致goods增多，平衡模块会自动卖goods(从dex或cex,哪个便宜就买哪个)
+                            a.如果dex消耗的是goods，系统会报money增多.平衡模块会自动买goods(如果dexSync=true,两平台同时挂单，那么就应该从两个平台调节goods)
+                            b.如果dex消耗的是money, 会导致goods增多，平衡模块会自动卖goods
                         */
                         executeTrade();
 
@@ -569,13 +578,13 @@ public class Engine {
     private void executeTrade() throws Exception {
         List<CompletableFuture<?>> completableFutureList = new ArrayList<>();
         // 为每个平台启动一个线程--------
-        //计算总的固定费用，如果>0,说明有dex平台参与，那么就不执行cex
+        //计算总的固定费用，如果>0,说明有dex平台参与，那么由dexSync参数决定是否执行cex
         double totalFixFee = platList.stream().filter(trade -> trade.getUserOrderList().size() > 0).mapToDouble(Trade::getFixFee).sum();
         for (Trade trade : platList) {
             if (trade.getUserOrderList().size() == 0)
                 continue;
             /*如果有dex平台存在，跳过cex平台，只执行dex，如果dex执行成功，在下个循环通过调节goods数量，间接执行了cex。
-             这样作的好处是：dex踏空率太高了，一旦dex踏空，cex也就没必要执行了。
+             这样作的好处是：dex踏空率太高了，一旦dex踏空，cex也就没必要执行了，多省事啊。
              */
             if (!dexSync && totalFixFee > 0 && trade.getFixFee() == 0) {
                 continue;
@@ -588,7 +597,7 @@ public class Engine {
         // 等待各个线程结束,最多等time_oneCycle秒-------
         CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture<?>[0])).get(time_oneCycle, TimeUnit.SECONDS);
         log_haveTrade.info("===================================================================================");
-        initVirtualPlat();
+        initVirtualPlat();//交易完了，要及时清空虚拟平台。以免影响下一轮循环
         log.info("各线程都已结束=========");
     }
 
@@ -1015,11 +1024,11 @@ public class Engine {
 
     /**
      * 检查goods总数量,如果不跟初始值相等,就立即调整。
+     * 跟初始值不相等的原因可能是：1.意外导致单边交易失败; 2.故意只让dex执行的，等dex执行成功再让cex在下一轮执行。
      *
      * @throws Exception 异常
      */
     public void checkTotalGoods() throws Exception {
-        initVirtualPlat();
         currentBalance = getCurrentBalance();
         Balance initBal = new Balance(prop, firstBalance);
         double diffAmount = currentBalance.getTotalGoods() - initBal.getTotalGoods();
@@ -1041,7 +1050,6 @@ public class Engine {
             AccountInfo accInfo = new AccountInfo();
             accInfo.setFreeMoney(diffAmount * currentBalance.getPrice());
             virtualTrade.setAccInfo(accInfo);
-            //
         } else if (diffAmount < -1000.0 / prop.moneyPrice / currentBalance.getPrice()) {// 如果变少就买
             diffAmount = 0 - diffAmount;
             log.info("总goods减少" + diffAmount);
@@ -1060,20 +1068,17 @@ public class Engine {
             AccountInfo accInfo = new AccountInfo();
             accInfo.setFreeGoods(diffAmount + 10);
             virtualTrade.setAccInfo(accInfo);
-            //
-        } else {
-            // log.info("总goods数量无变化");
+
         }
 
     }
 
     /**
-     * 检查goods总数量,如果不跟初始值相等,就立即调整。
+     * 如果系统是赚goods,就检查money总数量,如果不跟初始值相等,就立即调整。
      *
      * @throws Exception 异常
      */
     public void checkTotalMoney() throws Exception {
-        initVirtualPlat();
         currentBalance = getCurrentBalance();
         Balance initBal = new Balance(prop, firstBalance);
         double diffAmount = currentBalance.getTotalMoney() - initBal.getTotalMoney();
@@ -1260,6 +1265,13 @@ public class Engine {
         } catch (Exception e) {
             log.error("", e);
         }
+    }
+
+    /**
+     * 如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与
+     */
+    private boolean needSkipDexWhenAdjustGoods(Trade trade) {
+        return !dexSync && virtualTrade.isActive() && trade.getFixFee() > 0;
     }
 
 }
