@@ -385,7 +385,7 @@ public class Engine {
         }
         //收益率要大于配置的值
         assert maxEarnCost != null;
-        if (maxEarnCost.orderPair > 0 && (
+        if (maxEarnCost.orderPair > 0 && (//maxEarnCost.earn已经考虑到了矿工费
                 (maxEarnCost.earn >= prop.minMoney && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate)
         )
         ) {// 只有模拟生成的订单存在时，才搬运
@@ -411,7 +411,6 @@ public class Engine {
         MarketDepth totalDepth = new MarketDepth();
 
         for (Trade trade : platList) {
-            //如果是调节goods数量，那么就不能让收矿工费的平台(uniswap)参与
             //如果允许跨平台搬运
             if (trade.getModeLock() == 0) {
                 trade.setModeLock(1);//加锁
@@ -447,7 +446,7 @@ public class Engine {
 
                 //收益率要大于0.4%
                 assert maxEarnCost != null;
-                if (maxEarnCost.orderPair > 0 &&
+                if (maxEarnCost.orderPair > 0 && //maxEarnCost.earn已经考虑到了矿工费
                         (maxEarnCost.earn >= prop.minMoney && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate)
                 ) {// (正式生成的订单数量)
                     log_needTrade.info("实际能赚" + maxEarnCost.earn + prop.money + "，利润率" + prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) + "%，实际订单有" + maxEarnCost.orderPair + "对");
@@ -550,13 +549,13 @@ public class Engine {
     private void executeTrade() throws Exception {
         List<CompletableFuture<?>> completableFutureList = new ArrayList<>();
         // 为每个平台启动一个线程--------
-        //计算总的固定费用，如果>0,说明有dex平台参与，那么就不执行cex
+        //计算总的固定费用，如果>0,说明有dex平台参与，那么由dexSync参数决定是否执行cex
         double totalFixFee = platList.stream().filter(trade -> trade.getUserOrderList().size() > 0).mapToDouble(Trade::getFixFee).sum();
         for (Trade trade : platList) {
             if (trade.getUserOrderList().size() == 0)
                 continue;
             /*如果有dex平台存在，跳过cex平台，只执行dex，如果dex执行成功，在下个循环通过调节goods数量，间接执行了cex。
-             这样作的好处是：dex踏空率太高了，一旦dex踏空，cex也就没必要执行了。
+             这样作的好处是：dex踏空率太高了，一旦dex踏空，cex也就没必要执行了，多省事啊。
              */
             if (!dexSync && totalFixFee > 0 && trade.getFixFee() == 0) {
                 continue;
@@ -993,8 +992,10 @@ public class Engine {
         return bal;
     }
 
+
     /**
      * 检查goods总数量,如果不跟初始值相等,就立即调整。
+     * 跟初始值不相等的原因可能是：1.意外导致单边交易失败; 2.故意只让dex执行的，等dex执行成功再让cex在下一轮执行。
      *
      * @throws Exception 异常
      */
@@ -1019,7 +1020,7 @@ public class Engine {
     }
 
     /**
-     * 检查goods总数量,如果不跟初始值相等,就立即调整。
+     * 如果系统是赚goods,就检查money总数量,如果不跟初始值相等,就立即调整。
      *
      * @throws Exception 异常
      */

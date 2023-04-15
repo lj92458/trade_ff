@@ -98,7 +98,7 @@ public class Trade_uniswap extends Trade {
         this.config = new APIConfiguration();
         config.setUri(url_prex);
         config.setAddress(ethAddress);
-        config.setMaxWaitSeconds(30);
+        config.setMaxWaitSeconds(engine.time_oneCycle);
 
         this.productAPIService = new ProductAPIServiceImpl(this.config);
         this.orderAPIService = new OrderApiServiceImpl(this.config);
