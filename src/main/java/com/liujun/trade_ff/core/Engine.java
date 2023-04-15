@@ -2,7 +2,6 @@ package com.liujun.trade_ff.core;
 
 import com.liujun.trade_ff.core.modle.*;
 import com.liujun.trade_ff.core.thread.AvgpriceThread;
-import com.liujun.trade_ff.core.thread.TradeThread;
 import com.liujun.trade_ff.core.util.HttpUtil;
 import com.liujun.trade_ff.core.util.StringUtil;
 import com.liujun.trade_ff.core.util.XmlConfigUtil;
@@ -210,7 +209,6 @@ public class Engine {
                     new LinkedBlockingQueue<>(10),
                     new ThreadPoolExecutor.AbortPolicy());
 
-
             // 长度是 (n-1)*11+1
             keyArray = new String[(platList.size() - 1) * 11 + 1];
             priceArray = new double[(platList.size() - 1) * 11 + 1];
@@ -360,11 +358,9 @@ public class Engine {
     /**
      * 撮合市场挂单
      *
-     * @return 是否撮合成功，是否有机会盈利
      * @throws Exception 异常
      */
-    private boolean matchMarketDepth() throws Exception {
-        boolean isSuccess = false;
+    private void matchMarketDepth() throws Exception {
         // 设置综合深度
         MarketDepth totalDepth = new MarketDepth();
         for (Trade trade : platList) {
@@ -392,21 +388,17 @@ public class Engine {
             log_needTrade.info("(机会)市场最大差价" + Prop.fmt_money.get().format(maxEarnCost.diffPrice) + prop.money +
                     "，利润率" + prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) + "%," + maxEarnCost.diffPriceDirection
                     + ",最多能赚" + Prop.fmt_money.get().format(maxEarnCost.earn) + prop.money + ",模拟订单有" + maxEarnCost.orderPair + "对");
-
-            isSuccess = true;
         } else {
             log.info("最多赚" + maxEarnCost.earn + prop.money + ",模拟订单有" + maxEarnCost.orderPair +
                     "对,利润率" + (maxEarnCost.earn > 0 ? prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) : 0) + "%," +
                     maxEarnCost.diffPriceDirection + "----------------------最大差价" + Prop.fmt_money.get().format(maxEarnCost.diffPrice) + prop.money);
         }
-        return isSuccess;
     }
 
     /**
      * 撮合备份的市场挂单。（根据我方的资金量情况，只把跟资金量匹配的挂单保存起来。确保我方有能力吃掉这些挂单
      */
-    private boolean matchBackupDepth() throws Exception {
-        boolean isSuccess = false;
+    private void matchBackupDepth() throws Exception {
         // 将各平台备份的市场挂单导入汇总挂单(因为调节限价时，会把挂单的goods量改为0)
         MarketDepth totalDepth = new MarketDepth();
 
@@ -495,7 +487,6 @@ public class Engine {
                         executeTrade();
 
                         // end 【多线程】对各平台执行挂单、查订单状态、撤销没完全成交的订单、刷新账户信息============
-                        isSuccess = true;
                     }
                 } else {//end 如果正式生成的订单数量>0
                     log.info("正式订单最多赚" + maxEarnCost.earn + prop.money + ",利润率" + (maxEarnCost.earn > 0 ? prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) : 0) + "%," + maxEarnCost.orderPair + "对订单(不值得/看不上)----------------------");
@@ -518,7 +509,6 @@ public class Engine {
             }
         }
 
-        return isSuccess;
     }
 
     private void checkStatus(long beginTime) throws Exception {
@@ -560,9 +550,34 @@ public class Engine {
             if (!dexSync && totalFixFee > 0 && trade.getFixFee() == 0) {
                 continue;
             }
-            //把tradeThread看作runnable
-            TradeThread tradeThread = SpringContextUtil.getBean(TradeThread.class, trade, this);
-            completableFutureList.add(CompletableFuture.runAsync(tradeThread, threadPoolExecutor));
+
+            completableFutureList.add(CompletableFuture.runAsync(() -> {
+                long beginTime = System.currentTimeMillis();
+                try {
+                    // 挂单,并返回挂单数量,
+                    int orderNum = trade.tradeOrder();
+                    if (orderNum > 0) {// 如果挂单数量不为0
+                        log_haveTrade.info(trade.getPlatName() + "已挂单" + orderNum + "个：" + trade.getUserOrderList().toString());
+                        // 查询订单状态，最多4秒
+                        for (int i = 0; i < 4000 / prop.time_sleep; i++) {
+                            TimeUnit.MILLISECONDS.sleep(prop.time_sleep);// 睡眠
+                            int unFinishedNum = trade.queryOrderState();
+                            if (unFinishedNum == 0) {
+                                break;
+                            }
+                        }//end for
+                        trade.cancelOrder();// 撤销没完全成交的订单
+                        trade.flushAccountInfo();// 并刷新账户信息
+                    } else {
+                        log.info(trade.getPlatName() + "--------  0 个挂单---------------------------------------");
+                    }
+                } catch (Exception e) {
+                    log.error(trade.getPlatName() + "交易异常:" + e.getMessage(), e);
+                }
+                // 计算耗时
+                long endTime = System.currentTimeMillis();
+                log.info("线程结束,耗时" + (endTime - beginTime) + "毫秒*********************");
+            }, threadPoolExecutor));
 
         }// end for
         // 等待各个线程结束,最多等time_oneCycle秒-------
