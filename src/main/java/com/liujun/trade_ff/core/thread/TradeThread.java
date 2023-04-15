@@ -49,9 +49,7 @@ public class TradeThread extends Thread {
             int orderNum = trade.tradeOrder();
             // 如果挂单数量不为0
             if (orderNum > 0) {
-
                 log_haveTrade.info(trade.getPlatName() + "已挂单" + orderNum + "个：" + trade.getUserOrderList().toString());
-
                 // 查询订单状态，最多4秒
                 for (int i = 0; i < 4000 / prop.time_sleep; i++) {
                     TimeUnit.MILLISECONDS.sleep(prop.time_sleep);// 睡眠
@@ -67,7 +65,6 @@ public class TradeThread extends Thread {
             } else {
                 log.info(trade.getPlatName() + "--------  0 个挂单---------------------------------------");
                 // 如果只有0个挂单,说明价格需要倒挂
-
             }
             success = true;
         } catch (Exception e) {

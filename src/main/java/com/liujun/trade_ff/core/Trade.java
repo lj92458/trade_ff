@@ -29,7 +29,10 @@ public abstract class Trade {
      * 每次交易需要的固定费用(例如uniswap的矿工费)，单位是trade.money，例如usdt、btc
      */
     public double fixFee = 0.0;
-    public double profitRate;//利润率，也就是滑点
+    /**
+     * 即将要提交的订单的收益率，它一定会大于atLeastRate。这个也用来限制dex滑点
+     */
+    public double profitRate;
     /**
      * 为了在差价长期不出现翻转的平台之间搬运， 对查到的市场挂单，减去该价格，对要发送出的订单，加上该价格。
      */
@@ -340,7 +343,7 @@ public abstract class Trade {
     }
 
     /**
-     * 计算利润率，也就是滑点。<h1>注意：要在merge()被调用之前就计算!!!!</h1>
+     * 即将要提交的订单的收益率。这个也用来限制dex滑点。<h1>注意：要在merge()被调用之前就计算!!!!</h1>
      *
      * @return
      */
