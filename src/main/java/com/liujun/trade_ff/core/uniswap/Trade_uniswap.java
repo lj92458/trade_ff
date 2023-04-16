@@ -57,8 +57,7 @@ public class Trade_uniswap extends Trade {
 
     @Value("${uniswap.ethAddress}")
     private String ethAddress;
-    @Value("${time_oneCycle}")
-    private int maxWaitSeconds;
+
     /**
      * 批量下单的最大批量
      */

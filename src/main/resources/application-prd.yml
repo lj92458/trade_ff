@@ -1,8 +1,27 @@
 #---------------------------       prd       ------------------------------------------------
-#余额文件的路径
-log.path: /var/trade_c2c_celo/logs  #不能以斜杠结尾
-balanceFilePath: ${log.path}/balance.txt
+server:
+  port: 8080
+  servlet:
+    context-path: /trade_c2c_celo
+    session:
+      timeout: P0DT0H0M300.0S #300秒，必须是合法的Duration
+  tomcat:
+    basedir: /var/log/tomcat
+    accesslog:
+      enabled: true
+      suffix: .log
+      prefix: access_log
+      file-date-format: .yyyy-MM-dd
+      directory: logs
+      pattern: common
+#配置tomcat内部日志的级别
+logging.level:
+  org.apache.tomcat: INFO
+  org.apache.catalina: INFO
 
+#余额文件的路径
+log.path: /var/log${server.servlet.context-path} #不能以斜杠结尾
+balanceFilePath: ${log.path}/balance.txt
 
 spring:
   datasource:
@@ -43,7 +62,7 @@ trade:
   positionRate: 1 #仓位上限，占余额的比例。0.5表示50%，那么下跌2/3时爆仓。1表示100%，那么下跌50%时爆仓
 
 engine:
-  time_queryOrder: 3 #间隔多少【秒】查询一次市场挂单. 请用3、6、9、12等等
+  time_queryOrder: 6 #间隔多少【秒】查询一次市场挂单. 请用3、6、9、12等等
   time_oneCycle: 30 #每循环一次，最大允许占用多少【秒】.dex执行一次可能要30秒，那么这期间这个系统都被阻塞
   time_sleep: 1000 #每次对平台进行写操作后，休眠多少【毫秒】
   waitSecondAfterException: 3 #如果抛出异常，暂停多少【秒】
@@ -106,6 +125,6 @@ uniswap:
   goods: celo #交易哪种商品。大小写随意，由各平台对应的trade类负责转换
   money: cusd #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
   url: http://127.0.0.1:8090
-  ethAddress: 0xB0d1435590B4f14A5f4414f93489945546162ffc
+  ethAddress: "0xB0d1435590B4f14A5f4414f93489945546162ffc"
   feeRate: 0.003 #uniswap平台的交易手续费是多少？不同币种，手续费不一样，wbtc是0.3%或0.05%，稳定币兑换是0.01%. celo-cusd是0.3%
   gasPercent: 1.0 #强制调高gas价格，对矿工费进行悲观的估算.

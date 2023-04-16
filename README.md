@@ -13,7 +13,7 @@
 
 1.  在 linux系统 安装java8和sqlite3
 2.  根据yml文件中log.path的值，创建日志目录。这里也会用来存放数据库。
-3.  修改配置文件： applicaion-prd, conf.xml，并把conf.xml放到日志目录。
+3.  修改配置文件： applicaion-prd，把conf.xml放到日志目录并修改firstBalance。
     删除logback-test-spring.xml(不用删除，因为有logging.config参数决定用哪个)
 4. 激活maven的prd配置，并打包；将安装包传输到服务器
 5. 执行数据库建表/建库语句，插入初始化数据。

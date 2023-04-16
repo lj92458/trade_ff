@@ -23,6 +23,7 @@ public class AccountAPIServiceImpl implements AccountAPIService {
 
     /**
      * 最多25秒返回。
+     *
      * @param symbolArr
      * @return
      */
@@ -38,7 +39,8 @@ public class AccountAPIServiceImpl implements AccountAPIService {
 
                 return list;
             } catch (Exception e) {
-                if (e.getMessage().contains("failed to meet quorum")) {
+                log.error("queryTokenBalance异常", e);
+                if (e.getMessage() != null && e.getMessage().contains("failed to meet quorum")) {
                     log.error("多个节点返回值不一致(继续重试)" + e.getMessage().substring(0, 140));
                     if (retryCount >= maxRetry - 1) {
                         log.error("已经重试了" + maxRetry + "次，不再重试！");

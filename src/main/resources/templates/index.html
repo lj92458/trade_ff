@@ -1,12 +1,12 @@
 <!DOCTYPE html >
 <html xmlns:th="http://www.thymeleaf.org" lang="zh">
 <head>
-    <title th:replace="/resources.html" ></title>
+    <title th:replace="resources.html"></title>
     <link th:href="@{'/'+${#objects.nullSafe(session.PAGE_SKIN,'')}+'css/index.css'}" rel="stylesheet">
     <title>自动交易</title>
 </head>
 <body onbeforeunload="stomp_disconnect()">
-<div th:replace="/header.html" ></div>
+<div th:replace="header.html"></div>
 
 
 <div id="main" style="height:400px;width:1500px;"></div>
@@ -23,7 +23,7 @@
 <br/>
 <form id="adjustForm" action="#" method="post" title="">
     价格偏差：
-    <table id="table_adjPrice" cellpadding=0   cellspacing=0 >
+    <table id="table_adjPrice" cellpadding=0 cellspacing=0>
 
     </table>
     <br><br>
@@ -32,12 +32,12 @@
     <input type="button" id="start" value="启动" style="width:70px;height: 30px"/>
     <div id="retMsg" style="color: red;"></div>
 </form>
-<div id="rootLog" class="console" > </div>
+<div id="rootLog" class="console"></div>
 
-<div th:replace="/footer.html" ></div>
+<div th:replace="footer.html"></div>
 
-<script th:src="@{/js/echarts.min.js}" ></script>
-<script th:src="@{/js/index.js}" ></script>
+<script th:src="@{/js/echarts.min.js}"></script>
+<script th:src="@{/js/index.js}"></script>
 <script th:src="@{/js/chat_room/sockjs.min.js}"></script>
 <script th:src="@{/js/chat_room/stomp.min.js}"></script>
 <script th:src="@{/js/chat_room/stomp_manager.js}"></script>
