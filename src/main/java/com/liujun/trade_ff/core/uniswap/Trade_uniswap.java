@@ -280,7 +280,7 @@ public class Trade_uniswap extends Trade {
                     (order.getPrice() * (1 + addPrice)) + "",
                     order.getVolume() + "",
                     this.gasPriceGwei + "",
-                    prop.atLeastRate,//profitRate是大于atLeastRate的，允许更大的滑点，会导致更容易成交，但这也是亏损的根源
+                    prop.atLeastRate,//todo profitRate是大于atLeastRate的，允许更大的滑点，会导致更容易成交，但这也是亏损的根源。但是小滑点导致不容易成交，会白白浪费矿工费
                     getPoolFee()
             );
             // 设置orderId
