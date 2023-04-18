@@ -569,10 +569,10 @@ public class Engine {
                         trade.cancelOrder();// 撤销没完全成交的订单
                         trade.flushAccountInfo();// 并刷新账户信息
                     } else {
-                        log.info(trade.getPlatName() + "--------  0 个挂单---------------------------------------");
+                        log_haveTrade.info(trade.getPlatName() + "--------  0 个挂单---------------------------------------");
                     }
                 } catch (Exception e) {
-                    log.error(trade.getPlatName() + "交易异常:" + e.getMessage(), e);
+                    log_haveTrade.error(trade.getPlatName() + "交易异常:" + e.getMessage(), e);
                 }
                 // 计算耗时
                 long endTime = System.currentTimeMillis();

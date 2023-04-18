@@ -129,7 +129,7 @@ public class ChangeLimit {
         // 如果有调高计时，且20分钟已满，考虑是将限价恢复为【原价和当前差价】的较大者？还是将临时限价固定下来？
         if (beginUpTime != 0 && nowTime - beginUpTime > MINUTE_20) {
             if (freeGoods > 0.5) {// 若A平台币数>0.5 ,说明调的太高了，卖不出去。将限价恢复为【原价和当前差价】的较大者
-                double reversePrice = Engine.priceInfo.backupPrice[arrayIndex] > diffPrice ? Engine.priceInfo.backupPrice[arrayIndex] : diffPrice;
+                double reversePrice = Math.max(Engine.priceInfo.backupPrice[arrayIndex], diffPrice);
                 changeLimitLog.info("adjust2回调限价，" + engine.keyArray[arrayIndex] + "从" + engine.priceArray[arrayIndex] + "到" + reversePrice + "币数还剩" + freeGoods);
                 // engine.priceArray[arrayIndex] = reversePrice;
                 engine.saveProp2(bid.getPlatId(), ask.getPlatId(), reversePrice);
@@ -167,7 +167,7 @@ public class ChangeLimit {
         if (beginUpTime == 0 && beginDownTime != 0 && nowTime - beginDownTime > HOURS_2) {
             if (freeGoods > 0.5 && 0.35 / prop.moneyPrice <= newPrice) {
                 //如果当前价格比newPrice还低，就不用调整
-                double finalPrice = engine.priceArray[arrayIndex] > newPrice ? newPrice : engine.priceArray[arrayIndex];
+                double finalPrice = Math.min(engine.priceArray[arrayIndex], newPrice);
                 changeLimitLog.info("adjust3调低限价，" + engine.keyArray[arrayIndex] + "币数还剩" + freeGoods + "从" + engine.priceArray[arrayIndex] + "到" + finalPrice);
                 engine.saveProp2(bid.getPlatId(), ask.getPlatId(), finalPrice);
             } else {

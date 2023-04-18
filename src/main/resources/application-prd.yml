@@ -1,8 +1,27 @@
 #---------------------------       prd       ------------------------------------------------
-#余额文件的路径
-log.path: /var/trade_c2c_celo/logs  #不能以斜杠结尾
-balanceFilePath: ${log.path}/balance.txt
+server:
+  port: 8080
+  servlet:
+    context-path: /trade_c2c_celo
+    session:
+      timeout: P0DT0H0M300.0S #300秒，必须是合法的Duration
+  tomcat:
+    basedir: /var/log/tomcat
+    accesslog:
+      enabled: true
+      suffix: .log
+      prefix: access_log
+      file-date-format: .yyyy-MM-dd
+      directory: logs
+      pattern: common
+#配置tomcat内部日志的级别
+logging.level:
+  org.apache.tomcat: INFO
+  org.apache.catalina: INFO
 
+#余额文件的路径
+log.path: /var/log${server.servlet.context-path} #不能以斜杠结尾
+balanceFilePath: ${log.path}/balance.txt
 
 spring:
   datasource:
@@ -28,15 +47,15 @@ trade:
   core.package: com.liujun.trade_ff.core
   goods: celo #交易哪种商品。大小写随意，由各平台对应的trade类负责转换
   money: usd #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
-  formatGoodsStr: 0.000000
-  formatMoneyStr: 0.00
+  formatGoodsStr: "0.000000"
+  formatMoneyStr: "0.000"
   earnMoney: true #赚取什么？钱还是货?如果赚钱，那么系统会保证货物数量保持不变
   minCoinNum: 0.1 #买卖币时，最小交易金额。如果是合约，最少买一手
   moneyPrice: 6.9 #计价货币值多少人民币，用来把利润估算成人民币
   marketOrderSize: 100 #获取市场深度时，买单、卖单分别获取多少个？【对okcoin有效,chbtc固定是50】
   orderStepLength: 0.02 #查询市场挂单时， 按价格合并订单，例如：0.1或0.001(只保留一位有效数字,例如0.03。不能是0.123456，) 比特币价格高，太小的差距显得没有意义。建议为万一到万五.
   #交易一次(不包含"调节商品数量"等特殊交易)，最少要赚多少【人民币】？如果扣除了各种成本，那么一毛钱也值得赚。亏损频率越高，atLeastEarn就应该越高。
-  #请不要考虑矿工费，因为EarnCost.earn已经扣除了矿工费。这里应该拍脑袋决定
+  # 请不要考虑矿工费，因为maxEarnCost.earn已经减去了矿工费。这里应该拍脑袋决定
   atLeastEarn: 0.1
   #最低利润率(差价除以价格)，跟滑点有关：因为uniswap上面建议的滑点是0.05%,比原链超导兑换建议1%
   atLeastRate: 0.001
@@ -106,6 +125,6 @@ uniswap:
   goods: celo #交易哪种商品。大小写随意，由各平台对应的trade类负责转换
   money: cusd #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
   url: http://127.0.0.1:8090
-  ethAddress: 0xB0d1435590B4f14A5f4414f93489945546162ffc
+  ethAddress: "0xB0d1435590B4f14A5f4414f93489945546162ffc"
   feeRate: 0.003 #uniswap平台的交易手续费是多少？不同币种，手续费不一样，wbtc是0.3%或0.05%，稳定币兑换是0.01%. celo-cusd是0.3%
   gasPercent: 1.0 #强制调高gas价格，对矿工费进行悲观的估算.

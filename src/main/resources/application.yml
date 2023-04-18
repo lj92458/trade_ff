@@ -1,13 +1,6 @@
 debug: false
 logging.config: classpath:logback-spring.xml
 
-server:
-  port: 8080
-  servlet:
-    context-path: /trade_celo
-    session:
-      timeout: P0DT0H0M300.0S #300秒，必须是合法的Duration
-
 
 spring:
   profiles:
@@ -27,14 +20,11 @@ spring:
 
 
 mybatis-plus:
-  configuration:
-    map-underscore-to-camel-case: true
-    auto-mapping-behavior: full # MyBatis 应如何自动映射列到字段或属性。 NONE 表示取消自动映射；PARTIAL 只会自动映射没有定义嵌套结果集映射的结果集。 FULL 会自动映射任意复杂的结果集（无论是否嵌套）。默认是partial
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   mapper-locations: classpath*:mybatis/sqlMap/**/*Mapper.xml
   config-location: classpath:mybatis/mybatis-config.xml
   global-config:
-    db-config: # 逻辑删除配置
-      logic-not-delete-value: 1 # 删除前
-      logic-delete-value: 0 # 删除后
-
+    db-config:
+      id-type: ASSIGN_UUID
+      logic-delete-field: isDel  # 全局逻辑删除的实体字段名
+      logic-delete-value: 1 # 逻辑已删除值(默认为 1)
+      logic-not-delete-value: 0 # 逻辑未删除值(默认为 0)

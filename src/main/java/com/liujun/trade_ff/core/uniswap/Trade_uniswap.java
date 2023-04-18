@@ -57,8 +57,7 @@ public class Trade_uniswap extends Trade {
 
     @Value("${uniswap.ethAddress}")
     private String ethAddress;
-    @Value("${time_oneCycle}")
-    private int maxWaitSeconds;
+
     /**
      * 批量下单的最大批量
      */
@@ -206,7 +205,7 @@ public class Trade_uniswap extends Trade {
             //把eth价值，转化成本交易对中的money
             double feeInMoney;
             feeInMoney = feeInEth * priceArr[1];
-            log.info("gas价格：" + this.gasPriceGwei + "Gwei,矿工费:" + feeInMoney + money + "(" + prop.formatMoney(feeInMoney * prop.moneyPrice) + "人民币)");
+            log.info("gas价格：" + this.gasPriceGwei + "Gwei,矿工费:" + prop.formatMoney(feeInMoney) + money + "(" + prop.formatMoney(feeInMoney * prop.moneyPrice) + "人民币)");
             super.setFixFee(feeInMoney);
 
         } catch (Exception e) {
@@ -280,7 +279,7 @@ public class Trade_uniswap extends Trade {
                     (order.getPrice() * (1 + addPrice)) + "",
                     order.getVolume() + "",
                     this.gasPriceGwei + "",
-                    prop.atLeastRate,//profitRate是大于atLeastRate的，允许更大的滑点，会导致更容易成交，但这也是亏损的根源
+                    prop.atLeastRate,//todo profitRate是大于atLeastRate的，允许更大的滑点，会导致更容易成交，但这也是亏损的根源。但是小滑点导致不容易成交，会白白浪费矿工费
                     getPoolFee()
             );
             // 设置orderId

@@ -1,12 +1,12 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
-    <title th:replace="/resources.html" ></title>
+    <title th:replace="resources.html" ></title>
     <link th:href="@{'/'+${#objects.nullSafe(session.PAGE_SKIN,'')}+'css/user.css'}" rel="stylesheet">
     <title>登录</title>
 </head>
 <body>
 
-<div th:replace="/header.html" ></div>
+<div th:replace="header.html" ></div>
 
 <!-- sign in -->
 <div class="content-all">
@@ -58,7 +58,7 @@
 </div>
 
 
-<div th:replace="/footer.html" ></div>
+<div th:replace="footer.html" ></div>
 
 </body>
 </html>
