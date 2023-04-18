@@ -35,7 +35,7 @@ public class ProductAPIServiceImpl implements ProductAPIService {
         int maxRetry = 5;
         for (int retryCount = 0; ; retryCount++) {
             try {
-                Book book = productRpc.bookProduct(coinPair, marketOrderSize, orderStepRatio, poolFee).toFuture().get(7L, TimeUnit.SECONDS);
+                Book book = productRpc.bookProduct(coinPair, marketOrderSize, orderStepRatio, poolFee).toFuture().get(15L, TimeUnit.SECONDS);
                 return book;
             } catch (Exception e) {
                 log.error("queryTokenBalance异常", e);
@@ -70,7 +70,7 @@ public class ProductAPIServiceImpl implements ProductAPIService {
         int maxRetry = 5;
         for (int retryCount = 0; ; retryCount++) {
             try {
-                double[] priceArr = productRpc.getGasPriceGweiAndEthPrice(moneySymbol, poolFee).toFuture().get(5L, TimeUnit.SECONDS);
+                double[] priceArr = productRpc.getGasPriceGweiAndEthPrice(moneySymbol, poolFee).toFuture().get(10L, TimeUnit.SECONDS);
                 return priceArr;
             } catch (Exception e) {
                 log.error("queryTokenBalance异常", e);

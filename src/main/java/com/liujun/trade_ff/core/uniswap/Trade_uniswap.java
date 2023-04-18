@@ -205,7 +205,7 @@ public class Trade_uniswap extends Trade {
             //把eth价值，转化成本交易对中的money
             double feeInMoney;
             feeInMoney = feeInEth * priceArr[1];
-            log.info("gas价格：" + this.gasPriceGwei + "Gwei,矿工费:" + feeInMoney + money + "(" + prop.formatMoney(feeInMoney * prop.moneyPrice) + "人民币)");
+            log.info("gas价格：" + this.gasPriceGwei + "Gwei,矿工费:" + prop.formatMoney(feeInMoney) + money + "(" + prop.formatMoney(feeInMoney * prop.moneyPrice) + "人民币)");
             super.setFixFee(feeInMoney);
 
         } catch (Exception e) {

@@ -34,7 +34,7 @@ public class AccountAPIServiceImpl implements AccountAPIService {
         for (int retryCount = 0; ; retryCount++) {
             try {
 
-                List<Account> list = accountRpc.queryTokenBalance(config.getAddress(), symbolArr).toFuture().get(5L, TimeUnit.SECONDS);
+                List<Account> list = accountRpc.queryTokenBalance(config.getAddress(), symbolArr).toFuture().get(10L, TimeUnit.SECONDS);
 
 
                 return list;
