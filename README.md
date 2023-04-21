@@ -17,7 +17,7 @@
     删除logback-test-spring.xml(不用删除，因为有logging.config参数决定用哪个)
 4. 激活maven的prd配置，并打包；将安装包传输到服务器
 5. 执行数据库建表/建库语句，插入初始化数据。
-6.需要授权某合约能花费自己的token 
+6.需要授权某合约能花费自己的token。不能从uniswap界面上操作，而是要调用trade.js里面的getTokenTransferApproval函数，对SwapRouter合约授权
 
 #### 使用说明
 
