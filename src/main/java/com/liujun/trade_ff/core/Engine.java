@@ -1050,7 +1050,7 @@ public class Engine {
         double diffAmount = currentBalance.getTotalGoods() - initBal.getTotalGoods();
 
         log.debug("diffAmount:" + currentBalance.getTotalGoods() + " , " + initBal.getTotalGoods());
-        if (diffAmount > 1000.0 / prop.moneyPrice / currentBalance.getPrice()) {// 如果变多,就卖
+        if (diffAmount > 1.0 / prop.moneyPrice / currentBalance.getPrice()) {// 如果变多,就卖
             log.info("总goods增多" + diffAmount);
             // 增加一个虚拟的低价市场卖单，诱使程序在其他平台卖
             virtualTrade.setCurrentPrice(currentBalance.getPrice());
@@ -1066,7 +1066,7 @@ public class Engine {
             AccountInfo accInfo = new AccountInfo();
             accInfo.setFreeMoney(diffAmount * currentBalance.getPrice());
             virtualTrade.setAccInfo(accInfo);
-        } else if (diffAmount < -1000.0 / prop.moneyPrice / currentBalance.getPrice()) {// 如果变少就买
+        } else if (diffAmount < -1.0 / prop.moneyPrice / currentBalance.getPrice()) {// 如果变少就买
             diffAmount = 0 - diffAmount;
             log.info("总goods减少" + diffAmount);
             // 增加一个虚拟的高价市场买单，诱使程序在其他平台买
