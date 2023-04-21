@@ -71,7 +71,7 @@ public class ChangeLimit {
 
             // 如果A->B的限价小于1，就没必要将B->A调为负价。
             double priceA = engine.priceArray[indexA];
-            if (priceA < 1.00 / prop.moneyPrice) {
+            if (priceA < 0.142 / prop.moneyPrice) {
                 return;
             }
 
@@ -83,9 +83,9 @@ public class ChangeLimit {
 
                 double priceB = engine.priceArray[indexB];
                 double priceB2;
-                if (priceA >= 3.5 / prop.moneyPrice) {
+                if (priceA >= 0.5 / prop.moneyPrice) {
                     priceB2 = -1 * (priceA / 10.0);// 除以4，还是除以10 ？
-                } else if (priceA >= 1.0 / prop.moneyPrice) {
+                } else if (priceA >= 0.142 / prop.moneyPrice) {
                     priceB2 = -1 * (priceA / 10.0);
                 } else {
                     priceB2 = priceB;//
@@ -154,10 +154,10 @@ public class ChangeLimit {
         long nowTime = new Date().getTime();
         long beginUpTime = Engine.priceInfo.beginUpTime[arrayIndex];
         long beginDownTime = Engine.priceInfo.beginDownTime[arrayIndex];
-        double rate = engine.priceArray[arrayIndex] > 5.0 / prop.moneyPrice ? 0.6 : 0.6;
+        double rate = engine.priceArray[arrayIndex] > 0.714 / prop.moneyPrice ? 0.6 : 0.6;
         double newPrice = prop.formatMoney(rate * engine.priceArray[arrayIndex]);
         // 条件：没有“调高”且没有“调低”临时价时，A平台币数>0.5，且0.4<(A-B)<限价*rate，则开始计时
-        if (beginUpTime == 0 && beginDownTime == 0 && 0.5 < freeGoods && 0.35 / prop.moneyPrice <= diffPrice && diffPrice <= newPrice) {
+        if (beginUpTime == 0 && beginDownTime == 0 && 0.5 < freeGoods && 0.05 / prop.moneyPrice <= diffPrice && diffPrice <= newPrice) {
             changeLimitLog.info("adjust3调低限价开始计时:" + engine.keyArray[arrayIndex] + "当前差价" + diffPrice + ",限价" + engine.priceArray[arrayIndex]);
             changeLimitLog.info("beginUpTime:" + beginUpTime + " , beginDownTime:" + beginDownTime + "arrayIndex:" + arrayIndex);
             Engine.priceInfo.beginDownTime[arrayIndex] = nowTime;
@@ -165,7 +165,7 @@ public class ChangeLimit {
         }
         // 条件：没有“调高”临时价，且有“调低”计时，且时间大于HOURS_2, A平台币数>0.5，且 限价*rate>= 0.4，则限价将调为80%
         if (beginUpTime == 0 && beginDownTime != 0 && nowTime - beginDownTime > HOURS_2) {
-            if (freeGoods > 0.5 && 0.35 / prop.moneyPrice <= newPrice) {
+            if (freeGoods > 0.5 && 0.05 / prop.moneyPrice <= newPrice) {
                 //如果当前价格比newPrice还低，就不用调整
                 double finalPrice = Math.min(engine.priceArray[arrayIndex], newPrice);
                 changeLimitLog.info("adjust3调低限价，" + engine.keyArray[arrayIndex] + "币数还剩" + freeGoods + "从" + engine.priceArray[arrayIndex] + "到" + finalPrice);

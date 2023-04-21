@@ -224,10 +224,10 @@ public class Trade_okcoin extends Trade {
 
             PlaceOrderParam orderParam = new PlaceOrderParam();
             orderParam.setInstrument_id(coinPair);
-            orderParam.setPrice(Double.toString(order.getPrice() * (1 + addPrice)));
+            orderParam.setPrice(Prop.fmt_money.get().format(order.getPrice() * (1 + addPrice)));
             orderParam.setType("market");// market limit
             orderParam.setSide(order.getType());
-            orderParam.setSize(Double.toString(order.getVolume() - 0.00));
+            orderParam.setSize(Prop.fmt_goods.get().format(order.getVolume() - 0.00));
             orderParam.setOrder_type("0");
             batch.add(orderParam);
 

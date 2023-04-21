@@ -556,7 +556,7 @@ public class Engine {
                     + prop.earnWhat + "===thisEarn:" + currentBalance.getThisEarn() + prop.earnWhat + "============");
         }
         //检测亏损
-        if (currentBalance.getThisEarn() <= -60.0 / prop.moneyPrice) {
+        if (currentBalance.getThisEarn() <= -8.0 / prop.moneyPrice) {
             //throw new Exception("出现亏损，暂停搬运。");
         }
     }
@@ -1050,7 +1050,8 @@ public class Engine {
         double diffAmount = currentBalance.getTotalGoods() - initBal.getTotalGoods();
 
         log.debug("diffAmount:" + currentBalance.getTotalGoods() + " , " + initBal.getTotalGoods());
-        if (diffAmount > 1.0 / prop.moneyPrice / currentBalance.getPrice()) {// 如果变多,就卖
+        // 如果变多,就卖.币安规定交易额最少是10美元。信息来源：CELOBUSD交易对的NOTIONAL过滤器 https://www.binance.com/api/v3/exchangeInfo
+        if (diffAmount > 10.0 / prop.moneyPrice / currentBalance.getPrice()) {// 如果变多,就卖.
             log.info("总goods增多" + diffAmount);
             // 增加一个虚拟的低价市场卖单，诱使程序在其他平台卖
             virtualTrade.setCurrentPrice(currentBalance.getPrice());
@@ -1066,7 +1067,7 @@ public class Engine {
             AccountInfo accInfo = new AccountInfo();
             accInfo.setFreeMoney(diffAmount * currentBalance.getPrice());
             virtualTrade.setAccInfo(accInfo);
-        } else if (diffAmount < -1.0 / prop.moneyPrice / currentBalance.getPrice()) {// 如果变少就买
+        } else if (diffAmount < -10.0 / prop.moneyPrice / currentBalance.getPrice()) {// 如果变少就买
             diffAmount = 0 - diffAmount;
             log.info("总goods减少" + diffAmount);
             // 增加一个虚拟的高价市场买单，诱使程序在其他平台买
@@ -1100,12 +1101,12 @@ public class Engine {
         double diffAmount = currentBalance.getTotalMoney() - initBal.getTotalMoney();
 
         log.debug("diffAmount:" + currentBalance.getTotalMoney() + " , " + initBal.getTotalMoney());
-        if (diffAmount > 1000.0 / prop.moneyPrice) {// 如果变多,就卖
+        if (diffAmount > 10.0 / prop.moneyPrice) {// 如果变多,就卖
             log.info("总Money增多" + diffAmount);
             //log.info("diffAmount:" + currentBalance.getTotalMoney() + " , " + initBal.getTotalMoney());
 
             //
-        } else if (diffAmount < -1000.0 / prop.moneyPrice) {// 如果变少就买
+        } else if (diffAmount < -10.0 / prop.moneyPrice) {// 如果变少就买
             diffAmount = 0 - diffAmount;
             log.info("总Money减少" + diffAmount);
             //log.info("diffAmount:" + currentBalance.getTotalMoney() + " , " + initBal.getTotalMoney());
@@ -1249,7 +1250,7 @@ public class Engine {
                 for (int j = 0; j < adjustArr.length; j++) {
                     if (i != j) {
                         String elementPath = "conf/" + arr[0] + "/" + adjustArr[j].split(":")[0];
-                        XmlConfigUtil.saveXmlProp(filePath, elementPath, "" + (1 / prop.moneyPrice));
+                        XmlConfigUtil.saveXmlProp(filePath, elementPath, "" + (0.142 / prop.moneyPrice));
                     }
                 }
             }

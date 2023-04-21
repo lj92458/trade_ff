@@ -5,6 +5,7 @@ import com.liujun.trade_ff.core.binance.api.bean.wallet.result.WithdrawResult;
 import com.liujun.trade_ff.core.binance.api.client.APIClient;
 import com.liujun.trade_ff.core.binance.api.config.APIConfiguration;
 import com.liujun.trade_ff.core.binance.api.service.wallet.WalletAPIService;
+import com.liujun.trade_ff.core.binance.api.utils.MapUtil;
 import org.apache.commons.beanutils.PropertyUtils;
 
 public class WalletAPIServiceImpl implements WalletAPIService {
@@ -20,6 +21,6 @@ public class WalletAPIServiceImpl implements WalletAPIService {
 
     @Override
     public WithdrawResult withdraw(WithdrawParam param) throws Exception{
-        return (WithdrawResult)this.client.executeSync(this.api.withdraw(PropertyUtils.describe(param)));
+        return (WithdrawResult)this.client.executeSync(this.api.withdraw(MapUtil.toMapWithNoNullField(param)));
     }
 }

@@ -174,11 +174,15 @@ public abstract class Trade {
      * 市场挂单价格减去调整值。考虑到手续费
      */
     public void changeMarketPrice(double buyRate, double sellRate) {
-        for (MarketOrder o : marketDepth.getAskList()) {
-            o.setPrice(o.getPrice() * sellRate - getChangePrice());
+        if (marketDepth.getAskList() != null) {
+            for (MarketOrder o : marketDepth.getAskList()) {
+                o.setPrice(o.getPrice() * sellRate - getChangePrice());
+            }
         }
-        for (MarketOrder o : marketDepth.getBidList()) {
-            o.setPrice(o.getPrice() * buyRate - getChangePrice());
+        if (marketDepth.getBidList() != null) {
+            for (MarketOrder o : marketDepth.getBidList()) {
+                o.setPrice(o.getPrice() * buyRate - getChangePrice());
+            }
         }
     }
 
@@ -238,10 +242,10 @@ public abstract class Trade {
                         maxNeed_money += order.getPrice() * order.getVolume();
                         double virtualRemain_money = accInfo.getFreeMoney() - need_money;// 模拟剩余金额
                         // 如果“模拟剩余额”足够
-                        if ((virtualRemain_money - 1.0 / prop.moneyPrice) > order.getPrice() * order.getVolume()) {
+                        if ((virtualRemain_money - 0.142 / prop.moneyPrice) > order.getPrice() * order.getVolume()) {
                             need_money += order.getPrice() * order.getVolume();
                             // 否则,根据"模拟剩余金额",调整交易量
-                        } else if (virtualRemain_money > 1.0 / prop.moneyPrice && (virtualRemain_money / order.getPrice()) >= prop.minCoinNum) {
+                        } else if (virtualRemain_money > 0.142 / prop.moneyPrice && (virtualRemain_money / order.getPrice()) >= prop.minCoinNum) {
                             order.changeVolume(virtualRemain_money / order.getPrice() - prop.minCoinNum);
                             need_money += virtualRemain_money;
                         } else {
@@ -297,7 +301,7 @@ public abstract class Trade {
     public void sellGoods(double amount) throws Exception {
         setUserOrderList(new ArrayList<UserOrder>());
         UserOrder order = new UserOrder();
-        double price = getCurrentPrice() - 3.0 / prop.moneyPrice;
+        double price = getCurrentPrice() - 0.43 / prop.moneyPrice;
         order.setType("sell");
         order.setPrice(price);
         order.setDiffPrice(0);
@@ -316,7 +320,7 @@ public abstract class Trade {
     public void buyGoods(double amount) throws Exception {
         setUserOrderList(new ArrayList<UserOrder>());
         UserOrder order = new UserOrder();
-        double price = getCurrentPrice() + 3.0 / prop.moneyPrice;
+        double price = getCurrentPrice() + 0.43 / prop.moneyPrice;
         order.setType("buy");
         order.setPrice(price);
         order.setDiffPrice(0);
@@ -400,7 +404,7 @@ public abstract class Trade {
             lastOrder.setVolume(volume);
             */
             lastOrder.setVolume(totalVolume);
-            lastOrder.setPrice(lastOrder.getPrice() + 0.1 / prop.moneyPrice);//为了确保成交，就提高买价
+            lastOrder.setPrice(lastOrder.getPrice() + 0.0142 / prop.moneyPrice);//为了确保成交，就提高买价
             if (lastOrder.getVolume() >= prop.minCoinNum) {
                 userOrderList.add(lastOrder);
             } else {
@@ -417,7 +421,7 @@ public abstract class Trade {
             UserOrder lastOrder = sellList.get(sellList.size() - 1);//todo 卖单按照价格从高往低排列，所以用最低价卖，更容易成交?
 
             lastOrder.setVolume(totalVolume - 0.00);
-            lastOrder.setPrice(lastOrder.getPrice() - 0.1 / prop.moneyPrice);//为了确保成交，就降低卖价
+            lastOrder.setPrice(lastOrder.getPrice() - 0.0142 / prop.moneyPrice);//为了确保成交，就降低卖价
             if (lastOrder.getVolume() >= prop.minCoinNum) {
                 userOrderList.add(lastOrder);
             } else {

@@ -40,6 +40,7 @@ import java.util.List;
 API报错自查链接：https://github.com/binance-exchange/binance-official-api-docs/blob/f92d9df35cd926a3514618666ca6ca494c1a734d/errors_CN.md
 API交易规则说明：https://binance.zendesk.com/hc/zh-cn/articles/115003235691
 API常见问题 (FAQ)：https://binance.zendesk.com/hc/zh-cn/articles/360004492232
+查看交易平台各项限定，例如对提交订单的限定  https://www.binance.com/api/v3/exchangeInfo
      */
 
 @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
@@ -200,6 +201,17 @@ public class Trade_binance extends Trade {
 
     /**
      * 各平台都完成预处理后,删掉已失效的订单,对没失效的订单,进行挂单操作,并记录订单号,然后删除挂单失败的
+     * 注意过滤器是否开启。如果开启，可能导致小额交易失败 https://binance-docs.github.io/apidocs/spot/cn/#cc81fff589
+     * 2022-06-15，币安添加新的过滤器 NOTIONAL(名义价值过滤器)，基于minNotional 与 maxNotional 值来限制名义价值 (price * quantity).
+     * 每个交易对都有不同的要求。要求【"symbol": "CELOBUSD"】交易额在一个区间内10~9000000美元：{  信息来源 https://www.binance.com/api/v3/exchangeInfo
+     *    "filterType": "NOTIONAL",
+     *     "minNotional": "10.00000000",
+     *     "applyMinToMarket": true,
+     *     "maxNotional": "9000000.00000000",
+     *     "applyMaxToMarket": false,
+     *     "avgPriceMins": 5
+     *   }
+     * }
      */
     public int tradeOrder() throws Exception {
         log.info(getPlatName() + "开始下单");
@@ -225,8 +237,8 @@ public class Trade_binance extends Trade {
             param.setType(OrderType.LIMIT);// orderType
             param.setTimestamp(DateUtils.getUnixTimeMilli());//
             param.setTimeInForce(TimeInForce.GTC);//timeInForce
-            param.setQuantity(order.getVolume() - 0.00);// quantity
-            param.setPrice(order.getPrice() * (1 + addPrice));// price
+            param.setQuantity(Double.parseDouble(Prop.fmt_goods.get().format(order.getVolume() - 0.00)));// quantity
+            param.setPrice(Double.parseDouble(Prop.fmt_money.get().format(order.getPrice() * (1 + addPrice))));// price
             param.setRecvWindow(recvWindow);// recvWindow
 
             AddOrderResultACK result = this.spotOrderAPIService.addOrderACK(param);

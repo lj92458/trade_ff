@@ -205,7 +205,7 @@ public class Trade_uniswap extends Trade {
             //把eth价值，转化成本交易对中的money
             double feeInMoney;
             feeInMoney = feeInEth * priceArr[1];
-            log.info("gas价格：" + this.gasPriceGwei + "Gwei,矿工费:" + prop.formatMoney(feeInMoney) + money + "(" + prop.formatMoney(feeInMoney * prop.moneyPrice) + "人民币)");
+            log.info("gas价格：" + this.gasPriceGwei + "Gwei,矿工费:" + prop.formatMoney(feeInMoney) + money);
             super.setFixFee(feeInMoney);
 
         } catch (Exception e) {
@@ -276,8 +276,8 @@ public class Trade_uniswap extends Trade {
             AddOrderResult result = this.orderAPIService.addOrder(
                     coinPair,
                     order.getType(),
-                    (order.getPrice() * (1 + addPrice)) + "",
-                    order.getVolume() + "",
+                    Prop.fmt_money.get().format(order.getPrice() * (1 + addPrice)),
+                    Prop.fmt_goods.get().format(order.getVolume()),
                     this.gasPriceGwei + "",
                     prop.atLeastRate,//todo profitRate是大于atLeastRate的，允许更大的滑点，会导致更容易成交，但这也是亏损的根源。但是小滑点导致不容易成交，会白白浪费矿工费
                     getPoolFee()

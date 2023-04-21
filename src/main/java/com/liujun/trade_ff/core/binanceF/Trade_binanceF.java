@@ -340,7 +340,7 @@ public class Trade_binanceF extends Trade {
                             o.setClosePosition("true");
                             log.info("空仓不够用，需要做多");
                             Order oUp = new Order();
-                            oUp.setPrice(order.getPrice() * (1 + addPrice));
+                            oUp.setPrice(Double.parseDouble(Prop.fmt_money.get().format(order.getPrice() * (1 + addPrice))));
                             oUp.setSymbol(instrument.getSymbol());
                             oUp.setSide(OrderSide.BUY);
                             oUp.setQuantity(upQty);

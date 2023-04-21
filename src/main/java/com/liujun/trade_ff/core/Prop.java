@@ -19,7 +19,7 @@ public class Prop {
     @Value("${trade.minCoinNum}")
     public Double minCoinNum;//买卖币时，最小交易金额
     @Value("${trade.moneyPrice}")
-    public Double moneyPrice;//计价货币的人民币价格
+    public Double moneyPrice;//计价货币的美元价格
     public Double minMoney;//一次最少要赚的钱
     public Double huaDian;//滑点，用来强制调平资金。这是一个比例
     public Double huaDian2;//滑点，正常下单时，为了买到。这是一个比例
@@ -38,7 +38,7 @@ public class Prop {
     @Value("${trade.marketOrderSize}")
     public int marketOrderSize;// 获取多少个市场挂单？
     @Value("${trade.atLeastEarn}")
-    public Double atLeastEarn;//交易一次，最少要赚多少人民币
+    public Double atLeastEarn;//交易一次，最少要赚多少美元
     @Value("${trade.atLeastRate}")
     public double atLeastRate;//最低利润率(差价除以价格)
     @Value("${trade.earnMoney}")
@@ -54,7 +54,9 @@ public class Prop {
     @PostConstruct
     public void init() {
         minMoney = atLeastEarn / this.moneyPrice;//一次最少要赚的钱
-        huaDian = 5.0 / 100;//滑点，用来强制调平资金.这是一个比例
+        //滑点，用来强制调平资金.这是一个比例. 1%应该够了吧？如果平台深度不足以吃到足够的单，再把这个滑点调大。
+        //但是调大了有个副作用：矫枉过正。例如让把多余的goods卖出去，结果多卖的比例就等于这个滑点
+        huaDian = 1.0 / 100;
         huaDian2 = 0.03 / 100;//滑点，正常下单时，为了买到。这是一个比例
         /*
         fmt_goods = new DecimalFormat(this.formatGoodsStr);

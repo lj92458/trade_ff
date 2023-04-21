@@ -19,7 +19,7 @@ public class FutureOrderAPIServiceImpl implements FutureOrderAPIService {
     @Override
     public OrderResult addOrder(Order order) throws Exception{
 
-        return this.client.executeSync(futureOrderAPI.addOrder(MapUtil.toMap(order)));
+        return this.client.executeSync(futureOrderAPI.addOrder(MapUtil.toMapWithNoNullField(order)));
     }
 
     @Override
