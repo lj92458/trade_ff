@@ -284,16 +284,6 @@ public class Engine {
                 //匹配/撮合备份的市场挂单,并完成交易(已确保我方有相应的资金，能吃掉这些挂单)。这两种匹配是独立的，没有关系。
                 matchBackupDepth();
 
-                // 检查goods总数量,如果不跟初始值相等,就立即买卖调整
-                if (prop.earnMoney) {
-                    checkTotalGoods();
-                    // 检查各平台的goods数量,如果分布不平衡,就自动转移。
-                    // balanceGoods();
-                } else {
-                    checkTotalMoney();
-                    //balanceMoney();
-                }
-
                 // 盘点当前余额,计算盈亏------------------------
                 saveBalance();
                 //检查系统健康状况
@@ -357,6 +347,16 @@ public class Engine {
                         log.error(trade.getPlatName() + "账户查询异常:" + e.getMessage(), e);
                     }
                 }, threadPoolExecutor);
+
+                // 检查goods总数量,如果不跟初始值相等,就立即买卖调整。为什么要设置在这里呢？因为挂单后，可能导致超时。然后就抛出异常，跳出for循环没机会检查goods
+                if (prop.earnMoney) {
+                    checkTotalGoods();
+                    // 检查各平台的goods数量,如果分布不平衡,就自动转移。
+                    // balanceGoods();
+                } else {
+                    checkTotalMoney();
+                    //balanceMoney();
+                }
             }
         }
         // 等待各个线程结束,最多等25秒.因为uniswap获取市场行情，需要8秒，重复尝试3次就有24秒-------
