@@ -38,7 +38,7 @@ public class OrderApiServiceImpl implements OrderAPIService {
         try {
             log.info("开始调用orderRpc.addOrder");
             //failed to meet quorum 不一定代表失败呢
-            AddOrderResult addOrderResult = orderRpc.addOrder(coinPair, orderType, price, volume, config.getMaxWaitSeconds(), gasPriceGwei, slippage, poolFee).toFuture().get(config.getMaxWaitSeconds()+5, TimeUnit.SECONDS);
+            AddOrderResult addOrderResult = orderRpc.addOrder(coinPair, orderType, price, volume, config.getMaxWaitSeconds(), gasPriceGwei, slippage, poolFee).toFuture().get(config.getMaxWaitSeconds(), TimeUnit.SECONDS);
 
             return addOrderResult;
         } catch (Exception e) {
