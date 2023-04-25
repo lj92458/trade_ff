@@ -116,6 +116,7 @@ public class Engine {
     /**
      * #dex和cex同步挂单吗？true同步，false不同步。如果dex失败率高，就不要同步挂单。而是先让dex执行，执行成功后会发现资金失衡，然后通过调平资金的方式去执行cex
      */
+    @Value("${trade.dexSync}")
     public boolean dexSync;
 
 
@@ -165,8 +166,8 @@ public class Engine {
     @PostConstruct
     public void init() {
         try {
-
-            try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(Paths.get(prop.logPath + "/conf.xml")), charset)) {
+            log.info("当前路径："+new File("./").getAbsolutePath());
+            try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(Paths.get("./conf.xml")), charset)) {
                 SAXReader sax = new SAXReader();
                 xmlDoc = sax.read(reader);
 
@@ -178,7 +179,6 @@ public class Engine {
             firstBalance = readXmlProp("firstBalance");
 
             openPriceGap = Double.parseDouble(readXmlProp("openPriceGap"));
-            dexSync = Boolean.parseBoolean(readXmlProp("dexSync"));
             //---------------
 
             // 存放各个平台的交易对象
@@ -472,24 +472,7 @@ public class Engine {
                                 || virtualTrade.isActive())
                 ) {// (正式生成的订单数量)
                     log_needTrade.info("实际能赚" + maxEarnCost.earn + prop.money + "，利润率" + prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) + "%，实际订单有" + maxEarnCost.orderPair + "对");
-                    platList.forEach(Trade::processOrders);//订单预处理 。其实不需要，因为跟【查询市场挂单时执行的trade.backupUsefulOrder】方法功能是重复的.账户余额不能可不够
-                    //删掉无效订单
-                    int usefulOrderCount = 0;
-                    for (Trade trade : platList) {
-                        List<UserOrder> userOrderList = trade.getUserOrderList();
-                        for (int index = userOrderList.size() - 1; index >= 0; index--) {
-                            if (userOrderList.get(index).isEnable()) {
-                                usefulOrderCount++;
-                            } else {
-                                userOrderList.remove(index);// 无效订单要及时删掉
-                            }
-                        }// end for
-                        //如果已经加锁，判断是否应该释放锁
-                        if (trade.getModeLock() == 1 && userOrderList.size() == 0) {
-                            trade.setModeLock(0);
-                        }
 
-                    }
                     //检查各平台的收益率是否合规，如果全部合规，才能启动交易
                     boolean profitRateMatch = true;
                     for (Trade trade : platList) {
@@ -503,8 +486,8 @@ public class Engine {
                         }
                     }
 
-                    //如果有需要执行的订单，才应该启动线程
-                    if (usefulOrderCount > 0 && profitRateMatch) {
+                    //如果各平台收益率都合规，才应该启动线程
+                    if (profitRateMatch) {
                         // 【多线程】对各平台执行挂单、查订单状态、撤销没完全成交的订单、刷新账户信息==================
                         /*1.先执行dex平台，如果成功，再执行cex平台？？？这样好吗？
                          不好：dex平台浪费了一分钟时间，这时cex平台的情况已经变动了。cex生成的订单不应该被提交，应该直接作废。
@@ -1166,7 +1149,7 @@ public class Engine {
         synchronized (xmlDoc) {//对xmlDoc的写操作，可能引发线程安全问题，所以要加锁
             String path = key.replace("_", "/");
             xmlDoc.selectSingleNode("conf/" + path).setText(value);
-            FileOutputStream fos = new FileOutputStream(prop.logPath + "/conf.xml", false);
+            FileOutputStream fos = new FileOutputStream("./conf.xml", false);
             OutputFormat format = OutputFormat.createPrettyPrint();
             format.setEncoding(charset);
             XMLWriter xmlWriter = new XMLWriter(fos, format);
@@ -1232,7 +1215,7 @@ public class Engine {
      */
     public void saveAdjustPrice(String adjustPrice) throws Exception {
         synchronized (this) {
-            String filePath = prop.logPath + "/conf.xml";
+            String filePath = "./conf.xml";
 
             String[] adjustArr = adjustPrice.split(",");
             for (int i = 0; i < adjustArr.length; i++) {//处理每一个平台

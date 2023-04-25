@@ -1,4 +1,7 @@
-#---------------------------       prd       ------------------------------------------------
+debug: false
+logging:
+  config: classpath:logback-spring.xml
+
 server:
   port: 8080
   servlet:
@@ -6,7 +9,7 @@ server:
     session:
       timeout: P0DT0H0M300.0S #300秒，必须是合法的Duration
   tomcat:
-    basedir: /var/log/tomcat
+    basedir: /var/log/tomcat_${server.servlet.context-path}
     accesslog:
       enabled: true
       suffix: .log
@@ -23,23 +26,7 @@ logging.level:
 log.path: /var/log${server.servlet.context-path} #不能以斜杠结尾
 balanceFilePath: ${log.path}/balance.txt
 
-spring:
-  datasource:
-    type: com.zaxxer.hikari.HikariDataSource
-    url: jdbc:sqlite:${log.path}/trade.db
-    username:
-    password:
-    hikari: #Springboot2.0以后默认数据库连接池选择了Hikari（性能高）
-      pool-name: Retail_HikariCP
-      minimum-idle: 5 #最小空闲连接数量
-      idle-timeout: 600000 #空闲连接存活最大时间，默认600000（10分钟）
-      maximum-pool-size: 10 #连接池最大连接数，默认是10
-      auto-commit: true  #此属性控制从池返回的连接的默认自动提交行为,默认值：true
-      max-lifetime: 1800000 #此属性控制池中连接的最长生命周期，值0表示无限生命周期，默认1800000即30分钟
-      connection-timeout: 30000 #数据库连接超时时间,默认30秒，即30000
-      connection-test-query: SELECT 1
-
-properties.location: classpath:application-prd.yml
+#properties.location: classpath:application-prd.yml
 
 chat.maxHistory:  3
 
@@ -60,6 +47,11 @@ trade:
   #最低利润率(差价除以价格)，跟滑点有关：因为uniswap上面建议的滑点是0.05%,比原链超导兑换建议1%
   atLeastRate: 0.001
   positionRate: 1 #仓位上限，占余额的比例。0.5表示50%，那么下跌2/3时爆仓。1表示100%，那么下跌50%时爆仓
+  #dex和cex同步挂单吗？如果dex失败率高，就不要同步挂单。而是先让dex执行，执行成功后会发现资金失衡，然后通过调平资金的方式去执行cex
+  #考虑两种策略：
+  #    1.冒进型，跟别人激烈争抢，尽量设大滑点，然后两个平台同时提交(这个亏起来很厉害的)。
+  #    2.保守型，设置很小的滑点，让dex先成交，如果成交失败，cex就不用执行了，也就没什么损失。这个不容易亏，但是也不容易抓住机会。
+  dexSync: false
 
 engine:
   time_queryOrder: 3 #间隔多少【秒】查询一次市场挂单. 请用3、6、9、12等等

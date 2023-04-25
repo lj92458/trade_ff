@@ -280,7 +280,7 @@ public class Trade_uniswap extends Trade {
                     Prop.fmt_goods.get().format(order.getVolume()),
                     this.gasPriceGwei + "",
                     //(this.profitRate + prop.atLeastRate) * 0.5,//todo profitRate是大于prop.atLeastRate的，允许更大的滑点，会导致更容易成交，但这也是亏损的根源。
-                    prop.atLeastRate * 1.5,// todo 如果在激烈的竞争下，竞争不赢别人，就不要用大滑点。小滑点导致不容易成交，会白白浪费矿工费，但在矿工费便宜的链上就没关系
+                    prop.atLeastRate * 1.0,// todo 如果在激烈的竞争下，竞争不赢别人，就不要用大滑点。小滑点导致不容易成交，会白白浪费矿工费，但在矿工费便宜的链上就没关系
                     getPoolFee()
             );
             // 设置orderId

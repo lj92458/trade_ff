@@ -11,19 +11,19 @@
 
 #### 安装教程
 
-1.  在 linux系统 安装java8和sqlite3
-2.  根据yml文件中log.path的值，创建日志目录。这里也会用来存放数据库。
-3.  修改配置文件： applicaion-prd，把conf.xml放到日志目录并修改firstBalance。
-    删除logback-test-spring.xml(不用删除，因为有logging.config参数决定用哪个)
-4. 激活maven的prd配置，并打包；将安装包传输到服务器
+1. 在 linux系统 安装java8和sqlite3
+2. 根据yml文件中log.path的值，创建日志目录。这里也会用来存放数据库。
+3. 激活maven的prd配置，刷新maven，并打包；将安装包传输到服务器。
+4. 将applicaion-prd和conf.mxl传到服务器端jar包所在目录。然后修改这两个配置文件，包括conf.xml末尾的firstBalance。
 5. 执行数据库建表/建库语句，插入初始化数据。
-6.需要授权某合约能花费自己的token。不能从uniswap界面上操作，而是要调用trade.js里面的getTokenTransferApproval函数，对SwapRouter合约授权
+6. 需要授权某合约能花费自己的token。不能从uniswap界面上操作，而是要调用trade.js里面的getTokenTransferApproval函数，对SwapRouter合约授权。或者在etherscan上调用。
 
 #### 使用说明
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+1. 为了方便随时编辑application-prd.yml，将配置文件放到了jar包所在目录，这里的优先级高于jar包内。[参考spring官网](https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#features.external-config.files)
+2. 在maven窗口切换了profile复选框，记得要刷新maven，才能生效。
+3. 开发调试，既可以调试本地打包好的jar文件，也能直接debug源代码的main方法。如果是main方法，需要改变idea工作目录：配置debug选项 -> (超链接)修改选项 -> 工作目录 -> 把工作目录设定为target目录，
+   这样Engine类才能从当前目录读取到conf.mxl 。调试前，记得激活maven的dev配置，并刷新maven.
 
 #### 参与贡献
 

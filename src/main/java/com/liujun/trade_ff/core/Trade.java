@@ -7,6 +7,7 @@ import com.liujun.trade_ff.core.modle.UserOrder;
 import com.liujun.trade_ff.core.util.HttpUtil;
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.catalina.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -202,98 +203,6 @@ public abstract class Trade {
         }
     }
 
-    /**
-     * 订单预处理：对每个订单逐个检查：若账户余额不够,则将订单设为失效(backupUsefulOrder方法确保了账户余额不可能不够)。
-     * 各平台预处理需要一起做，因为订单是成双成对的失效!
-     *
-     * @see 【不要在本方法内删除失效订单，因为删不干净】
-     */
-    public void processOrders() {
-        List<UserOrder> userOrderList = getUserOrderList();
-        // log.info(getPlatName()+"所有订单:" + userOrderList.toString());// 输出所有的订单
-        AccountInfo accInfo = getAccInfo();
-        // 计算总共需要多少money、goods,并记录日志
-        double maxNeed_money = 0;// 最大需要的money
-        double maxNeed_goods = 0;// 最大需要的goods
-        double need_money = 0;// 实际需要的money
-        double need_goods = 0;// 实际需要的goods
-        for (int i = 0; i < userOrderList.size(); i++) {
-            UserOrder order = userOrderList.get(i);
-            if (order.isEnable()) {
-                // 如果数量小于Const.minCoinNum，
-                if (order.getVolume() < prop.minCoinNum) {
-                    if (i + 1 < userOrderList.size()) {// 如果下一个订单存在，将订单合并到下一个，并设置失效
-                        UserOrder nextOrder = userOrderList.get(i + 1);
-                        nextOrder.setVolume(nextOrder.getVolume() + order.getVolume());
-                        order.setEnable(false);
-                    } else if (order.getVolume() / prop.minCoinNum >= 0.7) {// 如果不能合并，并且数量接近最小值，就修改成最小值
-                        order.setVolume(prop.minCoinNum);
-                        order.getAnotherOrder().setVolume(prop.minCoinNum);
-
-                    } else {// 实在没办法，就放弃这个订单
-                        order.disableOrder();
-                    }
-
-                }
-                if (order.isEnable()) {// 如果数量不是太小
-
-
-                    if (order.getType().equals("buy")) {// 如果是买单
-                        maxNeed_money += order.getPrice() * order.getVolume();
-                        double virtualRemain_money = accInfo.getFreeMoney() - need_money;// 模拟剩余金额
-                        // 如果“模拟剩余额”足够
-                        if ((virtualRemain_money - 0.142 / prop.moneyPrice) > order.getPrice() * order.getVolume()) {
-                            need_money += order.getPrice() * order.getVolume();
-                            // 否则,根据"模拟剩余金额",调整交易量
-                        } else if (virtualRemain_money > 0.142 / prop.moneyPrice && (virtualRemain_money / order.getPrice()) >= prop.minCoinNum) {
-                            order.changeVolume(virtualRemain_money / order.getPrice() - prop.minCoinNum);
-                            need_money += virtualRemain_money;
-                        } else {
-                            order.disableOrder();
-                            // need_money = accInfo.getFreeMoney();
-                        }
-                    } else {// 如果是卖单
-                        maxNeed_goods += order.getVolume();
-                        double virtualRemain_goods = accInfo.getFreeGoods() - need_goods;// 模拟剩余goods
-                        // 如果“模拟剩goods”足够
-                        if ((virtualRemain_goods - 0.0) > order.getVolume()) {
-                            need_goods += order.getVolume();
-                            // 否则,根据"模拟剩余goods",调整交易量
-                        } else if (virtualRemain_goods >= prop.minCoinNum) {
-                            order.changeVolume(virtualRemain_goods - prop.minCoinNum);
-                            need_goods += virtualRemain_goods;
-                        } else {
-                            order.disableOrder();
-                            // need_goods = accInfo.getFreeGoods();
-                        }
-                    }// else
-                }// end if enable
-            }// end if enable
-
-        }// end for
-        // 如果需要搬运
-        if (maxNeed_money + maxNeed_goods > 0) {
-            log.info(getPlatName() + "最多需要money:" + prop.formatMoney(maxNeed_money) + " , 最多需要goods:" + prop.formatGoods(maxNeed_goods) + "================");
-            log.info(getPlatName() + "预计消耗money:" + prop.formatMoney(need_money) + " , 预计消耗goods:" + prop.formatGoods(need_goods));
-            log.info(getPlatName() + "当前余额money：" + accInfo.getFreeMoney() + ",当前余额goods：" + accInfo.getFreeGoods());
-            // 计算最大缺乏
-            double maxLack_money = maxNeed_money - accInfo.getFreeMoney();// 缺乏多少money
-            double maxLack_goods = maxNeed_goods - accInfo.getFreeGoods();// 缺乏多少goods
-            if (maxLack_money > 0 || maxLack_goods > 0) {
-                log.info(getPlatName() + "--------------最多缺乏money:" + prop.formatMoney(maxLack_money) + ", 最多缺乏goods:" + prop.formatGoods(maxLack_goods));
-            }
-            // 计算实际缺乏
-            double lack_money = need_money - accInfo.getFreeMoney();// 缺乏多少money
-            double lack_goods = need_goods - accInfo.getFreeGoods();// 缺乏多少goods
-            if (lack_money > 0 || lack_goods > 0) {
-                log.warn(getPlatName() + "--------------实际缺乏money:" + prop.formatMoney(lack_money) + ", 实际缺乏goods:" + prop.formatGoods(lack_goods));
-            }
-
-        } else {// 如果不需要搬运
-            log.info(getPlatName() + "不需要搬运！");
-        }
-
-    }
 
     /**
      * 卖 goods
@@ -376,62 +285,26 @@ public abstract class Trade {
 
     //对订单进行合并。
     protected void merge() {
-
-        //将订单分成买单、卖单
-        List<UserOrder> buyList = new ArrayList<UserOrder>();
-        List<UserOrder> sellList = new ArrayList<UserOrder>();
-        for (UserOrder order : userOrderList) {
-            if (order.getType().equals("buy")) {
-                buyList.add(order);
-            } else {
-                sellList.add(order);
-            }
+        log.info(getPlatName() + "存在订单:" + userOrderList.toString());
+        double totalMoney = userOrderList.stream().mapToDouble(o -> o.getPrice() * o.getVolume()).sum();
+        double totalVolume = userOrderList.stream().mapToDouble(UserOrder::getVolume).sum();
+        //todo 买单按照价格从低往高排列，所以用最高价买，更容易成交? dex不能这样，因为容易亏损：如果你用高价买，会导致needAmountOut和slippage失去意义
+        UserOrder lastOrder = userOrderList.get(userOrderList.size() - 1);
+        lastOrder.setVolume(totalVolume);
+        if (this.fixFee == 0) {//cex可以
+            lastOrder.setPrice(lastOrder.getPrice()
+                    //+ (lastOrder.getType().equals("buy") ? 1 : -1) * 0.0142 / prop.moneyPrice//为了确保成交，就提高买价，压低卖价
+            );
+        } else {//dex不可以
+            lastOrder.setPrice(totalMoney / totalVolume);
         }
         userOrderList.clear();
+        if (lastOrder.getVolume() >= prop.minCoinNum) {
+            userOrderList.add(lastOrder);
+        } else {
+            log.warn(getPlatName() + "数量太小" + lastOrder.getVolume());
+        }
 
-        //合并买单
-        if (buyList.size() > 0) {
-            log.info(getPlatName() + "存在买单:" + buyList.toString());
-            double totalMoney = 0;
-            double totalVolume = 0;//给一个准确的总数量，先不考虑资金不足的情况
-            for (UserOrder order : buyList) {
-                totalMoney += order.getPrice() * order.getVolume();
-                totalVolume += order.getVolume();
-            }
-            UserOrder lastOrder = buyList.get(buyList.size() - 1);//todo 买单按照价格从低往高排列，所以用最高价买，更容易成交?
-            /*
-            double volume = (totalMoney / lastOrder.getPrice()) * 0.998;//让预备消耗的资金等于totalMoney，防止资金不足。但是这会导致成交量不足
-            lastOrder.setVolume(volume);
-            */
-            lastOrder.setVolume(totalVolume);
-            lastOrder.setPrice(lastOrder.getPrice() + 0.0142 / prop.moneyPrice);//为了确保成交，就提高买价
-            if (lastOrder.getVolume() >= prop.minCoinNum) {
-                userOrderList.add(lastOrder);
-            } else {
-                log.warn(getPlatName() + "数量太小" + lastOrder.getVolume());
-            }
-        }
-        //合并卖单
-        if (sellList.size() > 0) {
-            log.info(getPlatName() + "存在卖单:" + sellList.toString());
-            double totalVolume = 0;
-            for (UserOrder order : sellList) {
-                totalVolume += order.getVolume();
-            }
-            UserOrder lastOrder = sellList.get(sellList.size() - 1);//todo 卖单按照价格从高往低排列，所以用最低价卖，更容易成交?
-
-            lastOrder.setVolume(totalVolume - 0.00);
-            lastOrder.setPrice(lastOrder.getPrice() - 0.0142 / prop.moneyPrice);//为了确保成交，就降低卖价
-            if (lastOrder.getVolume() >= prop.minCoinNum) {
-                userOrderList.add(lastOrder);
-            } else {
-                log.warn(getPlatName() + "数量太小" + lastOrder.getVolume());
-            }
-        }
-        //如果同时存在买单、卖单，就警告
-        if (userOrderList.size() >= 2) {
-            log.warn(getPlatName() + "同时存在买单、卖单:" + userOrderList.toString());
-        }
         /*
         //如果是买单，只能对相同价格的合并
 		if (userOrderList.size() > 1 && userOrderList.get(0).getType().equals("buy")) {
