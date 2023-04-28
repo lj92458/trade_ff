@@ -5,12 +5,12 @@ import com.liujun.trade_ff.core.modle.MarketDepth;
 import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
 import com.liujun.trade_ff.core.util.HttpUtil;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 import org.apache.catalina.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
@@ -26,6 +26,13 @@ public abstract class Trade {
     protected Prop prop;
     protected Engine engine;
     public boolean initSuccess = false;
+
+    private String goods;
+    private String goodsAddress;
+    private String goodsNetWork;
+    private String money;
+    private String moneyAddress;
+    private String moneyNetWork;
     /**
      * 每次交易需要的固定费用(例如uniswap的矿工费)，单位是trade.money，例如usdt、btc
      */
@@ -66,6 +73,15 @@ public abstract class Trade {
      * 这是由于helpCreateOrders()方法的机制导致的，因为这里的买单，是为了吃掉市场的卖单，而卖单价格是从低到高
      */
     private List<UserOrder> userOrderList;
+
+    /**
+     * goods数量比平均值差了多少
+     */
+    public double diffGoods;
+    /**
+     * money数量比平均值差了多少
+     */
+    public double diffMoney;
 
 
     // ==========================================================
@@ -120,12 +136,20 @@ public abstract class Trade {
      */
     public abstract void cancelOrder() throws Exception;
 
+    @AllArgsConstructor
+    @ToString
+    public static class WithdrawArgs {
+        public String productName;
+        public double amount;
+        public String address;
+    }
+
     /**
      * 提取Goods
      *
      * @throws Exception
      */
-    public abstract void withdraw(String productName, double amount, String address) throws Exception;
+    public abstract void withdraw(WithdrawArgs args) throws Exception;
 
     /**
      * 将不超出账户余额的挂单保存起来
@@ -304,42 +328,6 @@ public abstract class Trade {
         } else {
             log.warn(getPlatName() + "数量太小" + lastOrder.getVolume());
         }
-
-        /*
-        //如果是买单，只能对相同价格的合并
-		if (userOrderList.size() > 1 && userOrderList.get(0).getType().equals("buy")) {
-			int size1 = userOrderList.size();
-			for (int i = 0; i < userOrderList.size() - 1;) {
-				UserOrder order1 = userOrderList.get(i);
-				UserOrder order2 = userOrderList.get(i + 1);
-				if (order2.getPrice() - order1.getPrice() < 0.001) {
-					order2.setVolume(order2.getVolume() + order1.getVolume());
-					userOrderList.remove(i);
-				} else {
-					i++;
-				}
-			}
-			int size2 = userOrderList.size();
-			if (size1 > size2) {
-				log.info(getPlatName() + "已合并" + (size1 - size2) + "个买单");
-			}
-			// 卖单，可以把所有订单合并
-		} else if (userOrderList.size() > 1 && userOrderList.get(0).getType().equals("sell")) {
-			int size1 = userOrderList.size();
-			for (int i = 0; i < userOrderList.size() - 1;) {
-				UserOrder order1 = userOrderList.get(i);
-				UserOrder order2 = userOrderList.get(i + 1);
-				order2.setVolume(order2.getVolume() + order1.getVolume());
-				userOrderList.remove(i);
-			}
-			int size2 = userOrderList.size();
-			if (size1 > size2) {
-				log.info(getPlatName() + "已合并" + (size1 - size2) + "个卖单");
-			}
-		} else {// 没有订单
-
-		}
-		*/
     }
 
 

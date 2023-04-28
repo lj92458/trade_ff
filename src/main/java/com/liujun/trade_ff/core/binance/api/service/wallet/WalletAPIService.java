@@ -8,4 +8,6 @@ public interface WalletAPIService {
 
 
     WithdrawResult withdraw(WithdrawParam param) throws Exception;
+
+    String queryAllCoin(long timestamp);
 }

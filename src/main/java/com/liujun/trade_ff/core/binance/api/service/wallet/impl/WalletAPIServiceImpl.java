@@ -20,7 +20,16 @@ public class WalletAPIServiceImpl implements WalletAPIService {
 
 
     @Override
-    public WithdrawResult withdraw(WithdrawParam param) throws Exception{
-        return (WithdrawResult)this.client.executeSync(this.api.withdraw(MapUtil.toMapWithNoNullField(param)));
+    public WithdrawResult withdraw(WithdrawParam param) throws Exception {
+        return this.client.executeSync(this.api.withdraw(MapUtil.toMapWithNoNullField(param)));
+    }
+
+    /**
+     * 查询所有币的信息。能看出它们分别支持什么网络，以及网络名称
+     *
+     * @return
+     */
+    public String queryAllCoin(long timestamp) {
+        return this.client.executeSync(this.api.queryAllCoin(timestamp));
     }
 }

@@ -74,10 +74,6 @@ public class Trade_okcoin extends Trade {
     private String secretKey;
     @Value("${okcoin.feeRate}")
     private double feeRate;
-    @Value("${okcoin.goods}")
-    private String goods;
-    @Value("${okcoin.money}")
-    private String money;
     private String coinPair;
     //------------------------
 
@@ -102,7 +98,7 @@ public class Trade_okcoin extends Trade {
         this.spotAccountAPIService = new SpotAccountAPIServiceImpl(this.config);
         this.spotOrderAPIServive = new SpotOrderApiServiceImpl(this.config);
         this.accountAPIService = new AccountAPIServiceImpl(this.config);
-        coinPair = goods.toUpperCase() + "-" + money.toUpperCase();
+        coinPair = getGoods().toUpperCase() + "-" + getMoney().toUpperCase();
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
@@ -171,11 +167,11 @@ public class Trade_okcoin extends Trade {
             AccountInfo accountInfo = new AccountInfo();
             List<Account> list = spotAccountAPIService.getAccounts();
             for (Account acc : list) {
-                if (acc.getCurrency().equalsIgnoreCase(goods)) {
+                if (acc.getCurrency().equalsIgnoreCase(getGoods())) {
                     accountInfo.setFreeGoods(Double.parseDouble(acc.getAvailable()));
                     accountInfo.setFreezedGoods(Double.parseDouble(acc.getHold()));
                 }
-                if (acc.getCurrency().equalsIgnoreCase(money)) {
+                if (acc.getCurrency().equalsIgnoreCase(getMoney())) {
                     accountInfo.setFreeMoney(Double.parseDouble(acc.getAvailable()));
                     accountInfo.setFreezedMoney(Double.parseDouble(acc.getHold()));
                 }
@@ -247,7 +243,7 @@ public class Trade_okcoin extends Trade {
 
 
             // 结果数组
-            List<OrderResult> resultList = orderResult.get(goods + "-" + money);
+            List<OrderResult> resultList = orderResult.get(getGoods() + "-" + getMoney());
 
             if (resultList == null) {
                 log.warn(JSON.toJSONString(orderResult));
@@ -359,17 +355,47 @@ public class Trade_okcoin extends Trade {
      * @throws Exception
      */
     @Override
-    public void withdraw(String productName, double amount, String address) throws Exception {
-        List<WithdrawFee> feeResult = this.accountAPIService.getWithdrawFee(productName);
+    public void withdraw(WithdrawArgs args) throws Exception {
+        List<WithdrawFee> feeResult = this.accountAPIService.getWithdrawFee(args.productName);
 
         Withdraw withdraw = new Withdraw();
-        withdraw.setTo_address(address);
+        withdraw.setTo_address(args.address);
         withdraw.setFee(feeResult.get(0).getMin_fee().toString());
-        withdraw.setCurrency(productName);
-        withdraw.setAmount("" + amount);
+        withdraw.setCurrency(args.productName);
+        withdraw.setAmount("" + args.amount);
         withdraw.setDestination("4");
         withdraw.setTrade_pwd("");
         JSONObject drawResult = this.accountAPIService.withdraw(withdraw);
         log.info("提币：" + drawResult);
+    }
+
+    @Value("${okcoin.goods}")
+    public void setGoods(String goods) {
+        super.setGoods(goods);
+    }
+
+    @Value("${okcoin.money}")
+    public void setMoney(String money) {
+        super.setMoney(money);
+    }
+
+    @Value("${okcoin.goodsAddress}")
+    public void setGoodsAddress(String goodsAddress) {
+        super.setGoodsAddress(goodsAddress);
+    }
+
+    @Value("${okcoin.moneyAddress}")
+    public void setMoneyAddress(String moneyAddress) {
+        super.setMoneyAddress(moneyAddress);
+    }
+
+    @Value("${okcoin.goodsNetWork}")
+    public void setGoodsNetWork(String goodsNetWork) {
+        super.setGoodsNetWork(goodsNetWork);
+    }
+
+    @Value("${okcoin.moneyNetWork}")
+    public void setMoneyNetWork(String moneyNetWork) {
+        super.setMoneyNetWork(moneyNetWork);
     }
 }

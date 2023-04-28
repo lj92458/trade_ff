@@ -118,8 +118,13 @@ public class Engine {
      */
     @Value("${trade.dexSync}")
     public boolean dexSync;
-
-
+    /**
+     * 任意平台的goods比例降到多少，就触发转账
+     */
+    @Value("${trade.whenBalance}")
+    public double whenBalance;
+    @Value("${trade.canBalance}")
+    public boolean canBalance;
     // ====重要属性=============
     /**
      * 存放各个平台的交易对象
@@ -157,6 +162,10 @@ public class Engine {
      * 美元对人民币汇率。这里是用比特币给山寨币计价，不存在汇率，所以设为1
      */
     public double usdRate = 1.0;
+    /**
+     * 资金调平，是否已完成、已到账？
+     */
+    public boolean isBalanceFinished = true;
 
     // --------- end 对象属性 -------------------------------------------------
     static {
@@ -166,7 +175,7 @@ public class Engine {
     @PostConstruct
     public void init() {
         try {
-            log.info("当前路径："+new File("./").getAbsolutePath());
+            log.info("当前路径：" + new File("./").getAbsolutePath());
             try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(Paths.get("./conf.xml")), charset)) {
                 SAXReader sax = new SAXReader();
                 xmlDoc = sax.read(reader);
@@ -187,7 +196,6 @@ public class Engine {
             for (String platName : paltNameArr) {//利用反射，加载各平台的对象
                 Class<Trade> clazz = (Class<Trade>) Class.forName(corePackage + "." + platName + ".Trade_" + platName, true,
                         getClass().getClassLoader());
-                //Trade trade = clazz.getConstructor(HttpUtil.class, int.class, double.class).newInstance(httpUtil,platList.size(), usdRate);
                 Trade trade = SpringContextUtil.getBean(clazz, httpUtil, platList.size(), usdRate, prop, this);
                 //如果初始化失败了
                 if (!trade.initSuccess) {
@@ -277,18 +285,23 @@ public class Engine {
             for (long i = 0; !stop && i < 86400 / time_queryOrder; i++) {// 每隔24小时(),自动退出
                 //
                 long beginTime = System.currentTimeMillis();
-                //查询市场挂单，以及账户余额
-                queryMarketDepthAndAccount(i);
-                //匹配/撮合市场挂单。
-                matchMarketDepth();
-                //匹配/撮合备份的市场挂单,并完成交易(已确保我方有相应的资金，能吃掉这些挂单)。这两种匹配是独立的，没有关系。
-                matchBackupDepth();
 
-                // 盘点当前余额,计算盈亏------------------------
-                saveBalance();
-                //检查系统健康状况
-                checkStatus(beginTime);
+                balanceAccount(i);//检测是否平衡，如果发现不平，就调平
 
+                if (isBalanceFinished) {
+                    //查询市场挂单，以及账户余额
+                    queryMarketDepth(i);
+                    //匹配/撮合市场挂单。
+                    matchMarketDepth();
+                    //匹配/撮合备份的市场挂单,并完成交易(已确保我方有相应的资金，能吃掉这些挂单)。这两种匹配是独立的，没有关系。
+                    matchBackupDepth();
+                    // 盘点当前余额,计算盈亏------------------------
+                    saveBalance();
+                    //检查系统健康状况
+                    checkStatus(beginTime);
+                } else {
+                    log.info("资金没有平衡，系统正在等它平衡......");
+                }
                 // 睡眠一段时间,保证两次搬运间隔time_queryOrder秒
                 long useTime = System.currentTimeMillis() - beginTime;// 用时
                 TimeUnit.MILLISECONDS.sleep(time_queryOrder * 1000L - useTime);
@@ -311,26 +324,83 @@ public class Engine {
     }
 
     /**
+     * 每隔一定时间，检测并调整goods总量、平衡goods和money、查询余额
+     *
+     * @param i
+     * @throws Exception
+     */
+    private void balanceAccount(long i) throws Exception {
+        if (isBalanceFinished) {//如果资金调平已完成(已到账)，才让引擎正常工作。如果没完成就只能等待
+            //查询资金情况 -----------间隔小于6秒时，每隔6秒，查一次账户。否则每次都查.
+            if (i != 0 && (time_queryOrder > 6 || (i * time_queryOrder) % 6 == 0)) {
+                boolean needBalance = true;
+                this.currentBalance = getCurrentBalance();
+                try {
+                    needBalance = balanceGoodsAndMoney();// 检查各平台的coin数量,如果分布不平衡,就自动转移。转移成功后，再查询账户
+                } finally {
+                    if (needBalance) {//只有真正的转移了资金，才需要查询账户
+                        isBalanceFinished = false;
+                    } else {
+                        // 检查goods总数量,如果不跟初始值相等,就立即买卖调整。为什么要设置在这里呢？因为挂单后，可能导致超时。然后就抛出异常，跳出for循环没机会检查goods
+                        //只有当资金分布均匀，才能处理资金总量的变动。因为前者会误导后者
+                        if (prop.earnMoney) checkTotalGoods();
+                        else checkTotalMoney();
+
+                    }
+                }
+            }
+        } else {//等待资金到账
+            flushAccount(true);
+            //资金调拨，还没到账，这时总资金必然减少。通过监控资金总额，如果减少了，就让整个引擎空转，直到资金回归正常
+            Balance bal = getCurrentBalance();
+            isBalanceFinished = bal.getTotalGoods() / currentBalance.getTotalGoods() > 0.99
+                    && bal.getTotalMoney() / currentBalance.getTotalGoods() > 0.99;
+        }
+
+    }
+
+    /**
+     * 查询余额。如果账户有变动，就要同步查询。否则异步
+     *
+     * @param isSync 是否需要同步查询
+     * @throws Exception
+     */
+    private void flushAccount(boolean isSync) throws Exception {
+        List<CompletableFuture<?>> flushAccountFutureList = new ArrayList<>();
+        for (Trade trade : platList) {
+            flushAccountFutureList.add(CompletableFuture.runAsync(() -> {
+                try {
+                    trade.flushAccountInfo();
+                } catch (Exception e) {
+                    log.error(trade.getPlatName() + "账户查询异常:" + e.getMessage(), e);
+                }
+            }, threadPoolExecutor));
+        }
+        if (isSync) {//如果真的做了转账，才需要同步
+            CompletableFuture.allOf(flushAccountFutureList.toArray(new CompletableFuture<?>[0])).get(5, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
      * 查询市场深度和账户余额。并设置到trade.marketDepth属性
      *
      * @throws Exception 异常
      */
-    private void queryMarketDepthAndAccount(long i) throws Exception {
-        // ===== 【多线程】对各平台查询市场挂单，查询资金情况=======================
-        List<CompletableFuture<?>> completableFutureList = new ArrayList<>();
-        // 为每个平台启动一个线程
+    private void queryMarketDepth(long i) throws Exception {
+        // ===== 【多线程】对各平台查询市场挂单=======================
+        List<CompletableFuture<?>> flushMarketFutureList = new ArrayList<>();
+
+        // 为每个平台启动一个查询线程
         for (Trade trade : platList) {
             // 设置“用户挂单”
             if (trade.getUserOrderList() == null || trade.getUserOrderList().size() > 0) {
                 trade.setUserOrderList(new ArrayList<>());
             }
-
             //如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与。因为这个过程需要花费好几秒钟，为什么不节省掉呢。【这时还是应该清空dex的userOrderList】
             if (needSkipDexWhenAdjustGoods(trade)) {
                 continue;
             }
-
-            completableFutureList.add(CompletableFuture.runAsync(() -> {
+            flushMarketFutureList.add(CompletableFuture.runAsync(() -> {
                 try {
                     trade.flushMarketDeeps();
                 } catch (Exception e) {
@@ -338,30 +408,9 @@ public class Engine {
                 }
             }, threadPoolExecutor));
 
-            //查询资金情况 -----------间隔小于3秒时，每隔3秒，查一次账户。否则每次都查
-            if (time_queryOrder > 6 || (i * time_queryOrder) % 6 == 0) {
-                CompletableFuture.runAsync(() -> {
-                    try {
-                        trade.flushAccountInfo();
-                    } catch (Exception e) {
-                        log.error(trade.getPlatName() + "账户查询异常:" + e.getMessage(), e);
-                    }
-                }, threadPoolExecutor);
-
-                // 检查goods总数量,如果不跟初始值相等,就立即买卖调整。为什么要设置在这里呢？因为挂单后，可能导致超时。然后就抛出异常，跳出for循环没机会检查goods
-                if (prop.earnMoney) {
-                    checkTotalGoods();
-                    // 检查各平台的goods数量,如果分布不平衡,就自动转移。
-                    // balanceGoods();
-                } else {
-                    checkTotalMoney();
-                    //balanceMoney();
-                }
-            }
-        }
+        }//end for
         // 等待各个线程结束,最多等25秒.因为uniswap获取市场行情，需要8秒，重复尝试3次就有24秒-------
-        CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture<?>[0])).get(25, TimeUnit.SECONDS);
-
+        CompletableFuture.allOf(flushMarketFutureList.toArray(new CompletableFuture<?>[0])).get(25, TimeUnit.SECONDS);
         // ==== end【多线程】对各平台查询市场挂单=======================
     }
 
@@ -550,53 +599,57 @@ public class Engine {
      * @throws Exception 异常
      */
     private void executeTrade() throws Exception {
-        List<CompletableFuture<?>> completableFutureList = new ArrayList<>();
+        List<CompletableFuture<?>> tradeFutureList = new ArrayList<>();
         // 为每个平台启动一个线程--------
         //计算总的固定费用，如果>0,说明有dex平台参与，那么由dexSync参数决定是否执行cex
         double totalFixFee = platList.stream().filter(trade -> trade.getUserOrderList().size() > 0).mapToDouble(Trade::getFixFee).sum();
-        for (Trade trade : platList) {
-            if (trade.getUserOrderList().size() == 0)
-                continue;
+        try {
+            for (Trade trade : platList) {
+                if (trade.getUserOrderList().size() == 0)
+                    continue;
             /*如果有dex平台存在，跳过cex平台，只执行dex，如果dex执行成功，在下个循环通过调节goods数量，间接执行了cex。
              这样作的好处是：dex踏空率太高了，一旦dex踏空，cex也就没必要执行了，多省事啊。
              */
-            if (!dexSync && totalFixFee > 0 && trade.getFixFee() == 0) {
-                continue;
-            }
-
-            completableFutureList.add(CompletableFuture.runAsync(() -> {
-                long beginTime = System.currentTimeMillis();
-                try {
-                    // 挂单,并返回挂单数量,
-                    int orderNum = trade.tradeOrder();
-                    if (orderNum > 0) {// 如果挂单数量不为0
-                        log_haveTrade.info(trade.getPlatName() + "已挂单" + orderNum + "个：" + trade.getUserOrderList().toString());
-                        // 查询订单状态，最多4秒
-                        for (int i = 0; i < 4000 / prop.time_sleep; i++) {
-                            TimeUnit.MILLISECONDS.sleep(prop.time_sleep);// 睡眠
-                            int unFinishedNum = trade.queryOrderState();
-                            if (unFinishedNum == 0) {
-                                break;
-                            }
-                        }//end for
-                        trade.cancelOrder();// 撤销没完全成交的订单
-                        trade.flushAccountInfo();// 并刷新账户信息
-                    } else {
-                        log_haveTrade.info(trade.getPlatName() + "--------  0 个挂单---------------------------------------");
-                    }
-                } catch (Exception e) {
-                    log_haveTrade.error(trade.getPlatName() + "交易异常:" + e.getMessage(), e);
+                if (!dexSync && totalFixFee > 0 && trade.getFixFee() == 0) {
+                    continue;
                 }
-                // 计算耗时
-                long endTime = System.currentTimeMillis();
-                log.info("线程结束,耗时" + (endTime - beginTime) + "毫秒*********************");
-            }, threadPoolExecutor));
 
-        }// end for
-        // 等待各个线程结束,最多等time_oneCycle秒-------
-        CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture<?>[0])).get(time_oneCycle, TimeUnit.SECONDS);
+                tradeFutureList.add(CompletableFuture.runAsync(() -> {
+                    long beginTime = System.currentTimeMillis();
+                    try {
+                        // 挂单,并返回挂单数量,
+                        int orderNum = trade.tradeOrder();
+                        if (orderNum > 0) {// 如果挂单数量不为0
+                            log_haveTrade.info(trade.getPlatName() + "已挂单" + orderNum + "个：" + trade.getUserOrderList().toString());
+                            // 查询订单状态，最多4秒
+                            for (int i = 0; i < 4000 / prop.time_sleep; i++) {
+                                TimeUnit.MILLISECONDS.sleep(prop.time_sleep);// 睡眠
+                                int unFinishedNum = trade.queryOrderState();
+                                if (unFinishedNum == 0) {
+                                    break;
+                                }
+                            }//end for
+                            trade.cancelOrder();// 撤销没完全成交的订单
+                            trade.flushAccountInfo();// 并刷新账户信息
+                        } else {
+                            log_haveTrade.info(trade.getPlatName() + "--------  0 个挂单---------------------------------------");
+                        }
+                    } catch (Exception e) {
+                        log_haveTrade.error(trade.getPlatName() + "交易异常:" + e.getMessage(), e);
+                    }
+                    // 计算耗时
+                    long endTime = System.currentTimeMillis();
+                    log.info("线程结束,耗时" + (endTime - beginTime) + "毫秒*********************");
+                }, threadPoolExecutor));
+
+            }// end for
+            // 等待各个线程结束,最多等time_oneCycle秒-------
+            CompletableFuture.allOf(tradeFutureList.toArray(new CompletableFuture<?>[0])).get(time_oneCycle, TimeUnit.SECONDS);
+        } finally {
+            flushAccount(true);
+        }
+
         log_haveTrade.info("===================================================================================");
-        initVirtualPlat();//交易完了，要及时清空虚拟平台。以免影响下一轮循环
         log.info("各线程都已结束=========");
     }
 
@@ -635,7 +688,7 @@ public class Engine {
             if (bidList.get(0).getVolume() < prop.minCoinNum) {
                 bidList.remove(0);
             }
-            if (!(askList.size() > 0 && bidList.size() > 0)) {
+            if (askList.size() == 0 || bidList.size() == 0) {
                 break;
             }
             EarnCost thisEarnCost = helpadjustLimit(askList.get(0), bidList.get(0), passArr, passAdjust1Arr, platIdSet, maxEarnCost);
@@ -732,7 +785,7 @@ public class Engine {
             if (bidList.get(0).getVolume() < prop.minCoinNum) {
                 bidList.remove(0);
             }
-            if (!(askList.size() > 0 && bidList.size() > 0)) {
+            if (askList.size() == 0 || bidList.size() == 0) {
                 break;
             }
             EarnCost thisEarnCost = helpCreateOrders(askList.get(0), bidList.get(0), passArr, platIdSet, maxEarnCost);
@@ -898,51 +951,96 @@ public class Engine {
 
 
     /**
-     * 检查各平台的goods数量,如果满足转移条件,就自动转移【尽量不要让转移发生】。 原则：1.预处理：设置”触发交易的最小差价“ < 单币手续费
-     * 2.预处理： 通过日志观察,如果有价格倒挂,则不需要转移； 3.预处理：如果没有出现倒挂,通过日志观察是否有 (差价> 单币手续费)的时候?
-     * 如果有,可以设置”触发交易的最小差价“ >= 单币手续费, 如果已设置【”触发交易的最小差价“ >=
-     * 单币手续费】,则开启goods自动转移功能,等转移完了,人工反向转移money. 3.1 其他的情况,无解。(如果没有 (差价>
-     * 单币手续费)的时候,则无解；)
+     * 检查各平台的goods数量,如果分布不平衡,就自动转移。转移成功后，再查询账户。
+     * 这个方法会造成主线程阻塞
      *
+     * @return boolean 是否发生了转移
      * @throws Exception 异常
      */
-    public void balanceGoods() throws Exception {
-        /*
-        // 计算chbtc价格:卖价、买价的平均值
-        List<MarketOrder> askList_chbtc = trade_chbtc.getMarketDepth().getAskList();
-        double minAskPrice_chbtc = askList_chbtc.get(askList_chbtc.size() - 1).getPrice();
-        List<MarketOrder> bidList_chbtc = trade_chbtc.getMarketDepth().getBidList();
-        double maxBidPrice_chbtc = bidList_chbtc.get(bidList_chbtc.size() - 1).getPrice(); // ----
-        double price_chbtc = (minAskPrice_chbtc + maxBidPrice_chbtc) / 2;
-
-
-        // 计算okcion价格：卖价、买价的平均值 
-        List<MarketOrder> askList_okcoin = trade_okcoin.getMarketDepth().getAskList();
-        double minAskPrice_okcoin = askList_okcoin.get(askList_okcoin.size() - 1).getPrice();
-        List<MarketOrder> bidList_okcoin = trade_okcoin.getMarketDepth().getBidList();
-        double maxBidPrice_okcoin = bidList_okcoin.get(bidList_okcoin.size() - 1).getPrice();
-        double price_okcoin = (minAskPrice_okcoin + maxBidPrice_okcoin) / 2; // ----
-
-
-        // 单币手续费 
-        double fee = Const.formatMoney(money_Draw_rate * price_chbtc);
-        // 如果chbtc上面btc占总资产的比例<30%,才需要运btc过来 
-        double freeGoodsValue_chbtc = price_chbtc * trade_chbtc.getAccInfo().getFreeGoods();// btc价值多少money
-        double freeMoney_chbtc = trade_chbtc.getAccInfo().getFreeMoney();
-        double percent = freeGoodsValue_chbtc / (freeGoodsValue_chbtc + freeMoney_chbtc);
-        percent = Const.formatMoney(percent);
-        if (percent < 0.9) {// 需要搬运
-        	log.warn("chbtc上面缺乏btc,需要自动搬运(btc还剩" + (percent * 100) + "%)");
-        	needGoods_chbtc = true;
-        	if (havePriceReverse) {// 如果有价格倒挂,则等待倒挂 //
-        		log.info("等待价格倒挂........................");
-        	} else {// 其他情况无解
-        		log.warn("btc需要搬运,却无法搬运,无解!!!!!!");
-        	}
-        } else {
-        	needGoods_chbtc = false;
+    public boolean balanceGoodsAndMoney() throws Exception {
+        if (!canBalance) {
+            return false;
         }
-        */
+        // 如果某平台goods数量降到50%或涨到150%,才需要各平台调配goods。如果goods失衡，必然也伴随着money失衡
+        double avgGoods = currentBalance.getTotalGoods() / actualPlats().size();
+        double avgMoney = currentBalance.getTotalMoney() / actualPlats().size();
+        List<Trade> sendGoodsList = new ArrayList<>();
+        List<Trade> receiveGoodsList = new ArrayList<>();
+        List<Trade> sendMoneyList = new ArrayList<>();
+        List<Trade> receiveMoneyList = new ArrayList<>();
+        boolean needBalance = false;
+        for (Trade trade : actualPlats()) {
+            if (trade.getTotalGoods() / avgGoods > 1) {//粗略的把每个平台划分成多方、少方
+                trade.diffGoods = trade.getTotalGoods() / avgGoods;
+                sendGoodsList.add(trade);
+                if (trade.getTotalGoods() / avgGoods > 1 + whenBalance) needBalance = true;
+            }
+            if (trade.getTotalGoods() / avgGoods < 1) {
+                trade.diffGoods = avgGoods - trade.getTotalGoods();
+                receiveGoodsList.add(trade);
+                if (trade.getTotalGoods() / avgGoods < whenBalance) needBalance = true;
+            }
+            if (trade.getTotalMoney() / avgMoney > 1) {
+                trade.diffMoney = trade.getTotalMoney() - avgMoney;
+                sendMoneyList.add(trade);
+                if (trade.getTotalMoney() / avgMoney > 1 + whenBalance) needBalance = true;
+            }
+            if (trade.getTotalMoney() / avgMoney < 1) {
+                trade.diffMoney = avgMoney - trade.getTotalMoney();
+                receiveMoneyList.add(trade);
+                if (trade.getTotalMoney() / avgMoney < whenBalance) needBalance = true;
+            }
+        }//end for
+
+        if (needBalance) {// 如果需要搬运
+            List<CompletableFuture<?>> balanceFutureList = new ArrayList<>();
+            //while goods
+            while (sendGoodsList.size() > 0 && receiveGoodsList.size() > 0) {
+                if (sendGoodsList.get(0).diffGoods < prop.minCoinNum) sendGoodsList.remove(0);
+                if (receiveGoodsList.get(0).diffGoods < prop.minCoinNum) receiveGoodsList.remove(0);
+                if (sendGoodsList.size() == 0 || receiveGoodsList.size() == 0) break;
+                Trade t1 = sendGoodsList.get(0);
+                Trade t2 = receiveGoodsList.get(0);
+                double amount = Math.min(t1.diffGoods, t2.diffGoods);
+                //扣除双方金额，并生成转账单
+                t1.diffGoods -= amount;
+                t2.diffGoods -= amount;
+                Trade.WithdrawArgs withdrawArgs = new Trade.WithdrawArgs(t1.getGoods(), amount, t2.getGoodsAddress());
+                balanceFutureList.add(CompletableFuture.runAsync(() -> {
+                    try {
+                        t1.withdraw(withdrawArgs);
+                    } catch (Exception e) {
+                        log.error(t1.getPlatName() + "转账异常:" + withdrawArgs, e);
+                    }
+                }, threadPoolExecutor));
+            }//end while
+
+            //while money
+            while (sendMoneyList.size() > 0 && receiveMoneyList.size() > 0) {
+                if (sendMoneyList.get(0).diffMoney < prop.minCoinNum) sendMoneyList.remove(0);
+                if (receiveMoneyList.get(0).diffMoney < prop.minCoinNum) receiveMoneyList.remove(0);
+                if (sendMoneyList.size() == 0 || receiveMoneyList.size() == 0) break;
+                Trade t1 = sendMoneyList.get(0);
+                Trade t2 = receiveMoneyList.get(0);
+                double amount = Math.min(t1.diffMoney, t2.diffMoney);
+                //扣除双方金额，并生成转账单
+                t1.diffMoney -= amount;
+                t2.diffMoney -= amount;
+                Trade.WithdrawArgs withdrawArgs = new Trade.WithdrawArgs(t1.getMoney(), amount, t2.getMoneyAddress());
+                balanceFutureList.add(CompletableFuture.runAsync(() -> {
+                    try {
+                        t1.withdraw(withdrawArgs);
+                    } catch (Exception e) {
+                        log.error(t1.getPlatName() + "转账异常:" + withdrawArgs, e);
+                    }
+                }, threadPoolExecutor));
+            }//end while
+
+            //等待币转移到账(然而这里并不能保证到账)
+            CompletableFuture.allOf(balanceFutureList.toArray(new CompletableFuture<?>[0])).get(60 * 10, TimeUnit.SECONDS);
+            return true;
+        }//end if
+        return false;
     }
 
     /**
@@ -981,9 +1079,7 @@ public class Engine {
         double totalGoods = 0;
         double totalMoney = 0;
         StringBuilder platInfo = new StringBuilder();
-        for (Trade trade : platList) {
-            if (trade == virtualTrade)
-                continue;
+        for (Trade trade : actualPlats()) {
             log.debug(trade.getPlatName() + "当前价格" + trade.getCurrentPrice());
             AccountInfo inf = trade.getAccInfo();
             totalPrice += trade.getCurrentPrice();
@@ -991,13 +1087,13 @@ public class Engine {
                 platInfo.append(",");
             }
             platInfo.append(trade.getPlatName()).append("Money").append(":")
-                    .append(inf.getFreeMoney());
+                    .append(inf.getTotalMoney());
             platInfo.append(",").append(trade.getPlatName()).append("Goods").append(":")
-                    .append(inf.getFreeGoods());
+                    .append(inf.getTotalGoods());
             totalGoods += trade.getTotalGoods();
             totalMoney += trade.getTotalMoney();
         }// end for
-        bal.setPrice(totalPrice / (platList.size() - 1));//排除虚拟平台
+        bal.setPrice(totalPrice / actualPlats().size());//排除虚拟平台
         bal.setPlatInfo(platInfo.toString());
         bal.setTotalGoods(totalGoods);
         bal.setTotalMoney(totalMoney);
@@ -1097,16 +1193,6 @@ public class Engine {
             //
         }
 
-    }
-
-    public void initVirtualPlat() {
-        // 清空市场挂单
-        MarketDepth depth = virtualTrade.getMarketDepth();
-        depth.getBidList().clear();
-        depth.getAskList().clear();
-        // 清空账户信息
-        virtualTrade.getAccInfo().setFreeGoods(0);
-        virtualTrade.getAccInfo().setFreeMoney(0);
     }
 
     /**
@@ -1272,6 +1358,19 @@ public class Engine {
      */
     private boolean needSkipDexWhenAdjustGoods(Trade trade) {
         return !dexSync && virtualTrade.isActive() && trade.getFixFee() > 0;
+    }
+
+    /**
+     * 返回全部真实的平台。不要虚拟的
+     *
+     * @return 真实平台
+     */
+    private List<Trade> actualPlats() {
+        if (platList.contains(virtualTrade)) {
+            return platList.subList(0, platList.size() - 1);
+        } else {
+            return platList;
+        }
     }
 
 }

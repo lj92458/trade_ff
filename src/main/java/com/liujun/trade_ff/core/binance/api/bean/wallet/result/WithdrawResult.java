@@ -1,32 +1,13 @@
 package com.liujun.trade_ff.core.binance.api.bean.wallet.result;
 
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
 public class WithdrawResult {
 
-    String msg;
-    boolean success;
-    String id;
 
-    public String getMsg() {
-        return msg;
-    }
+    String id;//币安系统内部编号
 
-    public void setMsg(String msg) {
-        this.msg = msg;
-    }
-
-    public boolean isSuccess() {
-        return success;
-    }
-
-    public void setSuccess(boolean success) {
-        this.success = success;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
 }

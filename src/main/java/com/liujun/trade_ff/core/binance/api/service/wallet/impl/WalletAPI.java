@@ -2,8 +2,7 @@ package com.liujun.trade_ff.core.binance.api.service.wallet.impl;
 
 import com.liujun.trade_ff.core.binance.api.bean.wallet.result.WithdrawResult;
 import retrofit2.Call;
-import retrofit2.http.POST;
-import retrofit2.http.QueryMap;
+import retrofit2.http.*;
 
 import java.util.Map;
 
@@ -16,6 +15,11 @@ import java.util.Map;
  */
 public interface WalletAPI {
 
-    @POST("/wapi/v3/withdraw.html")
+    @POST("/sapi/v1/capital/withdraw/apply")
+    @Headers("SECURITY_TYPE:USER_DATA")
     Call<WithdrawResult> withdraw(@QueryMap Map<String,Object> map);
+
+    @GET("/sapi/v1/capital/config/getall")
+    @Headers("SECURITY_TYPE:USER_DATA")
+    Call<String> queryAllCoin(@Query("timestamp") long timestamp);
 }

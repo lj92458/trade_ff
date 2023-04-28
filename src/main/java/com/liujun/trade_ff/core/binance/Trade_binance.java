@@ -80,10 +80,6 @@ public class Trade_binance extends Trade {
     private String secretKey;
     @Value("${binance.feeRate}")
     private double feeRate;
-    @Value("${binance.goods}")
-    private String goods;
-    @Value("${binance.money}")
-    private String money;
     private String coinPair;
     //------------------------
 
@@ -108,7 +104,7 @@ public class Trade_binance extends Trade {
         this.spotAccountAPIService = new SpotAccountAPIServiceImpl(this.config);
         this.spotOrderAPIService = new SpotOrderAPIServiceImpl(this.config);
         this.walletAPIService = new WalletAPIServiceImpl(this.config);
-        coinPair = goods.toUpperCase() + money.toUpperCase();
+        coinPair = getGoods().toUpperCase() + getMoney().toUpperCase();
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
@@ -180,11 +176,11 @@ public class Trade_binance extends Trade {
             }
 
             for (Balance bal : account.getBalance()) {
-                if (bal.getAsset().equalsIgnoreCase(goods)) {
+                if (bal.getAsset().equalsIgnoreCase(getGoods())) {
                     accountInfo.setFreeGoods(Double.parseDouble(bal.getFree()));
                     accountInfo.setFreezedGoods(Double.parseDouble(bal.getLocked()));
                 }
-                if (bal.getAsset().equalsIgnoreCase(money)) {
+                if (bal.getAsset().equalsIgnoreCase(getMoney())) {
                     accountInfo.setFreeMoney(Double.parseDouble(bal.getFree()));
                     accountInfo.setFreezedMoney(Double.parseDouble(bal.getLocked()));
                 }
@@ -203,14 +199,14 @@ public class Trade_binance extends Trade {
      * 各平台都完成预处理后,删掉已失效的订单,对没失效的订单,进行挂单操作,并记录订单号,然后删除挂单失败的
      * 注意过滤器是否开启。如果开启，可能导致小额交易失败 https://binance-docs.github.io/apidocs/spot/cn/#cc81fff589
      * 2022-06-15，币安添加新的过滤器 NOTIONAL(名义价值过滤器)，基于minNotional 与 maxNotional 值来限制名义价值 (price * quantity).
-     * 每个交易对都有不同的要求。要求【"symbol": "CELOBUSD"】交易额在一个区间内10~9000000美元：{  信息来源 https://www.binance.com/api/v3/exchangeInfo
-     *    "filterType": "NOTIONAL",
-     *     "minNotional": "10.00000000",
-     *     "applyMinToMarket": true,
-     *     "maxNotional": "9000000.00000000",
-     *     "applyMaxToMarket": false,
-     *     "avgPriceMins": 5
-     *   }
+     * 每个交易对都有不同的要求。要求【"symbol": "CELOBUSD"】交易额在一个区间内10~9000000美元：{  信息来源:交易规范信息 https://www.binance.com/api/v3/exchangeInfo
+     * "filterType": "NOTIONAL",
+     * "minNotional": "10.00000000",
+     * "applyMinToMarket": true,
+     * "maxNotional": "9000000.00000000",
+     * "applyMaxToMarket": false,
+     * "avgPriceMins": 5
+     * }
      * }
      */
     public int tradeOrder() throws Exception {
@@ -326,24 +322,43 @@ public class Trade_binance extends Trade {
      * @throws Exception
      */
     @Override
-    public void withdraw(String productName, double amount, String address) throws Exception {
+    public void withdraw(WithdrawArgs args) throws Exception {
 
-        WithdrawParam param = new WithdrawParam();
-        param.setAsset(productName);
-        param.setAddress(address);
-        param.setAmount(amount);
-        param.setRecvWindow(recvWindow);
-        param.setTimestamp(DateUtils.getUnixTimeMilli());
+        WithdrawParam param = new WithdrawParam(args.productName, args.address, args.amount, DateUtils.getUnixTimeMilli());
+        param.setNetwork(args.productName.equalsIgnoreCase(getGoods()) ? getGoodsNetWork() : getMoneyNetWork());
 
         WithdrawResult result = this.walletAPIService.withdraw(param);
-        if (result.isSuccess()) {
-            log.info("提币成功：" + result.getId() + ":" + result.getMsg());
-        } else {
-            log.error("提币失败：" + result.getMsg());
-            throw new Exception("提币失败：" + result.getMsg());
-        }
+        log.info(getPlatName() + "提币成功：" + result.getId() + "，请求参数" + param);
 
     }
 
+    @Value("${binance.goods}")
+    public void setGoods(String goods) {
+        super.setGoods(goods);
+    }
 
+    @Value("${binance.money}")
+    public void setMoney(String money) {
+        super.setMoney(money);
+    }
+
+    @Value("${binance.goodsAddress}")
+    public void setGoodsAddress(String goodsAddress) {
+        super.setGoodsAddress(goodsAddress);
+    }
+
+    @Value("${binance.moneyAddress}")
+    public void setMoneyAddress(String moneyAddress) {
+        super.setMoneyAddress(moneyAddress);
+    }
+
+    @Value("${binance.goodsNetWork}")
+    public void setGoodsNetWork(String goodsNetWork) {
+        super.setGoodsNetWork(goodsNetWork);
+    }
+
+    @Value("${binance.moneyNetWork}")
+    public void setMoneyNetWork(String moneyNetWork) {
+        super.setMoneyNetWork(moneyNetWork);
+    }
 }

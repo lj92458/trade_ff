@@ -1,6 +1,7 @@
 package com.liujun.trade_ff.core;
 
 import com.liujun.trade_ff.core.modle.AccountInfo;
+import com.liujun.trade_ff.core.modle.MarketDepth;
 import com.liujun.trade_ff.core.util.HttpUtil;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
@@ -52,7 +53,13 @@ public class VirtualTrade extends Trade {
      * 各平台都完成预处理后,删掉已失效的订单,对没失效的订单,进行挂单操作,并记录订单号,然后删除挂单失败的
      */
     public int tradeOrder() throws Exception {
-
+        // 清空市场挂单
+        MarketDepth depth = getMarketDepth();
+        depth.getBidList().clear();
+        depth.getAskList().clear();
+        // 清空账户信息
+        getAccInfo().setFreeGoods(0);
+        getAccInfo().setFreeMoney(0);
         return 0;
     }
 
@@ -88,7 +95,7 @@ public class VirtualTrade extends Trade {
      * @throws Exception
      */
     @Override
-    public void withdraw(String productName, double amount, String address) throws Exception {
+    public void withdraw(WithdrawArgs args) throws Exception {
         throw new Exception("不支持提币");
     }
 

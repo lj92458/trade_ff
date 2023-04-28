@@ -67,10 +67,6 @@ public class Trade_uniswap extends Trade {
 
     @Value("${uniswap.feeRate}")
     private double feeRate;// 对于uniswap来说，不要用feeRate调整挂单价格，因为返回的市场挂单价格，已经把手续费考虑进去了。
-    @Value("${uniswap.goods}")
-    private String goods;
-    @Value("${uniswap.money}")
-    private String money;
     private String coinPair;
     private double gasPriceGwei;
     @Value("${uniswap.naitveToken}")
@@ -103,7 +99,7 @@ public class Trade_uniswap extends Trade {
         this.orderAPIService = new OrderApiServiceImpl(this.config);
         this.accountAPIService = new AccountAPIServiceImpl(this.config);
         this.walletAPIService = new WalletAPIServiceImpl(this.config);
-        coinPair = goods + "-" + money;
+        coinPair = getGoods() + "-" + getMoney();
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
@@ -170,13 +166,13 @@ public class Trade_uniswap extends Trade {
     public void flushAccountInfo() throws Exception {
         try {
             AccountInfo accountInfo = new AccountInfo();
-            List<Account> list = accountAPIService.getAccounts(goods, money);
+            List<Account> list = accountAPIService.getAccounts(getGoods(), getMoney());
             for (Account acc : list) {
-                if (acc.getCurrency().equalsIgnoreCase(goods)) {
+                if (acc.getCurrency().equalsIgnoreCase(getGoods())) {
                     accountInfo.setFreeGoods(Double.parseDouble(acc.getAvailable()));
                     accountInfo.setFreezedGoods(Double.parseDouble(acc.getHold()));
                 }
-                if (acc.getCurrency().equalsIgnoreCase(money)) {
+                if (acc.getCurrency().equalsIgnoreCase(getMoney())) {
                     accountInfo.setFreeMoney(Double.parseDouble(acc.getAvailable()));
                     accountInfo.setFreezedMoney(Double.parseDouble(acc.getHold()));
                 }
@@ -187,16 +183,16 @@ public class Trade_uniswap extends Trade {
             //查询gas费，然后设置矿工费
             double[] priceArr;
             //如果goods是eth，就直接采用当前市场价。因为市场价综合考虑了多平台的价格。这好过直接从uniswap查询价格。
-            if (goods.equalsIgnoreCase(naitveToken) && getCurrentPrice() != 0) {
-                double gasPrice = productAPIService.getGasPriceGweiAndEthPrice(goods, getPoolFee())[0];
+            if (getGoods().equalsIgnoreCase(naitveToken) && getCurrentPrice() != 0) {
+                double gasPrice = productAPIService.getGasPriceGweiAndEthPrice(getGoods(), getPoolFee())[0];
                 double ethPrice = getCurrentPrice();
                 priceArr = new double[]{gasPrice, ethPrice};
             } else {
-                priceArr = productAPIService.getGasPriceGweiAndEthPrice(money, getPoolFee());
+                priceArr = productAPIService.getGasPriceGweiAndEthPrice(getMoney(), getPoolFee());
             }
             this.gasPriceGwei = adjustGasPrice(priceArr[0]);
             double limit = 0;
-            if (goods.equalsIgnoreCase(naitveToken) || money.equalsIgnoreCase(naitveToken)) {
+            if (getGoods().equalsIgnoreCase(naitveToken) || getMoney().equalsIgnoreCase(naitveToken)) {
                 limit = 200000;
             } else {//swapExactTokensForTokens
                 limit = 200000;
@@ -205,7 +201,7 @@ public class Trade_uniswap extends Trade {
             //把eth价值，转化成本交易对中的money
             double feeInMoney;
             feeInMoney = feeInEth * priceArr[1];
-            log.info("gas价格：" + this.gasPriceGwei + "Gwei,矿工费:" + prop.formatMoney(feeInMoney) + money);
+            log.info("gas价格：" + this.gasPriceGwei + "Gwei,矿工费:" + prop.formatMoney(feeInMoney) + getMoney());
             super.setFixFee(feeInMoney);
 
         } catch (Exception e) {
@@ -359,12 +355,8 @@ public class Trade_uniswap extends Trade {
      * @throws Exception
      */
     @Override
-    public void withdraw(String productName, double amount, String address) throws Exception {
-        WithdrawParam param = new WithdrawParam();
-        param.setAsset(productName);
-        param.setAddress(address);
-        param.setAmount(amount);
-
+    public void withdraw(WithdrawArgs args) throws Exception {
+        WithdrawParam param = new WithdrawParam(args.productName, args.address, args.amount);
 
         WithdrawResult result = this.walletAPIService.withdraw(param);
         if (result.isSuccess()) {
@@ -373,5 +365,35 @@ public class Trade_uniswap extends Trade {
             log.error("提币失败：" + result.getMsg());
             throw new Exception("提币失败：" + result.getMsg());
         }
+    }
+
+    @Value("${uniswap.goods}")
+    public void setGoods(String goods) {
+        super.setGoods(goods);
+    }
+
+    @Value("${uniswap.money}")
+    public void setMoney(String money) {
+        super.setMoney(money);
+    }
+
+    @Value("${uniswap.goodsAddress}")
+    public void setGoodsAddress(String goodsAddress) {
+        super.setGoodsAddress(goodsAddress);
+    }
+
+    @Value("${uniswap.moneyAddress}")
+    public void setMoneyAddress(String moneyAddress) {
+        super.setMoneyAddress(moneyAddress);
+    }
+
+    @Value("${uniswap.netWork}")
+    public void setGoodsNetWork(String goodsNetWork) {
+        super.setGoodsNetWork(goodsNetWork);
+    }
+
+    @Value("${uniswap.netWork}")
+    public void setMoneyNetWork(String moneyNetWork) {
+        super.setMoneyNetWork(moneyNetWork);
     }
 }

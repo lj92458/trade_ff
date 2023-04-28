@@ -38,7 +38,7 @@ public class SpotOrderAPIServiceImpl implements SpotOrderAPIService {
 
         param.setNewOrderRespType(NewOrderRespType.ACK);// NewOrderRespType.ACK
         log.info("addOrderACK参数："+ MapUtil.toMapWithNoNullField(param).toString());
-        return (AddOrderResultACK)this.client.executeSync(spotOrderAPI.addOrderACK(MapUtil.toMapWithNoNullField(param)));
+        return this.client.executeSync(spotOrderAPI.addOrderACK(MapUtil.toMapWithNoNullField(param)));
     }
 
     @Override

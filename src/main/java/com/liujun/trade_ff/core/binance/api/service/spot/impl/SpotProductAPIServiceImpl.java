@@ -29,5 +29,4 @@ public class SpotProductAPIServiceImpl implements SpotProductAPIService {
 
 
 
-
 }

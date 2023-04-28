@@ -7,5 +7,4 @@ public interface SpotProductAPIService {
 
     Depth marketDepth(String symbol, Integer limit);
 
-
 }

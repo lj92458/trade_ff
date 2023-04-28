@@ -269,7 +269,7 @@ public class Trade_poloniex extends Trade {
     }
 
     @Override
-    public void withdraw(String productName, double amount, String address) throws Exception {
+    public void withdraw(WithdrawArgs args) throws Exception {
         throw new Exception("不支持提币");
     }
 }

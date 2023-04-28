@@ -1,5 +1,10 @@
 package com.liujun.trade_ff.core.uniswap.api.bean;
 
+import lombok.AllArgsConstructor;
+import lombok.ToString;
+
+@AllArgsConstructor
+@ToString
 public class WithdrawParam {
     String asset;//
 

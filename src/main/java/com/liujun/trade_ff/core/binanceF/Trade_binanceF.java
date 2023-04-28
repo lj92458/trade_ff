@@ -93,10 +93,6 @@ public class Trade_binanceF extends Trade {
     private double feeRate;
     @Value("${binanceF.contractType}")
     private String contractType;
-    @Value("${binanceF.goods}")
-    private String goods;
-    @Value("${binanceF.money}")
-    private String money;
     private String coinPair;
     //------------------------
 
@@ -121,7 +117,7 @@ public class Trade_binanceF extends Trade {
         this.futureAccountAPIService = new FutureAccountAPIServiceImpl(this.config);
         this.futureOrderAPIService = new FutureOrderAPIServiceImpl(this.config);
         this.walletAPIService = new WalletAPIServiceImpl(this.config);
-        coinPair = goods.toUpperCase() + money.toUpperCase();
+        coinPair = getGoods().toUpperCase() + getMoney().toUpperCase();
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
@@ -215,7 +211,7 @@ public class Trade_binanceF extends Trade {
             AccountInfo accountInfo = new AccountInfo();
             double equity = asset.getMarginBalance();//权益
             //如果是币本位合约，余额是货
-            if (instrument.getMarginAsset().equalsIgnoreCase(goods)) {
+            if (instrument.getMarginAsset().equalsIgnoreCase(getGoods())) {
                 //freeMoney=权益(或者余额)*持仓率-多仓仓位,   freeGoods=权益(或者余额)*持仓率-空仓仓位
                 //freezedMoney，根据持仓量表示的一个参数。用来检测平衡：确保钱恒定。做空，产生钱，消耗货。做多，消耗钱，产生货
                 //因为面额是美元
@@ -238,7 +234,7 @@ public class Trade_binanceF extends Trade {
             }
 
             //如果是usdt本位合约,余额是钱
-            if (instrument.getMarginAsset().equalsIgnoreCase(money)) {
+            if (instrument.getMarginAsset().equalsIgnoreCase(getMoney())) {
                 //因为面额是美元
                 if (longOrShort > 0) {//所需保证金*标记价格/合约面额
                     long_qty = position.getInitialMargin() / contractVal;
@@ -424,22 +420,12 @@ public class Trade_binanceF extends Trade {
      * @throws Exception
      */
     @Override
-    public void withdraw(String productName, double amount, String address) throws Exception {
+    public void withdraw(WithdrawArgs args) throws Exception {
 
-        WithdrawParam param = new WithdrawParam();
-        param.setAsset(productName);
-        param.setAddress(address);
-        param.setAmount(amount);
-        param.setRecvWindow(recvWindow);
-        param.setTimestamp(DateUtils.getUnixTimeMilli());
+        WithdrawParam param = new WithdrawParam(args.productName, args.address, args.amount, DateUtils.getUnixTimeMilli());
 
         WithdrawResult result = this.walletAPIService.withdraw(param);
-        if (result.isSuccess()) {
-            log.info("提币成功：" + result.getId() + ":" + result.getMsg());
-        } else {
-            log.error("提币失败：" + result.getMsg());
-            throw new Exception("提币失败：" + result.getMsg());
-        }
+        log.info(getPlatName() + "提币成功：" + result.getId() + "，请求参数" + param);
 
     }
 
@@ -470,4 +456,32 @@ public class Trade_binanceF extends Trade {
         return getAccInfo().getTotalMoney();
     }
 
+    @Value("${binanceF.goods}")
+    public void setGoods(String goods) {
+        super.setGoods(goods);
+    }
+
+    @Value("${binanceF.money}")
+    public void setMoney(String money) {
+        super.setMoney(money);
+    }
+
+    @Value("${binanceF.goodsAddress}")
+    public void setGoodsAddress(String goodsAddress) {
+        super.setGoodsAddress(goodsAddress);
+    }
+
+    @Value("${binanceF.moneyAddress}")
+    public void setMoneyAddress(String moneyAddress) {
+        super.setMoneyAddress(moneyAddress);
+    }
+    @Value("${binanceF.goodsNetWork}")
+    public void setGoodsNetWork(String goodsNetWork) {
+        super.setGoodsNetWork(goodsNetWork);
+    }
+
+    @Value("${binanceF.moneyNetWork}")
+    public void setMoneyNetWork(String moneyNetWork) {
+        super.setMoneyNetWork(moneyNetWork);
+    }
 }
