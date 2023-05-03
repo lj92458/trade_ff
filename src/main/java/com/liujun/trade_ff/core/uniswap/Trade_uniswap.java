@@ -183,7 +183,7 @@ public class Trade_uniswap extends Trade {
             //查询gas费，然后设置矿工费
             double[] priceArr;
             //如果goods是eth，就直接采用当前市场价。因为市场价综合考虑了多平台的价格。这好过直接从uniswap查询价格。
-            if (getGoods().equalsIgnoreCase(naitveToken) && getCurrentPrice() != 0) {
+            if (getGoods().toLowerCase().contains(naitveToken.toLowerCase()) && getCurrentPrice() != 0) {
                 double gasPrice = productAPIService.getGasPriceGweiAndEthPrice(getGoods(), getPoolFee())[0];
                 double ethPrice = getCurrentPrice();
                 priceArr = new double[]{gasPrice, ethPrice};
@@ -191,12 +191,8 @@ public class Trade_uniswap extends Trade {
                 priceArr = productAPIService.getGasPriceGweiAndEthPrice(getMoney(), getPoolFee());
             }
             this.gasPriceGwei = adjustGasPrice(priceArr[0]);
-            double limit = 0;
-            if (getGoods().equalsIgnoreCase(naitveToken) || getMoney().equalsIgnoreCase(naitveToken)) {
-                limit = 200000;
-            } else {//swapExactTokensForTokens
-                limit = 200000;
-            }
+            double limit = 200000;
+
             double feeInEth = limit * this.gasPriceGwei / 1_000_000_000;//假设需要gas14万个，那么总共需要的eth是多少？
             //把eth价值，转化成本交易对中的money
             double feeInMoney;

@@ -14,7 +14,7 @@
 1. 在 linux系统 安装java8和sqlite3
 2. 根据yml文件中log.path的值，创建日志目录。这里也会用来存放数据库。
 3. 激活maven的prd配置，刷新maven，并打包；将安装包传输到服务器。
-4. 将applicaion-prd和conf.mxl传到服务器端jar包所在目录。然后修改这两个配置文件，包括conf.xml末尾的firstBalance。
+4. 将applicaion-prd和conf.mxl传到服务器端jar包所在目录。然后修改这两个配置文件，包括conf.xml末尾的firstBalance。prd文件里面要写weth，而不能是eth
 5. 执行数据库建表/建库语句，插入初始化数据。
 6. 需要授权某合约能花费自己的token。不能从uniswap界面上操作，而是要调用trade.js里面的getTokenTransferApproval函数，对SwapRouter合约授权。或者在etherscan上调用。
 
