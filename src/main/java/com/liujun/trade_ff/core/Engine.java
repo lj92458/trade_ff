@@ -682,10 +682,10 @@ public class Engine {
         boolean[] passAdjust1Arr = new boolean[(platList.size() - 1) * 11 + 1];//
         Set<Integer> platIdSet = new HashSet<>();
         while (askList.size() > 0 && bidList.size() > 0) {
-            if (askList.get(0).getVolume() < prop.minCoinNum) {
+            if (askList.get(0).getVolume() < prop.minAmount) {
                 askList.remove(0);
             }
-            if (bidList.get(0).getVolume() < prop.minCoinNum) {
+            if (bidList.get(0).getVolume() < prop.minAmount) {
                 bidList.remove(0);
             }
             if (askList.size() == 0 || bidList.size() == 0) {
@@ -725,7 +725,7 @@ public class Engine {
         double diffPrice = bid.getPrice() - ask.getPrice();
         if (diffPrice > maxEarnCost.diffPrice) {
             maxEarnCost.diffPrice = diffPrice;
-            maxEarnCost.diffPriceDirection = keyArray[arrayIndex];
+            maxEarnCost.diffPriceDirection = keyArray[arrayIndex] + ": " + bid.getPrice() + "_" + ask.getPrice();
         }
         double amount = Math.min(ask.getVolume(), bid.getVolume());
         // 如果不是虚拟平台，就调节限价
@@ -738,7 +738,7 @@ public class Engine {
         // 如果有差价,并且差价大于min_diffPrice,就值得搬运
         if (diffPrice >= priceArray[arrayIndex]) {
             // 寻找两者之中较小的挂单量
-            if (amount < prop.minCoinNum) {// 如果数量太小。（在简单匹配模式，数量不可能太小。太小的已经被删除了。）
+            if (amount < prop.minAmount) {// 如果数量太小。（在简单匹配模式，数量不可能太小。太小的已经被删除了。）
                 return new EarnCost(0.00, 0);
             }
 
@@ -779,10 +779,10 @@ public class Engine {
         boolean[] passArr = new boolean[(platList.size() - 1) * 11 + 1];// 是否需要搬运
         Set<Integer> platIdSet = new HashSet<>();
         while (askList.size() > 0 && bidList.size() > 0) {
-            if (askList.get(0).getVolume() < prop.minCoinNum) {
+            if (askList.get(0).getVolume() < prop.minAmount) {
                 askList.remove(0);
             }
-            if (bidList.get(0).getVolume() < prop.minCoinNum) {
+            if (bidList.get(0).getVolume() < prop.minAmount) {
                 bidList.remove(0);
             }
             if (askList.size() == 0 || bidList.size() == 0) {
@@ -824,7 +824,7 @@ public class Engine {
         // 如果有差价,并且差价大于min_diffPrice,就值得搬运
         if (diffPrice >= priceArray[arrayIndex]) {
             // 寻找两者之中较小的挂单量
-            if (amount < prop.minCoinNum) {// 如果数量太小。（在简单匹配模式，数量不可能太小。太小的已经被删除了。）
+            if (amount < prop.minAmount) {// 如果数量太小。（在简单匹配模式，数量不可能太小。太小的已经被删除了。）
                 return new EarnCost(0.00, 0);
             }
 
@@ -996,8 +996,8 @@ public class Engine {
             List<CompletableFuture<?>> balanceFutureList = new ArrayList<>();
             //while goods
             while (sendGoodsList.size() > 0 && receiveGoodsList.size() > 0) {
-                if (sendGoodsList.get(0).diffGoods < prop.minCoinNum) sendGoodsList.remove(0);
-                if (receiveGoodsList.get(0).diffGoods < prop.minCoinNum) receiveGoodsList.remove(0);
+                if (sendGoodsList.get(0).diffGoods < prop.minAmount) sendGoodsList.remove(0);
+                if (receiveGoodsList.get(0).diffGoods < prop.minAmount) receiveGoodsList.remove(0);
                 if (sendGoodsList.size() == 0 || receiveGoodsList.size() == 0) break;
                 Trade t1 = sendGoodsList.get(0);
                 Trade t2 = receiveGoodsList.get(0);
@@ -1017,8 +1017,8 @@ public class Engine {
 
             //while money
             while (sendMoneyList.size() > 0 && receiveMoneyList.size() > 0) {
-                if (sendMoneyList.get(0).diffMoney < prop.minCoinNum) sendMoneyList.remove(0);
-                if (receiveMoneyList.get(0).diffMoney < prop.minCoinNum) receiveMoneyList.remove(0);
+                if (sendMoneyList.get(0).diffMoney < prop.minAmount) sendMoneyList.remove(0);
+                if (receiveMoneyList.get(0).diffMoney < prop.minAmount) receiveMoneyList.remove(0);
                 if (sendMoneyList.size() == 0 || receiveMoneyList.size() == 0) break;
                 Trade t1 = sendMoneyList.get(0);
                 Trade t2 = receiveMoneyList.get(0);

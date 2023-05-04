@@ -50,6 +50,10 @@ public class Prop {
 
     public static ThreadLocal<DecimalFormat> fmt_goods;
     public static ThreadLocal<DecimalFormat> fmt_money;
+    /**
+     * 一个非常小的值，接近于零
+     */
+    public double minAmount= 0.0000003;
 
     @PostConstruct
     public void init() {

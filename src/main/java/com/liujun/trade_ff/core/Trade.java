@@ -166,7 +166,7 @@ public abstract class Trade {
                 freeMoney -= needMoney;
             } else if (0 < freeMoney) {
                 order.setVolume(freeMoney / order.getPrice());
-                if (order.getVolume() >= prop.minCoinNum) {
+                if (order.getVolume() >= prop.minAmount) {
                     backupDepth.getAskList().add(order);
                 }
                 freeMoney = 0.00;
@@ -185,7 +185,7 @@ public abstract class Trade {
                 freeGoods -= needGoods;
             } else if (0 < freeGoods) {
                 order.setVolume(freeGoods);
-                if (freeGoods >= prop.minCoinNum) {
+                if (freeGoods >= prop.minAmount) {
                     backupDepth.getBidList().add(order);
                 }
                 freeGoods = 0.00;

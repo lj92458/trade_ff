@@ -24,6 +24,11 @@
 2. 在maven窗口切换了profile复选框，记得要刷新maven，才能生效。
 3. 开发调试，既可以调试本地打包好的jar文件，也能直接debug源代码的main方法。如果是main方法，需要改变idea工作目录：配置debug选项 -> (超链接)修改选项 -> 工作目录 -> 把工作目录设定为target目录，
    这样Engine类才能从当前目录读取到conf.mxl 。调试前，记得激活maven的dev配置，并刷新maven.
+4. op链：eth/usdc(7天交易75M)  https://api-optimistic.etherscan.io/api  key=5VR1M7IQYFPZBU189F8ABH4W4NIHJ9GYJQ
+   arb链：eth/usdc(7天交易900M)、arb/usdc   https://api.arbiscan.io/api  key=32YQ9W1FDCU1XGCUNQQF9Z5GG6R5B2BYNI    或者nova(安全性下降)   https://api-nova.arbiscan.io/api   key=FMS97MUY87E7QXNP7WA7TXMSPP7T11N9HD     
+   Polygon链：eth/usdc(7天交易120M)、matic/usdc!!      https://api.polygonscan.com/api     key=IIE5BC2IDCKEQ88UBZ61HIDCS8TE7UIYQZ
+
+bsc链上做 btc/usdt !!!   btc/bnb   7天交易量11M，太小了，希望有百兆
 
 #### 参与贡献
 
