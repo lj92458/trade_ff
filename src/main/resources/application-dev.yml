@@ -45,7 +45,7 @@ trade:
   # 请不要考虑矿工费，因为maxEarnCost.earn已经减去了矿工费。这里应该拍脑袋决定
   atLeastEarn: 0.0145 #美元
   #最低利润率(差价除以价格)，跟滑点有关：因为uniswap上面建议的滑点是0.05%,比原链超导兑换建议1%
-  atLeastRate: 0.001
+  atLeastRate: 0.0005
   positionRate: 1 #仓位上限，占余额的比例。0.5表示50%，那么下跌2/3时爆仓。1表示100%，那么下跌50%时爆仓
   #dex和cex同步挂单吗？如果dex失败率高，就不要同步挂单。而是先让dex执行，执行成功后会发现资金失衡，然后通过调平资金的方式去执行cex
   #考虑两种策略：
@@ -54,6 +54,7 @@ trade:
   dexSync: false
   whenBalance: 0.5 #任意平台的coin数量比平均值偏移了多少，就触发转账
   canBalance: false #多个平台之间，能互相转账吗？双方的money和goods用的是同一条链的同一种货币？ cusd和usdc不在同一个链上，因此无法调拨.即使双方都是usdc,只要币安平台不支持该链的转账，也不行。
+  needCheckTotalAmount: true #是否维持资金总量不变？如果账户被其它程序自动操控，资金量会不断变化。这时如果不想调节。
 
 engine:
   time_queryOrder: 3 #间隔多少【秒】查询一次市场挂单. 请用3、6、9、12等等

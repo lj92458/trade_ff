@@ -125,6 +125,8 @@ public class Engine {
     public double whenBalance;
     @Value("${trade.canBalance}")
     public boolean canBalance;
+    @Value("${trade.needCheckTotalAmount}")
+    public boolean needCheckTotalAmount;
     // ====重要属性=============
     /**
      * 存放各个平台的交易对象
@@ -340,7 +342,7 @@ public class Engine {
                 } finally {
                     if (needBalance) {//只有真正的转移了资金，才需要查询账户
                         isBalanceFinished = false;
-                    } else {
+                    } else if (needCheckTotalAmount) {
                         // 检查goods总数量,如果不跟初始值相等,就立即买卖调整。为什么要设置在这里呢？因为挂单后，可能导致超时。然后就抛出异常，跳出for循环没机会检查goods
                         //只有当资金分布均匀，才能处理资金总量的变动。因为前者会误导后者
                         if (prop.earnMoney) checkTotalGoods();
