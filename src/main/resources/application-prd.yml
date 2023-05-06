@@ -52,7 +52,7 @@ trade:
   #    1.冒进型，跟别人激烈争抢，尽量设大滑点，然后两个平台同时提交(这个亏起来很厉害的)。
   #    2.保守型，设置很小的滑点，让dex先成交，如果成交失败，cex就不用执行了，也就没什么损失。这个不容易亏，但是也不容易抓住机会。
   dexSync: false
-  whenBalance: 0.5 #任意平台的coin数量比平均值偏移了多少，就触发转账
+  whenBalance: 0.5 #百分数的小数形式。任意平台的coin数量比平均值偏移了多少，就触发转账
   canBalance: false #多个平台之间，能互相转账吗？双方的money和goods用的是同一条链的同一种货币？ cusd和usdc不在同一个链上，因此无法调拨.即使双方都是usdc,只要币安平台不支持该链的转账，也不行。
   needCheckTotalAmount: true #是否维持资金总量不变？如果账户被其它程序自动操控，资金量会不断变化。这时如果不想调节。
 
@@ -76,7 +76,7 @@ okcoin:
   secretKey: B2787E9B97409B539B206AEAE056A46F
   url: https://www.okex.com
   passphrase: liujun924586
-  feeRate: 0.0015
+  feeRate: 0.001
 
 okcoinF: #期货标的
   goods:  #交易哪种商品。大小写随意，由各平台对应的trade类负责转换
@@ -108,8 +108,10 @@ binance:
   money: busd #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
   moneyAddress: "0x6803c2566b114196e56949999b4bbbee413777f0"
   moneyNetWork: BSC #调用WalletAPIService.queryAllCoin，能查出各种币的网络名称
-  apiKey: 1mAOQOu33xJixjS2yI7BpT1w0QsVCKPdLYS5RbQOYBPDuug5VxQXnWtmOe0FjhsA
-  secretKey: 8StAUYBofm79mKfil9rRTgwePOKGMVYvSH4bnUJHCXbL9qW7qlYLxzWNCFlneX2W
+  #apiKey: 1mAOQOu33xJixjS2yI7BpT1w0QsVCKPdLYS5RbQOYBPDuug5VxQXnWtmOe0FjhsA #我
+  #secretKey: 8StAUYBofm79mKfil9rRTgwePOKGMVYvSH4bnUJHCXbL9qW7qlYLxzWNCFlneX2W #我
+  apiKey: P2MJ2DU0eHocpAIlCLbc3NSZ4Kr5FwyN2kk24d3lMap7wxyP6tfINBIVfCkjOAWl #他
+  secretKey: m8BFeXKETjPuDgf6LY7wlJmAZDlnQcKiW3vfm6x1b5TcjEX4eIulvMrzu1vgqvVN #她
   feeRate: 0.001
   url: https://api.binance.com
 #合约交易，币本位

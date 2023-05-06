@@ -102,13 +102,12 @@ public class Trade_okcoin extends Trade {
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
-
         } catch (Exception e) {
-
             log.error(getPlatName() + " : " + e.getMessage(), e);
+
         }
 
-        initSuccess = true;
+        this.initSuccess = true;
     }
 
     /**

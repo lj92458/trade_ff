@@ -61,7 +61,7 @@ public abstract class Trade {
     /**
      * 账户资产信息
      */
-    private AccountInfo accInfo;
+    public AccountInfo accInfo;
     /**
      * 当前价格
      */

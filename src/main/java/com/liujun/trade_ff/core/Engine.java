@@ -972,25 +972,25 @@ public class Engine {
         List<Trade> receiveMoneyList = new ArrayList<>();
         boolean needBalance = false;
         for (Trade trade : actualPlats()) {
-            if (trade.getTotalGoods() / avgGoods > 1) {//粗略的把每个平台划分成多方、少方
-                trade.diffGoods = trade.getTotalGoods() / avgGoods;
+            if (trade.accInfo.getFreeGoods() / avgGoods > 1) {//粗略的把每个平台划分成多方、少方
+                trade.diffGoods = trade.accInfo.getFreeGoods() / avgGoods;
                 sendGoodsList.add(trade);
-                if (trade.getTotalGoods() / avgGoods > 1 + whenBalance) needBalance = true;
+                if (trade.accInfo.getFreeGoods() / avgGoods > 1 + whenBalance) needBalance = true;
             }
-            if (trade.getTotalGoods() / avgGoods < 1) {
-                trade.diffGoods = avgGoods - trade.getTotalGoods();
+            if (trade.accInfo.getFreeGoods() / avgGoods < 1) {
+                trade.diffGoods = avgGoods - trade.accInfo.getFreeGoods();
                 receiveGoodsList.add(trade);
-                if (trade.getTotalGoods() / avgGoods < whenBalance) needBalance = true;
+                if (trade.accInfo.getFreeGoods() / avgGoods < whenBalance) needBalance = true;
             }
-            if (trade.getTotalMoney() / avgMoney > 1) {
-                trade.diffMoney = trade.getTotalMoney() - avgMoney;
+            if (trade.accInfo.getFreeMoney() / avgMoney > 1) {
+                trade.diffMoney = trade.accInfo.getFreeMoney() - avgMoney;
                 sendMoneyList.add(trade);
-                if (trade.getTotalMoney() / avgMoney > 1 + whenBalance) needBalance = true;
+                if (trade.accInfo.getFreeMoney() / avgMoney > 1 + whenBalance) needBalance = true;
             }
-            if (trade.getTotalMoney() / avgMoney < 1) {
-                trade.diffMoney = avgMoney - trade.getTotalMoney();
+            if (trade.accInfo.getFreeMoney() / avgMoney < 1) {
+                trade.diffMoney = avgMoney - trade.accInfo.getFreeMoney();
                 receiveMoneyList.add(trade);
-                if (trade.getTotalMoney() / avgMoney < whenBalance) needBalance = true;
+                if (trade.accInfo.getFreeMoney() / avgMoney < whenBalance) needBalance = true;
             }
         }//end for
 
@@ -1092,8 +1092,8 @@ public class Engine {
                     .append(inf.getTotalMoney());
             platInfo.append(",").append(trade.getPlatName()).append("Goods").append(":")
                     .append(inf.getTotalGoods());
-            totalGoods += trade.getTotalGoods();
-            totalMoney += trade.getTotalMoney();
+            totalGoods += trade.accInfo.getFreeGoods();
+            totalMoney += trade.accInfo.getFreeMoney();
         }// end for
         bal.setPrice(totalPrice / actualPlats().size());//排除虚拟平台
         bal.setPlatInfo(platInfo.toString());
