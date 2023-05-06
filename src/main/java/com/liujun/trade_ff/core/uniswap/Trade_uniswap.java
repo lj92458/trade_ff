@@ -178,7 +178,8 @@ public class Trade_uniswap extends Trade {
                 }
             }
             //
-
+            accountInfo.setTotalGoods(accountInfo.getFreeGoods()+accountInfo.getFreezedGoods());
+            accountInfo.setTotalMoney(accountInfo.getFreeMoney()+accountInfo.getFreezedMoney());
             super.setAccInfo(accountInfo);
             //查询gas费，然后设置矿工费
             double[] priceArr;

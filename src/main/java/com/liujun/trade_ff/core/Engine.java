@@ -578,7 +578,7 @@ public class Engine {
     private void checkStatus(long beginTime) throws Exception {
         // 计算耗时,如果大于最大限度,就报错
         long useTime = System.currentTimeMillis() - beginTime;// 用时
-        log.info("{" + currentBalance.getPlatInfo() + "}");
+        log.info("totalMoney: "+currentBalance.getTotalMoney()+", totalGoods: "+currentBalance.getTotalGoods()+ ", {" + currentBalance.getPlatInfo() + "}");
         if (useTime > 5 * 60 * 1000) {// 如果用时大于5分钟
             throw new Exception("本次超时！耗时" + (useTime / 1000.0) + "秒++++++++++++++++++++++++++++++++++++++");
         } else if (useTime > (time_oneCycle * 1000L)) {

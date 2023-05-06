@@ -186,6 +186,8 @@ public class Trade_binance extends Trade {
                 }
             }
             //
+            accountInfo.setTotalGoods(accountInfo.getFreeGoods()+accountInfo.getFreezedGoods());
+            accountInfo.setTotalMoney(accountInfo.getFreeMoney()+accountInfo.getFreezedMoney());
             setAccInfo(accountInfo);
 
         } catch (Exception e) {

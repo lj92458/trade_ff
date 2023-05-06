@@ -176,6 +176,8 @@ public class Trade_okcoin extends Trade {
                 }
             }
             //
+            accountInfo.setTotalGoods(accountInfo.getFreeGoods()+accountInfo.getFreezedGoods());
+            accountInfo.setTotalMoney(accountInfo.getFreeMoney()+accountInfo.getFreezedMoney());
             setAccInfo(accountInfo);
 
         } catch (Exception e) {
