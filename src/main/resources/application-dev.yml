@@ -108,8 +108,10 @@ binance:
   money: busd #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
   moneyAddress: "0x6803c2566b114196e56949999b4bbbee413777f0"
   moneyNetWork: BSC #调用WalletAPIService.queryAllCoin，能查出各种币的网络名称
-  apiKey: jgAwHsnY3SBLYda2z7Cikt4oezNehQREjIaKbbZWiBOI7neQSmxKh8GgFLsn1hhU
-  secretKey: iXkhZhtx7ouxJcSbO00LxEFsMgCbZZbePXsmWsjUFlyN7452aepCuzQ5nZAS1Jge
+  #apiKey: jgAwHsnY3SBLYda2z7Cikt4oezNehQREjIaKbbZWiBOI7neQSmxKh8GgFLsn1hhU #我
+  #secretKey: iXkhZhtx7ouxJcSbO00LxEFsMgCbZZbePXsmWsjUFlyN7452aepCuzQ5nZAS1Jge #我
+  apiKey: 3nigqXkeksvz9kyohgBKJVZyma0P4FNcknOVFxWgW50yRhADILONDu5UXYAhHu4Q #她
+  secretKey: mdigSAmLHjSzGF7ZIyhmPI47NypOeknGb7iRMzBnLFe064WB9nrvxWNqtA1MI9Wo #她
   feeRate: 0.001
   url: https://api.binance.com
 #合约交易，币本位
@@ -137,3 +139,4 @@ uniswap:
   ethAddress: "0xB0d1435590B4f14A5f4414f93489945546162ffc"
   feeRate: 0.003 #uniswap平台的交易手续费是多少？不同币种，手续费不一样，wbtc是0.3%或0.05%，稳定币兑换是0.01%. celo-cusd是0.3%
   gasPercent: 1.0 #强制调高gas价格，对矿工费进行悲观的估算.
+  gasLimit: 200000 #不同的链，值是不同的。目前发现arbitrum链特别大

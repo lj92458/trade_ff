@@ -63,7 +63,7 @@ public abstract class Trade {
      */
     public AccountInfo accInfo;
     /**
-     * 当前价格
+     * 当前价格。执行了flushMarketDeeps才会赋值
      */
     private double currentPrice = 1;
     public HttpUtil httpUtil;

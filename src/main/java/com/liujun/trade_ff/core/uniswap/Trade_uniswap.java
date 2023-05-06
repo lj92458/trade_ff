@@ -71,6 +71,8 @@ public class Trade_uniswap extends Trade {
     private double gasPriceGwei;
     @Value("${uniswap.naitveToken}")
     private String naitveToken;
+    @Value("${uniswap.gasLimit}")
+    double gasLimit;
     //------------------------
 
     /**
@@ -178,27 +180,20 @@ public class Trade_uniswap extends Trade {
                 }
             }
             //
-            accountInfo.setTotalGoods(accountInfo.getFreeGoods()+accountInfo.getFreezedGoods());
-            accountInfo.setTotalMoney(accountInfo.getFreeMoney()+accountInfo.getFreezedMoney());
+            accountInfo.setTotalGoods(accountInfo.getFreeGoods() + accountInfo.getFreezedGoods());
+            accountInfo.setTotalMoney(accountInfo.getFreeMoney() + accountInfo.getFreezedMoney());
             super.setAccInfo(accountInfo);
             //查询gas费，然后设置矿工费
             double[] priceArr;
-            //如果goods是eth，就直接采用当前市场价。因为市场价综合考虑了多平台的价格。这好过直接从uniswap查询价格。
-            if (getGoods().toLowerCase().contains(naitveToken.toLowerCase()) && getCurrentPrice() != 0) {
-                double gasPrice = productAPIService.getGasPriceGweiAndEthPrice(getGoods(), getPoolFee())[0];
-                double ethPrice = getCurrentPrice();
-                priceArr = new double[]{gasPrice, ethPrice};
-            } else {
-                priceArr = productAPIService.getGasPriceGweiAndEthPrice(getMoney(), getPoolFee());
-            }
-            this.gasPriceGwei = adjustGasPrice(priceArr[0]);
-            double limit = 200000;
+            priceArr = productAPIService.getGasPriceGweiAndEthPrice(getMoney(), getPoolFee());
 
-            double feeInEth = limit * this.gasPriceGwei / 1_000_000_000;//假设需要gas14万个，那么总共需要的eth是多少？
+            this.gasPriceGwei = adjustGasPrice(priceArr[0]);
+
+            double feeInEth = gasLimit * this.gasPriceGwei / 1_000_000_000;//假设需要gas14万个，那么总共需要的eth是多少？
             //把eth价值，转化成本交易对中的money
             double feeInMoney;
             feeInMoney = feeInEth * priceArr[1];
-            log.info("gas价格：" + this.gasPriceGwei + "Gwei,矿工费:" + prop.formatMoney(feeInMoney) + getMoney());
+            log.info("gas价格：" + this.gasPriceGwei + "Gwei,矿工费:" + feeInMoney + getMoney());
             super.setFixFee(feeInMoney);
 
         } catch (Exception e) {
