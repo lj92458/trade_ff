@@ -71,6 +71,8 @@ public class Trade_uniswap extends Trade {
     private double gasPriceGwei;
     @Value("${uniswap.naitveToken}")
     private String naitveToken;
+    @Value("${trade.gasLimit}")
+    double gasLimit;
     //------------------------
 
     /**
@@ -192,13 +194,12 @@ public class Trade_uniswap extends Trade {
                 priceArr = productAPIService.getGasPriceGweiAndEthPrice(getMoney(), getPoolFee());
             }
             this.gasPriceGwei = adjustGasPrice(priceArr[0]);
-            double limit = 200000;
 
-            double feeInEth = limit * this.gasPriceGwei / 1_000_000_000;//假设需要gas14万个，那么总共需要的eth是多少？
+            double feeInEth = gasLimit * this.gasPriceGwei / 1_000_000_000;//假设需要gas14万个，那么总共需要的eth是多少？
             //把eth价值，转化成本交易对中的money
             double feeInMoney;
             feeInMoney = feeInEth * priceArr[1];
-            log.info("gas价格：" + this.gasPriceGwei + "Gwei,矿工费:" + prop.formatMoney(feeInMoney) + getMoney());
+            log.info("gas价格：" + this.gasPriceGwei + "Gwei,矿工费:" + feeInMoney + getMoney());
             super.setFixFee(feeInMoney);
 
         } catch (Exception e) {
