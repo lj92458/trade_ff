@@ -1,13 +1,11 @@
 debug: false
-logging:
-  config: classpath:logback-spring.xml
-
 server:
   port: 8080
   servlet:
     context-path: /trade_c2c_celo
     session:
-      timeout: P0DT0H0M300.0S #300秒，必须是合法的Duration
+      timeout: P7DT0H0M0S #300秒，必须是合法的Duration, P1Y2M10DT2H30M15.03S表示1年2个月10天
+      persistent: true #重启时，保存到磁盘
   tomcat:
     basedir: /var/log/tomcat_${server.servlet.context-path}
     accesslog:
@@ -17,14 +15,37 @@ server:
       file-date-format: .yyyy-MM-dd
       directory: logs
       pattern: common
-#配置tomcat内部日志的级别
-logging.level:
-  org.apache.tomcat: INFO
-  org.apache.catalina: INFO
+  shutdown: graceful #优雅停机，参考https://zhuanlan.zhihu.com/p/143469078
+
+# spring-boot-starter-actuator相关配置。暴露shutdown接口.
+# https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#overview
+# https://docs.spring.io/spring-boot/docs/current/reference/html/actuator.html
+management:
+  endpoint:
+    shutdown:
+      enabled: true #除了shutdown，其它的endpoint默认都是开启的
+    health:
+      show-details: always #获得健康检查中所有指标的详细信息
+    logfile:
+      external-file: /var/log${server.servlet.context-path}/trade-root.log #高优先级.
+  endpoints:
+    web:
+      exposure: #默认值访问health端点，用*可以包含全部端点(*号有特殊含义，因此需要加双引号)
+        include: shutdown,health,info,loggers,logfile
+    jmx:
+      exposure:
+        include:
+
+logging:
+  config: classpath:logback-spring.xml
+  file:
+    path: /var/log${server.servlet.context-path} #使用了logback之后，file.path或者file.name就已经失效了. path是怎么拼接成文件路径的，参考LogFile.toString
+  level:
+    org.apache.tomcat: INFO
+    org.apache.catalina: INFO
 
 #余额文件的路径
-log.path: /var/log${server.servlet.context-path} #不能以斜杠结尾
-balanceFilePath: ${log.path}/balance.txt
+balanceFilePath: ${logging.file.path}/balance.txt
 
 #properties.location: classpath:application-prd.yml
 

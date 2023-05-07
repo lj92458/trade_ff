@@ -45,7 +45,7 @@ public class Prop {
     public boolean earnMoney;
     @Value("${trade.positionRate}")
     public double positionRate;//仓位上限，占余额的比例。0.5表示50%
-    @Value("${log.path}")
+    @Value("${logging.file.path}")
     public String logPath;
 
     public static ThreadLocal<DecimalFormat> fmt_goods;
