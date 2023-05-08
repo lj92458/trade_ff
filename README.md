@@ -12,7 +12,7 @@
 #### 安装教程
 
 1. 在 linux系统 安装java8和sqlite3
-2. 根据yml文件中log.path的值，创建日志目录。这里也会用来存放数据库。
+2. 根据yml文件中logging.file.path的值，创建日志目录。这里也会用来存放数据库。
 3. 激活maven的prd配置，刷新maven，并打包；将安装包传输到服务器。
 4. 将applicaion-prd和conf.mxl传到服务器端jar包所在目录。然后修改这两个配置文件，包括conf.xml末尾的firstBalance。prd文件里面要写weth，而不能是eth
 5. 执行数据库建表/建库语句，插入初始化数据。
@@ -21,7 +21,7 @@
 #### 使用说明
 
 1. 为了方便随时编辑application-prd.yml，将配置文件放到了jar包所在目录，这里的优先级高于jar包内。[参考spring官网](https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#features.external-config.files)
-2. 在maven窗口切换了profile复选框，记得要刷新maven，才能生效。
+2. 在maven窗口切换了profile复选框，记得要刷新maven并重新打包，才能生效。
 3. 开发调试，既可以调试本地打包好的jar文件，也能直接debug源代码的main方法。如果是main方法，需要改变idea工作目录：配置debug选项 -> (超链接)修改选项 -> 工作目录 -> 把工作目录设定为target目录，
    这样Engine类才能从当前目录读取到conf.mxl 。调试前，记得激活maven的dev配置，并刷新maven.
 4. op链：eth/usdc(7天交易75M)  https://api-optimistic.etherscan.io/api  key=5VR1M7IQYFPZBU189F8ABH4W4NIHJ9GYJQ

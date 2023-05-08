@@ -58,7 +58,7 @@ var load = function (timeUnit, maxCell) {
         {unit: timeUnit, maxCell: maxCell},
         function (data) {
             if (data.retCode != '0000') {// 如果有异常消息
-                alert( data.retCode + ':' + data.retMsg);
+                alert(data.retCode + ':' + data.retMsg);
             } else {
                 showEchart(data.legend, data.xAxis, data.series);
                 $('#balance').text('总收入：' + data.totalEarn + ',最近收入：' + data.thisEarn);
@@ -129,7 +129,29 @@ var initPage = function () {
         );
 
     });
+    $('#shutdown').bind('click', function () {
+        if (window.confirm('要结束tomcat吗？\n结束后，只能在控制台重启!!!')) {
+            $.post(contextPath + '/actuator/shutdown',
+                {},
+                function (data) {
+                    $('#retMsg').html(data.retMsg);
+                },
+                'json'
+            );
+        }
+    });
+    $('#logfile').bind('click', function () {
+        $.ajax(contextPath + '/actuator/logfile', {
+            method: 'get',
+            success: function (text) {
+                let newPage = window.open("about:blank", "_blank");
+                newPage.document.body.innerText = text;
+            },
+            dataType: 'text',
+            headers: {Range: 'bytes=-5120'} //http协议中的range协议，bytes=m-n
+        });
 
+    });
     //不同的时间间隔
     $('.timeGape').bind('click', function () {
         load($(this).attr('title'), avgDiff_maxCell);

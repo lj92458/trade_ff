@@ -1,4 +1,6 @@
 spring:
+  main:
+    allow-circular-references: true
   profiles:
     active: @env@
   messages:
@@ -12,10 +14,12 @@ spring:
   devtools:
     restart:
       enabled: true
-#
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  #
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
-    url: jdbc:sqlite:${log.path}/trade.db
+    url: jdbc:sqlite:${logging.file.path}/trade.db
     username:
     password:
     hikari: #Springboot2.0以后默认数据库连接池选择了Hikari（性能高）

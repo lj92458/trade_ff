@@ -343,6 +343,9 @@ public class Engine {
                     if (needBalance) {//只有真正的转移了资金，才需要查询账户
                         isBalanceFinished = false;
                     } else if (needCheckTotalAmount) {
+                        if((i * time_queryOrder) % 12 == 0){
+                            flushAccount(true);
+                        }
                         // 检查goods总数量,如果不跟初始值相等,就立即买卖调整。为什么要设置在这里呢？因为挂单后，可能导致超时。然后就抛出异常，跳出for循环没机会检查goods
                         //只有当资金分布均匀，才能处理资金总量的变动。因为前者会误导后者
                         if (prop.earnMoney) checkTotalGoods();
@@ -446,7 +449,7 @@ public class Engine {
         //收益率要大于配置的值
         assert maxEarnCost != null;
         if (maxEarnCost.orderPair > 0 && (//maxEarnCost.earn已经考虑到了矿工费
-                (maxEarnCost.earn >= prop.minMoney && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate)
+                (maxEarnCost.earn >= prop.minMoney && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate/10.0)//atLeastRate不要用来限制市场查询，因此除以10
         )
         ) {// 只有模拟生成的订单存在时，才搬运
             log_needTrade.info("(机会)市场最大差价" + Prop.fmt_money.get().format(maxEarnCost.diffPrice) + prop.money +
