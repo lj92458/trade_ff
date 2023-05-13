@@ -3,21 +3,14 @@ package com.liujun.trade_ff.core.uniswap;
 import com.liujun.trade_ff.core.Engine;
 import com.liujun.trade_ff.core.Prop;
 import com.liujun.trade_ff.core.Trade;
-
-import com.liujun.trade_ff.core.uniswap.api.service.WalletAPIService;
-import com.liujun.trade_ff.core.uniswap.api.bean.WithdrawParam;
-import com.liujun.trade_ff.core.uniswap.api.bean.WithdrawResult;
 import com.liujun.trade_ff.core.modle.AccountInfo;
-import com.liujun.trade_ff.core.modle.MarketDepth;
 import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
-import com.liujun.trade_ff.core.uniswap.api.bean.APIConfiguration;
-import com.liujun.trade_ff.core.uniswap.api.bean.Account;
-import com.liujun.trade_ff.core.uniswap.api.bean.AddOrderResult;
-import com.liujun.trade_ff.core.uniswap.api.bean.Book;
+import com.liujun.trade_ff.core.uniswap.api.bean.*;
 import com.liujun.trade_ff.core.uniswap.api.service.AccountAPIService;
 import com.liujun.trade_ff.core.uniswap.api.service.OrderAPIService;
 import com.liujun.trade_ff.core.uniswap.api.service.ProductAPIService;
+import com.liujun.trade_ff.core.uniswap.api.service.WalletAPIService;
 import com.liujun.trade_ff.core.uniswap.api.service.impl.AccountAPIServiceImpl;
 import com.liujun.trade_ff.core.uniswap.api.service.impl.OrderApiServiceImpl;
 import com.liujun.trade_ff.core.uniswap.api.service.impl.ProductAPIServiceImpl;
@@ -69,8 +62,6 @@ public class Trade_uniswap extends Trade {
     private double feeRate;// 对于uniswap来说，不要用feeRate调整挂单价格，因为返回的市场挂单价格，已经把手续费考虑进去了。
     private String coinPair;
     private double gasPriceGwei;
-    @Value("${uniswap.naitveToken}")
-    private String naitveToken;
     @Value("${uniswap.gasLimit}")
     double gasLimit;
     //------------------------
@@ -101,7 +92,7 @@ public class Trade_uniswap extends Trade {
         this.orderAPIService = new OrderApiServiceImpl(this.config);
         this.accountAPIService = new AccountAPIServiceImpl(this.config);
         this.walletAPIService = new WalletAPIServiceImpl(this.config);
-        coinPair = getGoods() + "-" + getMoney();
+        coinPair = token[0] + "-" + token[1];
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
@@ -121,40 +112,23 @@ public class Trade_uniswap extends Trade {
      */
     public void flushMarketDeeps() throws Exception {
         // 初始化,清空
-        MarketDepth depth = getMarketDepth();
-        depth.getAskList().clear();
-        depth.getBidList().clear();
+        ArrayList<MarketOrder>[] depth = getMarketDepth();
         try {
             Book book = productAPIService.bookProductsByProductId(coinPair, prop.marketOrderSize + "", "" + (feeRate + 0.001), getPoolFee());
 
-            // 卖方挂单
-            List<String[]> askArr = book.getAsks();
-            for (String[] value : askArr) {
-                MarketOrder marketOrder = new MarketOrder();// 一个挂单
-                marketOrder.setPrice(Double.parseDouble(value[0]));
-                marketOrder.setVolume(Double.parseDouble(value[1]));
-                marketOrder.setPlatId(platId);
-
-                depth.getAskList().add(marketOrder);
-            }
-            // 买方挂单
-            List<String[]> bidArr = book.getBids();
-            for (String[] strings : bidArr) {
-                MarketOrder marketOrder = new MarketOrder();// 一个挂单
-                marketOrder.setPrice(Double.parseDouble(strings[0]));
-                marketOrder.setVolume(Double.parseDouble(strings[1]));
-                marketOrder.setPlatId(platId);
-
-                depth.getBidList().add(marketOrder);
+            // 处理卖方、卖方挂单
+            List<String[]>[] listArr = new List[]{book.getAsks(), book.getBids()};
+            for (int i = 0; i < 2; i++) {
+                depth[i].clear();
+                for (String[] strings : listArr[i])
+                    depth[i].add(new MarketOrder(platId, Double.parseDouble(strings[0]), Double.parseDouble(strings[1])));
             }
 
             sort(depth);// 排序
             changeMarketPrice(1 - 0, 1 + 0);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了
             backupUsefulOrder();
             // 设置当前价格
-            double askPrice = depth.getAskList().get(0).getPrice();
-            double bidPrice = depth.getBidList().get(0).getPrice();
-            setCurrentPrice((bidPrice + askPrice) / 2.0);
+            setCurrentPrice((depth[0].get(0).getPrice() + depth[1].get(0).getPrice()) / 2.0);
             //
         } catch (Exception e) {
             // log.error(getPlatName()+"" + e.getMessage());
@@ -168,24 +142,23 @@ public class Trade_uniswap extends Trade {
     public void flushAccountInfo() throws Exception {
         try {
             AccountInfo accountInfo = new AccountInfo();
-            List<Account> list = accountAPIService.getAccounts(getGoods(), getMoney());
+            List<Account> list = accountAPIService.getAccounts(token[0], token[1]);
             for (Account acc : list) {
-                if (acc.getCurrency().equalsIgnoreCase(getGoods())) {
-                    accountInfo.setFreeGoods(Double.parseDouble(acc.getAvailable()));
-                    accountInfo.setFreezedGoods(Double.parseDouble(acc.getHold()));
-                }
-                if (acc.getCurrency().equalsIgnoreCase(getMoney())) {
-                    accountInfo.setFreeMoney(Double.parseDouble(acc.getAvailable()));
-                    accountInfo.setFreezedMoney(Double.parseDouble(acc.getHold()));
+                for (int i = 0; i < 2; i++) {
+                    if (acc.getCurrency().equalsIgnoreCase(token[i])) {
+                        accountInfo.freeToken[i] = Double.parseDouble(acc.getAvailable());
+                        accountInfo.freezedToken[i] = Double.parseDouble(acc.getHold());
+                        accountInfo.totalToken[i] = accountInfo.freeToken[i] + accountInfo.freezedToken[i];
+                    }
                 }
             }
             //
-            accountInfo.setTotalGoods(accountInfo.getFreeGoods() + accountInfo.getFreezedGoods());
-            accountInfo.setTotalMoney(accountInfo.getFreeMoney() + accountInfo.getFreezedMoney());
+
+
             super.setAccInfo(accountInfo);
             //查询gas费，然后设置矿工费
             double[] priceArr;
-            priceArr = productAPIService.getGasPriceGweiAndEthPrice(getMoney(), getPoolFee());
+            priceArr = productAPIService.getGasPriceGweiAndEthPrice(token[1], getPoolFee());
 
             this.gasPriceGwei = adjustGasPrice(priceArr[0]);
 
@@ -193,7 +166,7 @@ public class Trade_uniswap extends Trade {
             //把eth价值，转化成本交易对中的money
             double feeInMoney;
             feeInMoney = feeInEth * priceArr[1];
-            log.info("gas价格：" + this.gasPriceGwei + "Gwei,矿工费:" + feeInMoney + getMoney());
+            log.info("gas价格：" + this.gasPriceGwei + "Gwei,矿工费:" + feeInMoney + token[1]);
             super.setFixFee(feeInMoney);
 
         } catch (Exception e) {
@@ -261,7 +234,7 @@ public class Trade_uniswap extends Trade {
             UserOrder order = userOrderList.get(orderCount);
             // 为了确保能成交，可以将卖单价格降低。买单不能动。因为可能导致money不够。
             double addPrice = (order.getType().equals("sell") ? -1 * prop.huaDian2 : prop.huaDian2);
-            AddOrderResult result = this.orderAPIService.addOrder(
+            TransResult result = this.orderAPIService.addOrder(
                     coinPair,
                     order.getType(),
                     Prop.fmt_money.get().format(order.getPrice() * (1 + addPrice)),
@@ -344,48 +317,60 @@ public class Trade_uniswap extends Trade {
     /**
      * 提取资产
      *
+     * @return 交易哈希
      * @throws Exception
      */
     @Override
-    public void withdraw(WithdrawArgs args) throws Exception {
-        WithdrawParam param = new WithdrawParam(args.productName, args.address, args.amount);
+    public String withdraw(String productName, double amount, String address, boolean needWrap) throws Exception {
+        WithdrawParam param = new WithdrawParam(productName, address, amount, needWrap);
 
-        WithdrawResult result = this.walletAPIService.withdraw(param);
+        WithdrawResult result = this.walletAPIService.withdraw(param, gasPriceGwei);
         if (result.isSuccess()) {
-            log.info("提币成功：" + result.getId() + ":" + result.getMsg());
+            log.info("提币成功：" + result.getOrderId() + ":" + result.getMsg());
         } else {
             log.error("提币失败：" + result.getMsg());
             throw new Exception("提币失败：" + result.getMsg());
         }
+        return result.getOrderId();
+    }
+
+    @Override
+    public Integer depositToken(String asset, String txId, double amount, boolean needWrap) {
+        return this.walletAPIService.receiveToken(asset, txId, amount, needWrap, gasPriceGwei);
     }
 
     @Value("${uniswap.goods}")
     public void setGoods(String goods) {
-        super.setGoods(goods);
+        token[0] = goods;
     }
 
     @Value("${uniswap.money}")
     public void setMoney(String money) {
-        super.setMoney(money);
+        token[1] = money;
     }
 
     @Value("${uniswap.goodsAddress}")
     public void setGoodsAddress(String goodsAddress) {
-        super.setGoodsAddress(goodsAddress);
+        tokenAddress[0] = goodsAddress;
     }
 
     @Value("${uniswap.moneyAddress}")
     public void setMoneyAddress(String moneyAddress) {
-        super.setMoneyAddress(moneyAddress);
+        tokenAddress[1] = moneyAddress;
     }
 
     @Value("${uniswap.netWork}")
     public void setGoodsNetWork(String goodsNetWork) {
-        super.setGoodsNetWork(goodsNetWork);
+        tokenNetWork[0] = goodsNetWork;
     }
 
     @Value("${uniswap.netWork}")
     public void setMoneyNetWork(String moneyNetWork) {
-        super.setMoneyNetWork(moneyNetWork);
+        tokenNetWork[1] = moneyNetWork;
+    }
+
+    @Value("${uniswap.naitveToken}")
+    public void setNativeToken(String nativeToken) {
+        super.setNaitveToken(nativeToken);
     }
 }

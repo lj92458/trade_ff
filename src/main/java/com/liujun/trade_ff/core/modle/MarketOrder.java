@@ -1,6 +1,10 @@
 package com.liujun.trade_ff.core.modle;
 
 import com.liujun.trade_ff.core.Prop;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.math.RoundingMode;
 import java.text.DecimalFormat;
@@ -10,6 +14,10 @@ import java.text.DecimalFormat;
  *
  * @author Administrator
  */
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
 public class MarketOrder implements Comparable<MarketOrder>, Cloneable {
     /**
      * 哪个平台
@@ -25,32 +33,6 @@ public class MarketOrder implements Comparable<MarketOrder>, Cloneable {
      */
     private double volume;
 
-
-    public int getPlatId() {
-        return platId;
-    }
-
-    public void setPlatId(int platId) {
-        this.platId = platId;
-    }
-
-    public double getPrice() {
-        return price;
-    }
-
-    public void setPrice(double price) {
-
-        this.price=price;
-    }
-
-    public double getVolume() {
-        return volume;
-    }
-
-    public void setVolume(double volume) {
-
-        this.volume=volume;
-    }
 
     public int compareTo(MarketOrder arg0) {
         if (price < arg0.price) {

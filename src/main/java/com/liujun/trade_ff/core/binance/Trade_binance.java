@@ -4,8 +4,12 @@ import com.liujun.trade_ff.core.Engine;
 import com.liujun.trade_ff.core.Prop;
 import com.liujun.trade_ff.core.Trade;
 import com.liujun.trade_ff.core.binance.api.bean.spot.param.PlaceOrderParam;
-import com.liujun.trade_ff.core.binance.api.bean.wallet.param.WithdrawParam;
 import com.liujun.trade_ff.core.binance.api.bean.spot.result.*;
+import com.liujun.trade_ff.core.binance.api.bean.wallet.param.DepositQueryParam;
+import com.liujun.trade_ff.core.binance.api.bean.wallet.param.WithdrawParam;
+import com.liujun.trade_ff.core.binance.api.bean.wallet.param.WithdrawQueryParam;
+import com.liujun.trade_ff.core.binance.api.bean.wallet.result.DepositQueryResult;
+import com.liujun.trade_ff.core.binance.api.bean.wallet.result.WithdrawQueryResult;
 import com.liujun.trade_ff.core.binance.api.bean.wallet.result.WithdrawResult;
 import com.liujun.trade_ff.core.binance.api.config.APIConfiguration;
 import com.liujun.trade_ff.core.binance.api.enums.*;
@@ -19,7 +23,6 @@ import com.liujun.trade_ff.core.binance.api.service.wallet.WalletAPIService;
 import com.liujun.trade_ff.core.binance.api.service.wallet.impl.WalletAPIServiceImpl;
 import com.liujun.trade_ff.core.binance.api.utils.DateUtils;
 import com.liujun.trade_ff.core.modle.AccountInfo;
-import com.liujun.trade_ff.core.modle.MarketDepth;
 import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
 import com.liujun.trade_ff.core.util.HttpUtil;
@@ -104,7 +107,7 @@ public class Trade_binance extends Trade {
         this.spotAccountAPIService = new SpotAccountAPIServiceImpl(this.config);
         this.spotOrderAPIService = new SpotOrderAPIServiceImpl(this.config);
         this.walletAPIService = new WalletAPIServiceImpl(this.config);
-        coinPair = getGoods().toUpperCase() + getMoney().toUpperCase();
+        coinPair = token[0]+ token[1];
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
@@ -123,40 +126,22 @@ public class Trade_binance extends Trade {
      */
     public void flushMarketDeeps() throws Exception {
         // 初始化,清空
-        MarketDepth depth = getMarketDepth();
-        depth.getAskList().clear();
-        depth.getBidList().clear();
+        ArrayList<MarketOrder>[] depth = getMarketDepth();
+        depth[0].clear();
+        depth[1].clear();
         try {
-
             Depth depthResult = spotProductAPIService.marketDepth(coinPair, prop.marketOrderSize);
-            // 卖方挂单
-            List<String[]> askArr = depthResult.getAsks();
-            for (int i = 0; i < askArr.size(); i++) {
-                MarketOrder marketOrder = new MarketOrder();// 一个挂单
-                marketOrder.setPrice(Double.parseDouble(askArr.get(i)[0]));
-                marketOrder.setVolume(Double.parseDouble(askArr.get(i)[1]));
-                marketOrder.setPlatId(platId);
-
-                depth.getAskList().add(marketOrder);
-            }
-            // 买方挂单
-            List<String[]> bidArr = depthResult.getBids();
-            for (int i = 0; i < bidArr.size(); i++) {
-                MarketOrder marketOrder = new MarketOrder();// 一个挂单
-                marketOrder.setPrice(Double.parseDouble(bidArr.get(i)[0]));
-                marketOrder.setVolume(Double.parseDouble(bidArr.get(i)[1]));
-                marketOrder.setPlatId(platId);
-
-                depth.getBidList().add(marketOrder);
+            List<String[]>[] listArr = new List[]{depthResult.getAsks(), depthResult.getBids()};
+            for (int i = 0; i < 2; i++) {
+                for (String[] arr : listArr[i])
+                    depth[i].add(new MarketOrder(platId, Double.parseDouble(arr[0]), Double.parseDouble(arr[1])));
             }
 
             sort(depth);// 排序
             changeMarketPrice(1 - feeRate, 1 + feeRate);
             backupUsefulOrder();
             // 设置当前价格
-            double askPrice = depth.getAskList().get(0).getPrice();
-            double bidPrice = depth.getBidList().get(0).getPrice();
-            setCurrentPrice((bidPrice + askPrice) / 2.0);
+            setCurrentPrice((depth[0].get(0).getPrice() + depth[1].get(0).getPrice()) / 2.0);
             //
         } catch (Exception e) {
             // log.error(getPlatName()+"" + e.getMessage());
@@ -174,20 +159,16 @@ public class Trade_binance extends Trade {
             if (!account.getAccountType().equalsIgnoreCase(SymbolType.SPOT.toString())) {
                 throw new Exception("当前账户不是spot账户");
             }
-
             for (Balance bal : account.getBalance()) {
-                if (bal.getAsset().equalsIgnoreCase(getGoods())) {
-                    accountInfo.setFreeGoods(Double.parseDouble(bal.getFree()));
-                    accountInfo.setFreezedGoods(Double.parseDouble(bal.getLocked()));
-                }
-                if (bal.getAsset().equalsIgnoreCase(getMoney())) {
-                    accountInfo.setFreeMoney(Double.parseDouble(bal.getFree()));
-                    accountInfo.setFreezedMoney(Double.parseDouble(bal.getLocked()));
+                for (int i = 0; i < 2; i++) {
+                    if (bal.getAsset().equalsIgnoreCase(token[i])) {
+                        accountInfo.freeToken[i] = Double.parseDouble(bal.getFree());
+                        accountInfo.freezedToken[i] = Double.parseDouble(bal.getLocked());
+                        accountInfo.totalToken[i] = accountInfo.freeToken[i] + accountInfo.freezedToken[i];
+                    }
                 }
             }
             //
-            accountInfo.setTotalGoods(accountInfo.getFreeGoods()+accountInfo.getFreezedGoods());
-            accountInfo.setTotalMoney(accountInfo.getFreeMoney()+accountInfo.getFreezedMoney());
             setAccInfo(accountInfo);
 
         } catch (Exception e) {
@@ -232,7 +213,7 @@ public class Trade_binance extends Trade {
             PlaceOrderParam param = new PlaceOrderParam();
             param.setSymbol(coinPair);//symbol
             param.setSide(Enum.valueOf(OrderSide.class, order.getType().toUpperCase()));// orderSide
-            param.setType(OrderType.LIMIT);// orderType
+            param.setType(OrderType.LIMIT);//todo LIMIT还是MARKET
             param.setTimestamp(DateUtils.getUnixTimeMilli());//
             param.setTimeInForce(TimeInForce.GTC);//timeInForce
             param.setQuantity(Double.parseDouble(Prop.fmt_goods.get().format(order.getVolume() - 0.00)));// quantity
@@ -319,48 +300,111 @@ public class Trade_binance extends Trade {
     }
 
     /**
-     * 提取资产
+     * 提取资产。为什么一定要等待，直到被打包呢？因为要拿到哈希值。有了哈希值，才能调用nodeJS的receiveToken服务，进而把eth包装成weth
      *
+     * @param needWrap 只有dex需要
+     * @return txId, 或者""表示异常. 链上交易哈希
      * @throws Exception
      */
     @Override
-    public void withdraw(WithdrawArgs args) throws Exception {
-
-        WithdrawParam param = new WithdrawParam(args.productName, args.address, args.amount, DateUtils.getUnixTimeMilli());
-        param.setNetwork(args.productName.equalsIgnoreCase(getGoods()) ? getGoodsNetWork() : getMoneyNetWork());
-
+    public String withdraw(String productName, double amount, String address, boolean needWrap) throws Exception {
+        String myOrderId = System.currentTimeMillis() + "";
+        WithdrawParam param = new WithdrawParam(productName, address, amount);
+        //提取货物，就用货物的网络
+        param.setNetwork(productName.equalsIgnoreCase(token[0]) ? tokenNetWork[0] : tokenNetWork[1]);
+        param.setWithdrawOrderId(myOrderId);
+        param.setTransactionFeeFlag(false);
         WithdrawResult result = this.walletAPIService.withdraw(param);
-        log.info(getPlatName() + "提币成功：" + result.getId() + "，请求参数" + param);
+        log.info(getPlatName() + "提币请求已提交，id=" + result.getId() + "，请求参数" + param);
+        if(result.getId()==null){
+            return "";
+        }
+        //轮番查询状态，直到返回链上交易哈希tranId. 最多等10分钟
+        int sleepSecond = 3;
+        WithdrawQueryParam queryParam = new WithdrawQueryParam();
+        queryParam.setWithdrawOrderId(myOrderId);
+        for (int i = 0; i < 10 * 60 / sleepSecond; i++) {
+            Thread.sleep(1000 * sleepSecond);//等3秒
+            try {
+                WithdrawQueryResult queryResult = this.walletAPIService.withdrawQuery(queryParam);
+                if (queryResult != null && queryResult.getStatus() == 6) {
+                    log.info("binance提币已到账" + ", ConfirmNo=" + queryResult.getConfirmNo());
+                    return queryResult.getTxId();
+                } else {
+                    if (queryResult != null) {
+                        log.info("等待binance提现到账，status=" + queryResult.getStatus() + ", ConfirmNo=" + queryResult.getConfirmNo() + ", info=" + queryResult.getInfo());
+                    } else {
+                        log.info("等待binance提现到账，queryResult=null");
+                    }
+                }
+            } catch (Exception e) {
+                log.error("walletAPIService.withdrawQuery异常：", e);
+            }
+        }//end for
+        return "";
+    }
 
+    /**
+     * @param asset
+     * @param txId
+     * @param amount
+     * @param needWrap
+     * @return 网络确认数量。-1表示异常
+     */
+    @Override
+    public Integer depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception {
+        //轮番查询状态，直到返回链上交易哈希tranId. 最多等10分钟
+        int sleepSecond = 3;//每三秒查询一次
+        DepositQueryParam param = new DepositQueryParam();
+        param.setTxId(txId);
+        for (int i = 0; i < 10 * 60 / sleepSecond; i++) {
+            Thread.sleep(1000 * sleepSecond);
+            try {
+                DepositQueryResult queryResult = this.walletAPIService.depositQuery(param);
+                if (queryResult != null && queryResult.getStatus() == 1) {
+                    log.info("binance充值已到账" + ", 确认次数confirmTimes=" + queryResult.getConfirmTimes());
+                    return Integer.parseInt(queryResult.getConfirmTimes().split("/")[0]); //onfirmTimes格式是5/100，因此要切割
+                } else {
+                    if (queryResult != null) {
+                        log.info("等待binance充值到账，status=" + queryResult.getStatus() + ", 确认次数confirmTimes=" + queryResult.getConfirmTimes());
+                    } else {
+                        log.info("等待binance充值到账，queryResult=null");
+                    }
+                }
+            } catch (Exception e) {
+                log.error("walletAPIService.depositQuery异常：", e);
+            }
+        }//end for
+        return -1;
     }
 
     @Value("${binance.goods}")
     public void setGoods(String goods) {
-        super.setGoods(goods);
+        token[0] = goods.toUpperCase();
     }
 
     @Value("${binance.money}")
     public void setMoney(String money) {
-        super.setMoney(money);
+        token[1] = money.toUpperCase();
     }
 
     @Value("${binance.goodsAddress}")
     public void setGoodsAddress(String goodsAddress) {
-        super.setGoodsAddress(goodsAddress);
+        tokenAddress[0] = goodsAddress;
     }
 
     @Value("${binance.moneyAddress}")
     public void setMoneyAddress(String moneyAddress) {
-        super.setMoneyAddress(moneyAddress);
+        tokenAddress[1] = moneyAddress;
     }
 
     @Value("${binance.goodsNetWork}")
     public void setGoodsNetWork(String goodsNetWork) {
-        super.setGoodsNetWork(goodsNetWork);
+        tokenNetWork[0] = goodsNetWork;
     }
 
     @Value("${binance.moneyNetWork}")
     public void setMoneyNetWork(String moneyNetWork) {
-        super.setMoneyNetWork(moneyNetWork);
+        tokenNetWork[1] = moneyNetWork;
     }
 }

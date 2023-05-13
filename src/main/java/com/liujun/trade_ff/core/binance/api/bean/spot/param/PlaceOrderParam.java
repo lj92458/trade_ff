@@ -4,6 +4,7 @@ import com.liujun.trade_ff.core.binance.api.enums.NewOrderRespType;
 import com.liujun.trade_ff.core.binance.api.enums.OrderSide;
 import com.liujun.trade_ff.core.binance.api.enums.OrderType;
 import com.liujun.trade_ff.core.binance.api.enums.TimeInForce;
+import com.liujun.trade_ff.core.binance.api.utils.DateUtils;
 
 public class PlaceOrderParam {
     String symbol;
@@ -18,7 +19,7 @@ public class PlaceOrderParam {
     Double icebergQty;
     NewOrderRespType newOrderRespType;
     Long recvWindow;
-    Long timestamp;
+    Long timestamp = DateUtils.getUnixTimeMilli();
 
 
     public String getSymbol() {

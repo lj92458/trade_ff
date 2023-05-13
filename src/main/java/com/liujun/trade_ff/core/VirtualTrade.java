@@ -1,7 +1,6 @@
 package com.liujun.trade_ff.core;
 
 import com.liujun.trade_ff.core.modle.AccountInfo;
-import com.liujun.trade_ff.core.modle.MarketDepth;
 import com.liujun.trade_ff.core.util.HttpUtil;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
@@ -54,12 +53,11 @@ public class VirtualTrade extends Trade {
      */
     public int tradeOrder() throws Exception {
         // 清空市场挂单
-        MarketDepth depth = getMarketDepth();
-        depth.getBidList().clear();
-        depth.getAskList().clear();
+        getMarketDepth()[0].clear();
+        getMarketDepth()[1].clear();
         // 清空账户信息
-        getAccInfo().setFreeGoods(0);
-        getAccInfo().setFreeMoney(0);
+        getAccInfo().freeToken[0] = 0;
+        getAccInfo().freeToken[1] = 0;
         return 0;
     }
 
@@ -86,7 +84,7 @@ public class VirtualTrade extends Trade {
     }
 
     public boolean isActive() {
-        return getAccInfo().getFreeGoods() > 0 || getAccInfo().getFreeMoney() > 0;
+        return getAccInfo().freeToken[0] > 0 || getAccInfo().freeToken[1] > 0;
     }
 
     /**
@@ -95,8 +93,12 @@ public class VirtualTrade extends Trade {
      * @throws Exception
      */
     @Override
-    public void withdraw(WithdrawArgs args) throws Exception {
+    public String withdraw(String productName, double amount, String address, boolean needWrap) throws Exception {
         throw new Exception("不支持提币");
+    }
+
+    public Integer depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception{
+        throw new Exception("不支持充值");
     }
 
 }

@@ -22,9 +22,7 @@ import com.liujun.trade_ff.core.binance.api.service.future.impl.FutureOrderAPISe
 import com.liujun.trade_ff.core.binance.api.service.future.impl.FutureProductAPIServiceImpl;
 import com.liujun.trade_ff.core.binance.api.service.wallet.WalletAPIService;
 import com.liujun.trade_ff.core.binance.api.service.wallet.impl.WalletAPIServiceImpl;
-import com.liujun.trade_ff.core.binance.api.utils.DateUtils;
 import com.liujun.trade_ff.core.modle.AccountInfo;
-import com.liujun.trade_ff.core.modle.MarketDepth;
 import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
 import com.liujun.trade_ff.core.util.HttpUtil;
@@ -35,6 +33,7 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
+import java.util.ArrayList;
 import java.util.List;
 
  /*
@@ -117,7 +116,7 @@ public class Trade_binanceF extends Trade {
         this.futureAccountAPIService = new FutureAccountAPIServiceImpl(this.config);
         this.futureOrderAPIService = new FutureOrderAPIServiceImpl(this.config);
         this.walletAPIService = new WalletAPIServiceImpl(this.config);
-        coinPair = getGoods().toUpperCase() + getMoney().toUpperCase();
+        coinPair = token[0].toUpperCase() + token[1].toUpperCase();
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
@@ -136,22 +135,21 @@ public class Trade_binanceF extends Trade {
      */
     public void flushMarketDeeps() throws Exception {
         // 初始化,清空
-        MarketDepth depth = getMarketDepth();
-        depth.getAskList().clear();
-        depth.getBidList().clear();
+        ArrayList<MarketOrder>[] depth = getMarketDepth();
+        depth[0].clear();
+        depth[1].clear();
         try {
             //https://dapi.binance.com/dapi/v1/depth?symbol=BTCUSD_210625
             Depth depthResult = futureProductAPIService.marketDepth(instrument.getSymbol(), prop.marketOrderSize);
             //同时存储买单和卖单
-            List[] localListArr = {depth.getAskList(), depth.getBidList()};
+            List[] localListArr = {depth[0], depth[1]};
             List[] resultListArr = {depthResult.getAsks(), depthResult.getBids()};
             for (int j = 0; j < 2; j++) {//为了避免重复的代码。就用一个for循环处理买单和卖单
                 List<String[]> orderList = resultListArr[j];
-                for (int i = 0; i < orderList.size(); i++) {
+                for (String[] strings : orderList) {
                     MarketOrder marketOrder = new MarketOrder();// 一个挂单
-                    String[] oneOrder = orderList.get(i);
-                    marketOrder.setPrice(Double.parseDouble(oneOrder[0]));
-                    double contractCount = Double.parseDouble(oneOrder[1]);//合约有多少张
+                    marketOrder.setPrice(Double.parseDouble(strings[0]));
+                    double contractCount = Double.parseDouble(strings[1]);//合约有多少张
                     double volume = 0;
                     //面额是美元
                     volume = contractCount * instrument.getContractSize() / marketOrder.getPrice();
@@ -168,8 +166,8 @@ public class Trade_binanceF extends Trade {
             changeMarketPrice(1 - feeRate, 1 + feeRate);
             backupUsefulOrder();
             // 设置当前价格
-            double askPrice = depth.getAskList().get(0).getPrice();
-            double bidPrice = depth.getBidList().get(0).getPrice();
+            double askPrice = depth[0].get(0).getPrice();
+            double bidPrice = depth[0].get(0).getPrice();
             setCurrentPrice((bidPrice + askPrice) / 2.0);
             //
         } catch (Exception e) {
@@ -211,48 +209,48 @@ public class Trade_binanceF extends Trade {
             AccountInfo accountInfo = new AccountInfo();
             double equity = asset.getMarginBalance();//权益
             //如果是币本位合约，余额是货
-            if (instrument.getMarginAsset().equalsIgnoreCase(getGoods())) {
+            if (instrument.getMarginAsset().equalsIgnoreCase(token[0])) {
                 //freeMoney=权益(或者余额)*持仓率-多仓仓位,   freeGoods=权益(或者余额)*持仓率-空仓仓位
                 //freezedMoney，根据持仓量表示的一个参数。用来检测平衡：确保钱恒定。做空，产生钱，消耗货。做多，消耗钱，产生货
                 //因为面额是美元
                 if (longOrShort > 0) {//所需保证金*标记价格/合约面额
                     long_qty = position.getInitialMargin() * lastMarkPrice / contractVal;
-                    accountInfo.setFreeMoney((equity * prop.positionRate - position.getInitialMargin()) * lastMarkPrice);
-                    accountInfo.setFreeGoods(equity * prop.positionRate - 0);
-                    accountInfo.setFreezedMoney(-1 * position.getInitialMargin() * lastMarkPrice);
-                    accountInfo.setFreezedGoods(1 * position.getInitialMargin());
+                    accountInfo.freeToken[1] = (equity * prop.positionRate - position.getInitialMargin()) * lastMarkPrice;
+                    accountInfo.freeToken[0] = equity * prop.positionRate - 0;
+                    accountInfo.freezedToken[1] = -1 * position.getInitialMargin() * lastMarkPrice;
+                    accountInfo.freezedToken[0] = 1 * position.getInitialMargin();
                 } else if (longOrShort < 0) {
                     short_qty = position.getInitialMargin() * lastMarkPrice / contractVal;
-                    accountInfo.setFreeMoney((equity * prop.positionRate - 0) * lastMarkPrice);
-                    accountInfo.setFreeGoods(equity * prop.positionRate - position.getInitialMargin());
-                    accountInfo.setFreezedMoney(1 * position.getInitialMargin() * lastMarkPrice);
-                    accountInfo.setFreezedGoods(-1 * position.getInitialMargin());
+                    accountInfo.freeToken[1] = (equity * prop.positionRate - 0) * lastMarkPrice;
+                    accountInfo.freeToken[0] = equity * prop.positionRate - position.getInitialMargin();
+                    accountInfo.freezedToken[1] = 1 * position.getInitialMargin() * lastMarkPrice;
+                    accountInfo.freezedToken[0] = -1 * position.getInitialMargin();
                 }
 
-                accountInfo.setTotalMoney(accountInfo.getFreezedMoney());
-                accountInfo.setTotalGoods(equity);
+                accountInfo.totalToken[1] = accountInfo.freezedToken[1];
+                accountInfo.totalToken[0] = equity;
             }
 
             //如果是usdt本位合约,余额是钱
-            if (instrument.getMarginAsset().equalsIgnoreCase(getMoney())) {
+            if (instrument.getMarginAsset().equalsIgnoreCase(token[1])) {
                 //因为面额是美元
                 if (longOrShort > 0) {//所需保证金*标记价格/合约面额
                     long_qty = position.getInitialMargin() / contractVal;
-                    accountInfo.setFreeMoney(equity * prop.positionRate - position.getInitialMargin());
-                    accountInfo.setFreeGoods((equity * prop.positionRate - 0) / lastMarkPrice);
-                    accountInfo.setFreezedMoney(-1 * position.getInitialMargin());
-                    accountInfo.setFreezedGoods(1 * position.getInitialMargin() / lastMarkPrice);
+                    accountInfo.freeToken[1] = equity * prop.positionRate - position.getInitialMargin();
+                    accountInfo.freeToken[0] = (equity * prop.positionRate - 0) / lastMarkPrice;
+                    accountInfo.freezedToken[1] = -1 * position.getInitialMargin();
+                    accountInfo.freezedToken[0] = 1 * position.getInitialMargin() / lastMarkPrice;
                 } else if (longOrShort < 0) {
                     short_qty = position.getInitialMargin() / contractVal;
-                    accountInfo.setFreeMoney(equity * prop.positionRate - 0);
-                    accountInfo.setFreeGoods((equity * prop.positionRate - position.getInitialMargin()) / lastMarkPrice);
-                    accountInfo.setFreezedMoney(1 * position.getInitialMargin());
-                    accountInfo.setFreezedGoods(-1 * position.getInitialMargin() / lastMarkPrice);
+                    accountInfo.freeToken[1] = equity * prop.positionRate - 0;
+                    accountInfo.freeToken[0] = (equity * prop.positionRate - position.getInitialMargin()) / lastMarkPrice;
+                    accountInfo.freezedToken[1] = 1 * position.getInitialMargin();
+                    accountInfo.freezedToken[0] = -1 * position.getInitialMargin() / lastMarkPrice;
                 }
 
 
-                accountInfo.setTotalMoney(equity);
-                accountInfo.setTotalGoods(accountInfo.getFreezedGoods());
+                accountInfo.totalToken[1] = equity;
+                accountInfo.totalToken[0] = accountInfo.freezedToken[0];
             }
 
             //设置仓位状态。空仓还是持仓
@@ -420,13 +418,18 @@ public class Trade_binanceF extends Trade {
      * @throws Exception
      */
     @Override
-    public void withdraw(WithdrawArgs args) throws Exception {
+    public String withdraw(String productName, double amount, String address, boolean needWrap) throws Exception {
 
-        WithdrawParam param = new WithdrawParam(args.productName, args.address, args.amount, DateUtils.getUnixTimeMilli());
+        String myOrderId = System.currentTimeMillis() + "";
+        WithdrawParam param = new WithdrawParam(productName, address, amount);
 
         WithdrawResult result = this.walletAPIService.withdraw(param);
         log.info(getPlatName() + "提币成功：" + result.getId() + "，请求参数" + param);
+        return "";
+    }
 
+    public Integer depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception {
+        return -1;
     }
 
     /**
@@ -448,40 +451,41 @@ public class Trade_binanceF extends Trade {
 
     @Override
     public double getTotalGoods() {
-        return getAccInfo().getTotalGoods();
+        return getAccInfo().totalToken[0];
     }
 
     @Override
     public double getTotalMoney() {
-        return getAccInfo().getTotalMoney();
+        return getAccInfo().totalToken[1];
     }
 
     @Value("${binanceF.goods}")
     public void setGoods(String goods) {
-        super.setGoods(goods);
+        token[0] = goods;
     }
 
     @Value("${binanceF.money}")
     public void setMoney(String money) {
-        super.setMoney(money);
+        token[1] = money;
     }
 
     @Value("${binanceF.goodsAddress}")
     public void setGoodsAddress(String goodsAddress) {
-        super.setGoodsAddress(goodsAddress);
+        tokenAddress[0] = goodsAddress;
     }
 
     @Value("${binanceF.moneyAddress}")
     public void setMoneyAddress(String moneyAddress) {
-        super.setMoneyAddress(moneyAddress);
+        tokenAddress[1] = moneyAddress;
     }
+
     @Value("${binanceF.goodsNetWork}")
     public void setGoodsNetWork(String goodsNetWork) {
-        super.setGoodsNetWork(goodsNetWork);
+        tokenNetWork[0] = goodsNetWork;
     }
 
     @Value("${binanceF.moneyNetWork}")
     public void setMoneyNetWork(String moneyNetWork) {
-        super.setMoneyNetWork(moneyNetWork);
+        tokenNetWork[1] = moneyNetWork;
     }
 }

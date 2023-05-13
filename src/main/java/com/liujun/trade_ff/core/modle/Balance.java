@@ -1,10 +1,14 @@
 package com.liujun.trade_ff.core.modle;
 
 import com.liujun.trade_ff.core.Prop;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.math.RoundingMode;
 import java.text.DecimalFormat;
 
+@Getter
+@Setter
 public class Balance {
 
     /**
@@ -13,8 +17,7 @@ public class Balance {
     private String dateTime;
     private double totalEarn;
     private double thisEarn;
-    private double totalMoney;
-    private double totalGoods;
+    public double[] totalToken = new double[2];
     private String platInfo;
     private double price;
     Prop prop;
@@ -58,11 +61,11 @@ public class Balance {
         //
         beginIndex = balanceStr.indexOf("totalMoney:") + "totalMoney:".length();
         strValue = balanceStr.substring(beginIndex, balanceStr.indexOf(",", beginIndex));
-        setTotalMoney(Double.parseDouble(strValue));
+        totalToken[1] = Double.parseDouble(strValue);
         //
         beginIndex = balanceStr.indexOf("totalGoods:") + "totalGoods:".length();
         strValue = balanceStr.substring(beginIndex, balanceStr.indexOf(",", beginIndex));
-        setTotalGoods(Double.parseDouble(strValue));
+        totalToken[0] = Double.parseDouble(strValue);
         //
         beginIndex = balanceStr.indexOf("{") + 1;
         strValue = balanceStr.substring(beginIndex, balanceStr.indexOf("}", beginIndex));
@@ -79,19 +82,7 @@ public class Balance {
 
     public String toString() {
 
-        return "dateTime:" + dateTime + ",totalEarn:" + totalEarn + ",thisEarn:" + thisEarn + ",totalMoney:" + totalMoney + ",totalGoods:" + totalGoods + ",{" + platInfo + "},price:" + price + ",";
-    }
-
-    public String getDateTime() {
-        return dateTime;
-    }
-
-    public void setDateTime(String dateTime) {
-        this.dateTime = dateTime;
-    }
-
-    public double getTotalEarn() {
-        return totalEarn;
+        return "dateTime:" + dateTime + ",totalEarn:" + totalEarn + ",thisEarn:" + thisEarn + ",totalMoney:" + totalToken[1] + ",totalGoods:" + totalToken[0] + ",{" + platInfo + "},price:" + price + ",";
     }
 
     public void setTotalEarn(double totalEarn) {
@@ -101,15 +92,9 @@ public class Balance {
             }
         } else {
             synchronized (fmt_goods) {
-                //System.out.println("totalEarn"+totalEarn);
-                //System.out.println(fmt_goods.format(totalEarn));
                 this.totalEarn = Double.parseDouble(fmt_goods.format(totalEarn));
             }
         }
-    }
-
-    public double getThisEarn() {
-        return thisEarn;
     }
 
     public void setThisEarn(double thisEarn) {
@@ -124,37 +109,6 @@ public class Balance {
         }
     }
 
-    public double getTotalMoney() {
-        return totalMoney;
-    }
-
-    public void setTotalMoney(double totalMoney) {
-        synchronized (fmt_money) {
-            this.totalMoney = Double.parseDouble(fmt_money.format(totalMoney));
-        }
-    }
-
-    public double getTotalGoods() {
-        return totalGoods;
-    }
-
-    public void setTotalGoods(double totalGoods) {
-        synchronized (fmt_goods) {
-            this.totalGoods = Double.parseDouble(fmt_goods.format(totalGoods));
-        }
-    }
-
-    public String getPlatInfo() {
-        return platInfo;
-    }
-
-    public void setPlatInfo(String platInfo) {
-        this.platInfo = platInfo;
-    }
-
-    public double getPrice() {
-        return price;
-    }
 
     public void setPrice(double price) {
         synchronized (fmt_money) {

@@ -1,6 +1,7 @@
 package com.liujun.trade_ff.core.binance.api.bean.futures.param;
 
 import com.liujun.trade_ff.core.binance.api.enums.*;
+import com.liujun.trade_ff.core.binance.api.utils.DateUtils;
 
 /**
  * 下单
@@ -23,7 +24,7 @@ public class Order {
     private String priceProtect;//	STRING	NO	条件单触发保护："TRUE","FALSE", 默认"FALSE". 仅 STOP, STOP_MARKET, TAKE_PROFIT, TAKE_PROFIT_MARKET 需要此参数
     private NewOrderRespType newOrderRespType;//	ENUM	NO	"ACK", "RESULT", 默认 "ACK"
     private long recvWindow;//	LONG	NO
-    private long timestamp;//	LONG	YES
+    private long timestamp = DateUtils.getUnixTimeMilli();//	LONG	YES
 
     public String getSymbol() {
         return symbol;

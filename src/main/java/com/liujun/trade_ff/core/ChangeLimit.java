@@ -60,7 +60,7 @@ public class ChangeLimit {
 
             String keyStrA = engine.keyArray[indexA];
             // 如果A平台还有币可卖，就重新开始计算
-            double freeGoods = engine.platList.get(bid.getPlatId()).getAccInfo().getFreeGoods();
+            double freeGoods = engine.platList.get(bid.getPlatId()).accInfo.freeToken[0];
             if (freeGoods > 0.5) {
                 if (Engine.priceInfo.lackGoodsArr[indexA] != 0) {
                     Engine.priceInfo.lackGoodsArr[indexA] = 0;
@@ -112,7 +112,7 @@ public class ChangeLimit {
      * @throws Exception
      */
     public void adjust2(double diffPrice, double amount, int arrayIndex, MarketOrder ask, MarketOrder bid) throws Exception {
-        double freeGoods = engine.platList.get(bid.getPlatId()).getAccInfo().getFreeGoods();
+        double freeGoods = engine.platList.get(bid.getPlatId()).accInfo.freeToken[0];
 
         double limitPrice = prop.formatMoney(diffPrice - 0.3 * Math.abs(diffPrice));//0.7倍
         double newPrice = prop.formatMoney(diffPrice - 0.25 * Math.abs(diffPrice));//0.75倍
@@ -149,7 +149,7 @@ public class ChangeLimit {
      * @throws Exception
      */
     public void adjust3(double diffPrice, double amount, int arrayIndex, MarketOrder ask, MarketOrder bid) throws Exception {
-        double freeGoods = engine.platList.get(bid.getPlatId()).getAccInfo().getFreeGoods();
+        double freeGoods = engine.platList.get(bid.getPlatId()).accInfo.freeToken[0];
 
         long nowTime = new Date().getTime();
         long beginUpTime = Engine.priceInfo.beginUpTime[arrayIndex];

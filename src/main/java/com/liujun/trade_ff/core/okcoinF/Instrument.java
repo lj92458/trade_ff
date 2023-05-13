@@ -1,6 +1,5 @@
 package com.liujun.trade_ff.core.okcoinF;
 
-import com.okcoin.commons.okex.open.api.bean.futures.result.Instruments;
 
 public class Instrument {
     private Instruments instruments;
@@ -60,7 +59,9 @@ public class Instrument {
         return instruments.getDelivery();
     }
 
-    /** tick_size(价格精度)是指下单价格的最小增量，委托价格必须是tick_size的倍数*/
+    /**
+     * tick_size(价格精度)是指下单价格的最小增量，委托价格必须是tick_size的倍数
+     */
     public double getTick_size() {
         return Double.parseDouble(instruments.getTick_size());
     }
@@ -80,7 +81,9 @@ public class Instrument {
         return instruments.getContract_val_currency();
     }
 
-    /** 下单数量精度 */
+    /**
+     * 下单数量精度
+     */
     public double getTrade_increment() {
         return Double.parseDouble(instruments.getTrade_increment());
     }

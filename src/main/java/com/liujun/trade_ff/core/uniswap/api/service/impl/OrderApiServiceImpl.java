@@ -1,7 +1,7 @@
 package com.liujun.trade_ff.core.uniswap.api.service.impl;
 
 import com.liujun.trade_ff.core.uniswap.api.bean.APIConfiguration;
-import com.liujun.trade_ff.core.uniswap.api.bean.AddOrderResult;
+import com.liujun.trade_ff.core.uniswap.api.bean.TransResult;
 import com.liujun.trade_ff.core.uniswap.api.rpc.OrderRpc;
 import com.liujun.trade_ff.core.uniswap.api.rpc.RpcClient;
 import com.liujun.trade_ff.core.uniswap.api.service.OrderAPIService;
@@ -33,14 +33,14 @@ public class OrderApiServiceImpl implements OrderAPIService {
      * @return
      */
     @Override
-    public AddOrderResult addOrder(String coinPair, String orderType, String price, String volume, String gasPriceGwei, double slippage,int poolFee) {
+    public TransResult addOrder(String coinPair, String orderType, String price, String volume, String gasPriceGwei, double slippage, int poolFee) {
 
         try {
             log.info("开始调用orderRpc.addOrder");
             //failed to meet quorum 不一定代表失败呢
-            AddOrderResult addOrderResult = orderRpc.addOrder(coinPair, orderType, price, volume, config.getMaxWaitSeconds(), gasPriceGwei, slippage, poolFee).toFuture().get(config.getMaxWaitSeconds(), TimeUnit.SECONDS);
+            TransResult transResult = orderRpc.addOrder(coinPair, orderType, price, volume, config.getMaxWaitSeconds(), gasPriceGwei, slippage, poolFee).toFuture().get(config.getMaxWaitSeconds(), TimeUnit.SECONDS);
 
-            return addOrderResult;
+            return transResult;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

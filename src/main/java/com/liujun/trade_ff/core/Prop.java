@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
 import java.math.RoundingMode;
 import java.text.DecimalFormat;
+import java.text.Format;
 
 /**
  * Created by fengping on 2017/5/14.
@@ -16,8 +17,8 @@ public class Prop {
     public String formatGoodsStr;
     @Value("${trade.formatMoneyStr}")
     public String formatMoneyStr;
-    @Value("${trade.minCoinNum}")
-    public Double minCoinNum;//买卖币时，最小交易金额
+    @Value("${trade.minTradeValue}")
+    public Double minTradeValue;//买卖币时，最小交易金额
     @Value("${trade.moneyPrice}")
     public Double moneyPrice;//计价货币的美元价格
     public Double minMoney;//一次最少要赚的钱
@@ -31,10 +32,11 @@ public class Prop {
     public String goods;
     @Value("${trade.money}")
     public String money;
+    /**
+     * 每次对平台进行写操作后，休眠多少【毫秒】
+     */
     @Value("${engine.time_sleep}")
     public int time_sleep;
-    @Value("${trade.orderStepLength}")
-    public String orderStepLength;//按价格合并订单，例如：0.1或0.001
     @Value("${trade.marketOrderSize}")
     public int marketOrderSize;// 获取多少个市场挂单？
     @Value("${trade.atLeastEarn}")
@@ -48,15 +50,21 @@ public class Prop {
     @Value("${logging.file.path}")
     public String logPath;
 
+    public double minTradeMoney;
+
     public static ThreadLocal<DecimalFormat> fmt_goods;
     public static ThreadLocal<DecimalFormat> fmt_money;
     /**
      * 一个非常小的值，接近于零
      */
-    public double minAmount= 0.0000003;
+    public String transTokenFormatStr = "0.000000";//minAmount小数位数，必须跟transTokenFormatStr位数保持一致，否则engine.balanceToken的while循环是死循环
+    //0.000003是个非常小的数，假设币价10万美元，0.000003才价值0.3美元，面对2000美元的以太币，它才价值0.006美元
+    public double minAmount = 3.0 / (Double.parseDouble(transTokenFormatStr.replace("0.", "1")));
+    public Format transTokenFromat = new DecimalFormat(transTokenFormatStr);
 
     @PostConstruct
     public void init() {
+        minTradeMoney = 10.0 / moneyPrice;
         minMoney = atLeastEarn / this.moneyPrice;//一次最少要赚的钱
         //滑点，用来强制调平资金.这是一个比例. 1%应该够了吧？如果平台深度不足以吃到足够的单，再把这个滑点调大。
         //但是调大了有个副作用：矫枉过正。例如让把多余的goods卖出去，结果多卖的比例就等于这个滑点

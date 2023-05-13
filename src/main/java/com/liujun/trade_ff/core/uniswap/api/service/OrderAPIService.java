@@ -1,6 +1,6 @@
 package com.liujun.trade_ff.core.uniswap.api.service;
 
-import com.liujun.trade_ff.core.uniswap.api.bean.AddOrderResult;
+import com.liujun.trade_ff.core.uniswap.api.bean.TransResult;
 
 public interface OrderAPIService {
 
@@ -15,7 +15,7 @@ public interface OrderAPIService {
      * @param poolFee 手续费。 500表示百万分之500，也就是0.0005，也就是0.05%
      * @return
      */
-    AddOrderResult addOrder(String coinPair, String orderType, String price, String volume, String gasPriceGwei, double slippage,int poolFee);
+    TransResult addOrder(String coinPair, String orderType, String price, String volume, String gasPriceGwei, double slippage, int poolFee);
 
     //返回status
     String queryOrder(String coinPair, String orderId);

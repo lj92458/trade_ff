@@ -8,6 +8,7 @@ import com.liujun.trade_ff.core.util.XmlConfigUtil;
 import com.liujun.trade_ff.utils.SpringContextUtil;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.input.ReversedLinesFileReader;
+import org.apache.commons.lang3.StringUtils;
 import org.dom4j.Document;
 import org.dom4j.Node;
 import org.dom4j.io.OutputFormat;
@@ -119,7 +120,7 @@ public class Engine {
     @Value("${trade.dexSync}")
     public boolean dexSync;
     /**
-     * 任意平台的goods比例降到多少，就触发转账
+     * 任意平台的token比例降到多少，就触发转账
      */
     @Value("${trade.whenBalance}")
     public double whenBalance;
@@ -146,6 +147,17 @@ public class Engine {
     private String futureState;//期现套利状态：empty空仓，hold持仓
 
     private double openPriceGap;//开仓时，两个平台之间的差价.跟配置文件中平台出现的先后顺序有关：用前一个平台的价格减后一个平台
+    /**
+     * 设0平台goods权重为Pgoods0 (0<=Pgoods0<=1) ,那么1平台goods权重就是Pgoods1= 1-Pgoods0;同时0平台的money权重是1-Pgoods0;同时1平台的money权重是Pgoods0;
+     * 数据结构是二维数组：[[Pgoods0, Pgoods1],[Pmoney0, Pmoney1]]. 设Pgoods0 = p 那么该数组的值为[[p, 1-p], [1-p, p] ];
+     * 如果有三个平台怎么办？只需 Pgoods0 + Pgoods1 + Pgoods2 = 1
+     */
+    private double pgoods0;
+    /**
+     * 数据结构是二维数组：[[Pgoods0, Pgoods1],[Pmoney0, Pmoney1]]，第1维是各平台的goods权重，第2维是各平台的money权重。
+     */
+    private double goodsRate;//goods价值占总投资额的比例
+    private double[][] powerArr;
 
     private java.util.concurrent.ThreadPoolExecutor threadPoolExecutor;
     // ====================
@@ -190,6 +202,16 @@ public class Engine {
             firstBalance = readXmlProp("firstBalance");
 
             openPriceGap = Double.parseDouble(readXmlProp("openPriceGap"));
+            pgoods0 = Double.parseDouble(readXmlProp("Pgoods0"));
+            if (pgoods0 < 0 || pgoods0 > 1) {
+                throw new Exception("pgoods0的取值范围是[0,1]");
+            }
+            powerArr = new double[][]{{pgoods0, 1 - pgoods0}, {1 - pgoods0, pgoods0}};
+
+            goodsRate = Double.parseDouble(readXmlProp("goodsRate"));
+            if (goodsRate < 0 || goodsRate > 1) {
+                throw new Exception("goodsRate的取值范围是[0,1]");
+            }
             //---------------
 
             // 存放各个平台的交易对象
@@ -326,7 +348,7 @@ public class Engine {
     }
 
     /**
-     * 每隔一定时间，检测并调整goods总量、平衡goods和money、查询余额
+     * 每隔一定时间，检测并调整goods总量、平衡两种token、查询余额
      *
      * @param i
      * @throws Exception
@@ -338,12 +360,12 @@ public class Engine {
                 boolean needBalance = true;
                 this.currentBalance = getCurrentBalance();
                 try {
-                    needBalance = balanceGoodsAndMoney();// 检查各平台的coin数量,如果分布不平衡,就自动转移。转移成功后，再查询账户
+                    needBalance = balanceTokens();// 检查各平台的coin数量,如果分布不平衡,就自动转移。转移成功后，再查询账户
                 } finally {
                     if (needBalance) {//只有真正的转移了资金，才需要查询账户
                         isBalanceFinished = false;
                     } else if (needCheckTotalAmount) {
-                        if((i * time_queryOrder) % 12 == 0){
+                        if ((i * time_queryOrder) % 12 == 0) {
                             flushAccount(true);
                         }
                         // 检查goods总数量,如果不跟初始值相等,就立即买卖调整。为什么要设置在这里呢？因为挂单后，可能导致超时。然后就抛出异常，跳出for循环没机会检查goods
@@ -354,12 +376,13 @@ public class Engine {
                     }
                 }
             }
-        } else {//等待资金到账
+        } else {//等待资金到账。balanceTokens能确保资金已到账呢
             flushAccount(true);
             //资金调拨，还没到账，这时总资金必然减少。通过监控资金总额，如果减少了，就让整个引擎空转，直到资金回归正常
             Balance bal = getCurrentBalance();
-            isBalanceFinished = bal.getTotalGoods() / currentBalance.getTotalGoods() > 0.99
-                    && bal.getTotalMoney() / currentBalance.getTotalGoods() > 0.99;
+            log.info(bal.getPlatInfo());
+            isBalanceFinished = bal.totalToken[0] / currentBalance.totalToken[0] > 0.99
+                    && bal.totalToken[1] / currentBalance.totalToken[0] > 0.99;
         }
 
     }
@@ -426,19 +449,19 @@ public class Engine {
      */
     private void matchMarketDepth() throws Exception {
         // 设置综合深度
-        MarketDepth totalDepth = new MarketDepth();
+        ArrayList<MarketOrder>[] totalDepth = new ArrayList[]{new ArrayList<MarketOrder>(), new ArrayList<MarketOrder>()};
         for (Trade trade : platList) {
             //如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与
             if (needSkipDexWhenAdjustGoods(trade)) {
                 continue;
             }
-            totalDepth.getAskList().addAll(trade.getMarketDepth().getAskList());
-            totalDepth.getBidList().addAll(trade.getMarketDepth().getBidList());
+            totalDepth[0].addAll(trade.getMarketDepth()[0]);
+            totalDepth[1].addAll(trade.getMarketDepth()[1]);
 
         }
 
         totalSort(totalDepth);// 对汇总的市场挂单进行排序：买方从大到小排序,卖方从小到大排序
-        log.debug(totalDepth.getBidList() + "");/////////////////
+        log.debug(totalDepth[1] + "");/////////////////
         //调节限价
         EarnCost maxEarnCost = null;
         if (tradeModel.equals("simple")) {
@@ -449,7 +472,7 @@ public class Engine {
         //收益率要大于配置的值
         assert maxEarnCost != null;
         if (maxEarnCost.orderPair > 0 && (//maxEarnCost.earn已经考虑到了矿工费
-                (maxEarnCost.earn >= prop.minMoney && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate/10.0)//atLeastRate不要用来限制市场查询，因此除以10
+                (maxEarnCost.earn >= prop.minMoney && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate / 10.0)//atLeastRate不要用来限制市场查询，因此除以10
         )
         ) {// 只有模拟生成的订单存在时，才搬运
             log_needTrade.info("(机会)市场最大差价" + Prop.fmt_money.get().format(maxEarnCost.diffPrice) + prop.money +
@@ -467,7 +490,7 @@ public class Engine {
      */
     private void matchBackupDepth() throws Exception {
         // 将各平台备份的市场挂单导入汇总挂单(因为调节限价时，会把挂单的goods量改为0)
-        MarketDepth totalDepth = new MarketDepth();
+        ArrayList<MarketOrder>[] totalDepth = new ArrayList[]{new ArrayList<MarketOrder>(), new ArrayList<MarketOrder>()};
 
         for (Trade trade : platList) {
             //如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与
@@ -477,39 +500,39 @@ public class Engine {
             //如果允许跨平台搬运
             if (trade.getModeLock() == 0) {
                 trade.setModeLock(1);//加锁
-                totalDepth.getAskList().addAll(trade.getBackupDepth().getAskList());
-                totalDepth.getBidList().addAll(trade.getBackupDepth().getBidList());
+                totalDepth[0].addAll(trade.getBackupDepth()[0]);
+                totalDepth[1].addAll(trade.getBackupDepth()[1]);
             }
         }
         totalSort(totalDepth);// 对汇总的市场挂单进行排序：买方从大到小排序,卖方从小到大排序
-        log.debug(totalDepth.getBidList() + "");/////////////////
+        log.debug(totalDepth[1] + "");/////////////////
         //如果平台备份的有。
-        if (totalDepth.getBidList().size() > 0 && totalDepth.getAskList().size() > 0) {
+        if (totalDepth[1].size() > 0 && totalDepth[0].size() > 0) {
 
-            double diffPrice = totalDepth.getBidList().get(0).getPrice()
-                    - totalDepth.getAskList().get(0).getPrice();
+            double diffPrice = totalDepth[1].get(0).getPrice()
+                    - totalDepth[0].get(0).getPrice();
             if (diffPrice > 0) {
 
-                log.debug("市场买单：" + totalDepth.getBidList().toString());
-                log.debug("市场卖单：" + totalDepth.getAskList().toString());
+                log.debug("市场买单：" + totalDepth[1].toString());
+                log.debug("市场卖单：" + totalDepth[0].toString());
 
                 //begin: 根据备份的市场深度求当前市场价格，然后设置给虚拟平台
-                double avgPrice = (totalDepth.getBidList().get(0).getPrice() + totalDepth.getAskList().get(0)
+                double avgPrice = (totalDepth[1].get(0).getPrice() + totalDepth[0].get(0)
                         .getPrice()) / 2.0;
-                List<MarketOrder> virtualAskList = virtualTrade.getBackupDepth().getAskList();
+                List<MarketOrder> virtualAskList = virtualTrade.getBackupDepth()[0];
                 if (virtualAskList.size() > 0) {//降低市场卖单价格，确保真实平台能卖出
                     virtualAskList.get(0).setPrice(avgPrice * (1 - prop.huaDian));
                 }
-                List<MarketOrder> virtualBidList = virtualTrade.getBackupDepth().getBidList();
+                List<MarketOrder> virtualBidList = virtualTrade.getBackupDepth()[1];
                 if (virtualBidList.size() > 0) {//提高市场买单价格，确保真实平台能买到
                     virtualBidList.get(0).setPrice(avgPrice * (1 + prop.huaDian));
                 }
                 // end : 根据备份的市场深度求当前市场价格，然后设置给虚拟平台
 
-                int keyIndex = totalDepth.getBidList().get(0).getPlatId() * 10
-                        + totalDepth.getAskList().get(0).getPlatId();
-                log.info("可搬运最大差价【" + diffPrice + "】" + keyArray[keyIndex] + " " + totalDepth.getBidList().get(0)
-                        + "," + totalDepth.getAskList().get(0)); //
+                int keyIndex = totalDepth[1].get(0).getPlatId() * 10
+                        + totalDepth[0].get(0).getPlatId();
+                log.info("可搬运最大差价【" + diffPrice + "】" + keyArray[keyIndex] + " " + totalDepth[1].get(0)
+                        + "," + totalDepth[0].get(0)); //
 
 
                 EarnCost maxEarnCost = null;
@@ -561,10 +584,10 @@ public class Engine {
                 }
             }
         } else {//如果平台没有备份挂单,说明平台上没有资金
-            if (totalDepth.getBidList().size() == 0) {
+            if (totalDepth[1].size() == 0) {
                 log.info("平台资金" + prop.goods + "已耗尽----------------------");
             }
-            if (totalDepth.getAskList().size() == 0) {
+            if (totalDepth[0].size() == 0) {
                 log.info("平台资金" + prop.money + "已耗尽----------------------");
             }
 
@@ -581,7 +604,7 @@ public class Engine {
     private void checkStatus(long beginTime) throws Exception {
         // 计算耗时,如果大于最大限度,就报错
         long useTime = System.currentTimeMillis() - beginTime;// 用时
-        log.info("totalMoney: "+currentBalance.getTotalMoney()+", totalGoods: "+currentBalance.getTotalGoods()+ ", {" + currentBalance.getPlatInfo() + "}");
+        log.info("totalMoney: " + currentBalance.totalToken[1] + ", totalGoods: " + currentBalance.totalToken[0] + ", {" + currentBalance.getPlatInfo() + "}");
         if (useTime > 5 * 60 * 1000) {// 如果用时大于5分钟
             throw new Exception("本次超时！耗时" + (useTime / 1000.0) + "秒++++++++++++++++++++++++++++++++++++++");
         } else if (useTime > (time_oneCycle * 1000L)) {
@@ -661,13 +684,13 @@ public class Engine {
     /**
      * 对汇总的市场挂单进行排序：买方从大到小排序,卖方从小到大排序
      */
-    private void totalSort(MarketDepth totalDepth) {
+    private void totalSort(ArrayList<MarketOrder>[] totalDepth) {
         // 卖
-        Collections.sort(totalDepth.getAskList());
+        Collections.sort(totalDepth[0]);
         // 对买方排序,然后颠倒
-        Collections.sort(totalDepth.getBidList());
-        Collections.reverse(totalDepth.getBidList());
-        //log.info("ask挂单量"+totalDepth.getAskList().size()+",bid挂单量"+totalDepth.getBidList().size());
+        Collections.sort(totalDepth[1]);
+        Collections.reverse(totalDepth[1]);
+        //log.info("ask挂单量"+totalDepth[0].size()+",bid挂单量"+totalDepth[1].size());
     }
 
     /**
@@ -676,11 +699,11 @@ public class Engine {
      * @return EarnCost
      * @throws Exception 异常
      */
-    private EarnCost adjustLimitPrice1(MarketDepth totalDepth) throws Exception {
+    private EarnCost adjustLimitPrice1(ArrayList<MarketOrder>[] totalDepth) throws Exception {
         EarnCost maxEarnCost = new EarnCost(0, 0);// 最多能赚多少钱
 
-        List<MarketOrder> askList = totalDepth.getAskList();
-        List<MarketOrder> bidList = totalDepth.getBidList();
+        List<MarketOrder> askList = totalDepth[0];
+        List<MarketOrder> bidList = totalDepth[1];
         // 早已不满足条件？
         boolean[] passArr = new boolean[(platList.size() - 1) * 11 + 1];//
         // adjust1是否已处理过
@@ -775,11 +798,11 @@ public class Engine {
      *
      * @throws Exception 异常
      */
-    private EarnCost createOrders1(MarketDepth totalDepth) throws Exception {
+    private EarnCost createOrders1(ArrayList<MarketOrder>[] totalDepth) throws Exception {
         EarnCost maxEarnCost = new EarnCost(0, 0);// 最多能赚多少钱
 
-        List<MarketOrder> askList = totalDepth.getAskList();
-        List<MarketOrder> bidList = totalDepth.getBidList();
+        List<MarketOrder> askList = totalDepth[0];
+        List<MarketOrder> bidList = totalDepth[1];
 
         boolean[] passArr = new boolean[(platList.size() - 1) * 11 + 1];// 是否需要搬运
         Set<Integer> platIdSet = new HashSet<>();
@@ -882,11 +905,11 @@ public class Engine {
      * @return EarnCost
      * @throws Exception 异常
      */
-    private EarnCost adjustLimitPrice2(MarketDepth totalDepth) throws Exception {
+    private EarnCost adjustLimitPrice2(ArrayList<MarketOrder>[] totalDepth) throws Exception {
         EarnCost maxEarnCost = new EarnCost(0, 0);// 最多能赚多少钱
 
-        List<MarketOrder> askList = totalDepth.getAskList();
-        List<MarketOrder> bidList = totalDepth.getBidList();
+        List<MarketOrder> askList = totalDepth[0];
+        List<MarketOrder> bidList = totalDepth[1];
         // log.info(askList.toString());
         // log.info("bid:====================================");
         // log.info(bidList.toString());
@@ -924,11 +947,11 @@ public class Engine {
      *
      * @throws Exception 异常
      */
-    private EarnCost createOrders2(MarketDepth totalDepth) throws Exception {
+    private EarnCost createOrders2(ArrayList<MarketOrder>[] totalDepth) throws Exception {
         EarnCost maxEarnCost = new EarnCost(0, 0);// 最多能赚多少钱
 
-        List<MarketOrder> askList = totalDepth.getAskList();
-        List<MarketOrder> bidList = totalDepth.getBidList();
+        List<MarketOrder> askList = totalDepth[0];
+        List<MarketOrder> bidList = totalDepth[1];
         // 对角线法遍历矩阵(二维数组[askList][bidList])，竖向(第一维)是askList，横向(第二维)是bidList 。
         boolean[] passArr = new boolean[(platList.size() - 1) * 11 + 1];// 是否需要搬运
         // 遍历上半个矩阵
@@ -962,90 +985,101 @@ public class Engine {
      * @return boolean 是否发生了转移
      * @throws Exception 异常
      */
-    public boolean balanceGoodsAndMoney() throws Exception {
+    public boolean balanceTokens() throws Exception {
         if (!canBalance) {
             return false;
         }
-        // 如果某平台goods数量降到50%或涨到150%,才需要各平台调配goods。如果goods失衡，必然也伴随着money失衡
-        double avgGoods = currentBalance.getTotalGoods() / actualPlats().size();
-        double avgMoney = currentBalance.getTotalMoney() / actualPlats().size();
-        List<Trade> sendGoodsList = new ArrayList<>();
-        List<Trade> receiveGoodsList = new ArrayList<>();
-        List<Trade> sendMoneyList = new ArrayList<>();
-        List<Trade> receiveMoneyList = new ArrayList<>();
+        List<CompletableFuture<?>> balanceFutureList = new ArrayList<>();
+        //分别处理两种币
+        try {//todo 币安是否允许多笔提币请求同时进行？
+            balanceFutureList.addAll(balanceToken(0));
+            balanceFutureList.addAll(balanceToken(1));
+            CompletableFuture.allOf(balanceFutureList.toArray(new CompletableFuture<?>[0])).get(60 * 10, TimeUnit.SECONDS);
+        } catch (Exception e) {
+        }
+        return balanceFutureList.size() > 0;
+
+    }
+
+
+    private List<CompletableFuture<?>> balanceToken(int tokenIndex) throws Exception {//根据二维数组powerArr计算理想值
+        List<Trade> sendTokenList = new ArrayList<>();
+        List<Trade> receiveTokenList = new ArrayList<>();
         boolean needBalance = false;
-        for (Trade trade : actualPlats()) {
-            if (trade.accInfo.getFreeGoods() / avgGoods > 1) {//粗略的把每个平台划分成多方、少方
-                trade.diffGoods = trade.accInfo.getFreeGoods() / avgGoods;
-                sendGoodsList.add(trade);
-                if (trade.accInfo.getFreeGoods() / avgGoods > 1 + whenBalance) needBalance = true;
-            }
-            if (trade.accInfo.getFreeGoods() / avgGoods < 1) {
-                trade.diffGoods = avgGoods - trade.accInfo.getFreeGoods();
-                receiveGoodsList.add(trade);
-                if (trade.accInfo.getFreeGoods() / avgGoods < whenBalance) needBalance = true;
-            }
-            if (trade.accInfo.getFreeMoney() / avgMoney > 1) {
-                trade.diffMoney = trade.accInfo.getFreeMoney() - avgMoney;
-                sendMoneyList.add(trade);
-                if (trade.accInfo.getFreeMoney() / avgMoney > 1 + whenBalance) needBalance = true;
-            }
-            if (trade.accInfo.getFreeMoney() / avgMoney < 1) {
-                trade.diffMoney = avgMoney - trade.accInfo.getFreeMoney();
-                receiveMoneyList.add(trade);
-                if (trade.accInfo.getFreeMoney() / avgMoney < whenBalance) needBalance = true;
+        for (int platIndex = 0; platIndex < actualPlats().size(); platIndex++) {
+            Trade trade = actualPlats().get(platIndex);
+            double perfectAmount = currentBalance.totalToken[tokenIndex] * powerArr[tokenIndex][platIndex];
+            //当该平台的配置参数tokenNetWork不为空，才表示开启划转
+            if (StringUtils.isNotEmpty(trade.getTokenNetWork()[tokenIndex])) {
+                if (trade.accInfo.freeToken[tokenIndex] / perfectAmount > 1) {//粗略的把每个平台划分成多方、少方
+                    trade.diffToken[tokenIndex] = trade.accInfo.freeToken[tokenIndex] - perfectAmount;
+                    sendTokenList.add(trade);
+                    if (trade.accInfo.freeToken[tokenIndex] / perfectAmount > 1 + whenBalance) needBalance = true;
+
+                } else if (trade.accInfo.freeToken[tokenIndex] / perfectAmount < 1) {
+                    trade.diffToken[tokenIndex] = perfectAmount - trade.accInfo.freeToken[tokenIndex];
+                    receiveTokenList.add(trade);
+                    if (trade.accInfo.freeToken[tokenIndex] / perfectAmount < 1 - whenBalance) needBalance = true;
+                }
             }
         }//end for
-
+        List<CompletableFuture<?>> balanceFutureList = new ArrayList<>();
         if (needBalance) {// 如果需要搬运
-            List<CompletableFuture<?>> balanceFutureList = new ArrayList<>();
-            //while goods
-            while (sendGoodsList.size() > 0 && receiveGoodsList.size() > 0) {
-                if (sendGoodsList.get(0).diffGoods < prop.minAmount) sendGoodsList.remove(0);
-                if (receiveGoodsList.get(0).diffGoods < prop.minAmount) receiveGoodsList.remove(0);
-                if (sendGoodsList.size() == 0 || receiveGoodsList.size() == 0) break;
-                Trade t1 = sendGoodsList.get(0);
-                Trade t2 = receiveGoodsList.get(0);
-                double amount = Math.min(t1.diffGoods, t2.diffGoods);
+            //while token
+            while (sendTokenList.size() > 0 && receiveTokenList.size() > 0) {
+                if (sendTokenList.get(0).diffToken[tokenIndex] < prop.minAmount) sendTokenList.remove(0);
+                if (receiveTokenList.get(0).diffToken[tokenIndex] < prop.minAmount) receiveTokenList.remove(0);
+                if (sendTokenList.size() == 0 || receiveTokenList.size() == 0) break;
+                Trade t1 = sendTokenList.get(0);
+                Trade t2 = receiveTokenList.get(0);
+                double mindiff = Math.min(t1.diffToken[tokenIndex], t2.diffToken[tokenIndex]);
+                double amount = Double.parseDouble(prop.transTokenFromat.format(mindiff));
+                log.info("mindiff=" + mindiff + ", 格式化后amount=" + amount);
                 //扣除双方金额，并生成转账单
-                t1.diffGoods -= amount;
-                t2.diffGoods -= amount;
-                Trade.WithdrawArgs withdrawArgs = new Trade.WithdrawArgs(t1.getGoods(), amount, t2.getGoodsAddress());
+                t1.diffToken[tokenIndex] -= amount;
+                t2.diffToken[tokenIndex] -= amount;
                 balanceFutureList.add(CompletableFuture.runAsync(() -> {
                     try {
-                        t1.withdraw(withdrawArgs);
+                        boolean withdrawNeedWrap = t1.fixFee > 0 && t1.token[tokenIndex].equalsIgnoreCase("w" + t2.token[tokenIndex])
+                                && t2.token[tokenIndex].equalsIgnoreCase(t1.getNaitveToken());//如果t1作为dex负责发送，t2要求接收eth
+                        String sendToken = withdrawNeedWrap ? t1.getNaitveToken() : t1.token[tokenIndex];//t1发送什么币？默认和t1一致,满足withdrawNeedWrap条件才会用NaitveToken
+
+                        String txId = t1.withdraw(sendToken, amount, t2.getTokenAddress()[tokenIndex], withdrawNeedWrap);
+
+                        //t1发送完了，t2开始接收
+                        if (StringUtils.isNotEmpty(txId)) {
+                            //t2作为dex接收到eth，t2却只想要weth 就应该转换
+                            boolean depositNeedWrap = t2.fixFee > 0 && t2.token[tokenIndex].equalsIgnoreCase("w" + sendToken)
+                                    && sendToken.equalsIgnoreCase(t2.getNaitveToken());
+
+                            int confirmNum = t2.depositToken(sendToken, txId, amount, depositNeedWrap);//t1发送什么币，t2就接收什么
+                            if (confirmNum >= 0) {
+                                log.info(t2.getPlatName() + "收款成功，confirmNum=" + confirmNum);
+                            } else {
+                                throw new Exception(t2.getPlatName() + " confirmNum=" + confirmNum);
+                            }
+                        } else {
+                            throw new Exception(t1.getPlatName() + ".withdraw发生异常:返回的txId为空");
+                        }
                     } catch (Exception e) {
-                        log.error(t1.getPlatName() + "转账异常:" + withdrawArgs, e);
+                        log.error(t1.getPlatName() + "." + t1.token[tokenIndex] + "_" + t2.getPlatName() + "." + t2.token[tokenIndex] + "发送goods异常:", e);
                     }
                 }, threadPoolExecutor));
             }//end while
 
-            //while money
-            while (sendMoneyList.size() > 0 && receiveMoneyList.size() > 0) {
-                if (sendMoneyList.get(0).diffMoney < prop.minAmount) sendMoneyList.remove(0);
-                if (receiveMoneyList.get(0).diffMoney < prop.minAmount) receiveMoneyList.remove(0);
-                if (sendMoneyList.size() == 0 || receiveMoneyList.size() == 0) break;
-                Trade t1 = sendMoneyList.get(0);
-                Trade t2 = receiveMoneyList.get(0);
-                double amount = Math.min(t1.diffMoney, t2.diffMoney);
-                //扣除双方金额，并生成转账单
-                t1.diffMoney -= amount;
-                t2.diffMoney -= amount;
-                Trade.WithdrawArgs withdrawArgs = new Trade.WithdrawArgs(t1.getMoney(), amount, t2.getMoneyAddress());
-                balanceFutureList.add(CompletableFuture.runAsync(() -> {
-                    try {
-                        t1.withdraw(withdrawArgs);
-                    } catch (Exception e) {
-                        log.error(t1.getPlatName() + "转账异常:" + withdrawArgs, e);
-                    }
-                }, threadPoolExecutor));
-            }//end while
-
-            //等待币转移到账(然而这里并不能保证到账)
-            CompletableFuture.allOf(balanceFutureList.toArray(new CompletableFuture<?>[0])).get(60 * 10, TimeUnit.SECONDS);
-            return true;
+            //【不要在这里等，而是在调用它的函数内等】等待币转移到账。最多等10分钟。如果正常结束，就必然到账了。如果没到账，系统会检测资金总量，并一直等待
+            //CompletableFuture.allOf(balanceFutureList.toArray(new CompletableFuture<?>[0])).get(60 * 10, TimeUnit.SECONDS);
         }//end if
-        return false;
+        return balanceFutureList;
+    }
+
+    /**
+     * 调节goods价值占总投资额的比例。如果偏差达到一定值，就买
+     * @return
+     * @throws Exception
+     */
+    public boolean balanceTokensRate() throws Exception {
+
     }
 
     /**
@@ -1091,27 +1125,23 @@ public class Engine {
             if (platInfo.length() != 0) {
                 platInfo.append(",");
             }
-            platInfo.append(trade.getPlatName()).append("Money").append(":")
-                    .append(inf.getTotalMoney());
-            platInfo.append(",").append(trade.getPlatName()).append("Goods").append(":")
-                    .append(inf.getTotalGoods());
-            totalGoods += trade.accInfo.getFreeGoods();
-            totalMoney += trade.accInfo.getFreeMoney();
+            platInfo.append(trade.getPlatName()).append("Money").append(":").append(inf.totalToken[1]);
+            platInfo.append(",").append(trade.getPlatName()).append("Goods").append(":").append(inf.totalToken[0]);
+            totalGoods += trade.accInfo.freeToken[0];
+            totalMoney += trade.accInfo.freeToken[1];
         }// end for
         bal.setPrice(totalPrice / actualPlats().size());//排除虚拟平台
         bal.setPlatInfo(platInfo.toString());
-        bal.setTotalGoods(totalGoods);
-        bal.setTotalMoney(totalMoney);
+        bal.totalToken[0] = totalGoods;
+        bal.totalToken[1] = totalMoney;
         //
         // 跟初始余额比较,计算总共盈亏
         Balance initBalance = new Balance(prop, firstBalance);
         double totalEarn;
         if (prop.earnMoney) {//如果是赚货币，我们认为货币会增加，商品是不会变的。
-            totalEarn = bal.getTotalMoney() - initBalance.getTotalMoney()
-                    + bal.getPrice() * (bal.getTotalGoods() - initBalance.getTotalGoods());
+            totalEarn = bal.totalToken[1] - initBalance.totalToken[1] + bal.getPrice() * (bal.totalToken[0] - initBalance.totalToken[0]);
         } else {//如果是赚商品，我们认为商品会增加，货币是不会变的。
-            totalEarn = (bal.getTotalMoney() - initBalance.getTotalMoney()) / bal.getPrice() +
-                    bal.getTotalGoods() - initBalance.getTotalGoods();
+            totalEarn = (bal.totalToken[1] - initBalance.totalToken[1]) / bal.getPrice() + bal.totalToken[0] - initBalance.totalToken[0];
         }
         bal.setTotalEarn(totalEarn);
         // 跟上次盈亏比较,计算本次盈亏
@@ -1131,43 +1161,43 @@ public class Engine {
     public void checkTotalGoods() throws Exception {
         currentBalance = getCurrentBalance();
         Balance initBal = new Balance(prop, firstBalance);
-        double diffAmount = currentBalance.getTotalGoods() - initBal.getTotalGoods();
+        double diffAmount = currentBalance.totalToken[0] - initBal.totalToken[0];
 
-        log.debug("diffAmount:" + currentBalance.getTotalGoods() + " , " + initBal.getTotalGoods());
+        log.debug("diffAmount:" + currentBalance.totalToken[0] + " , " + initBal.totalToken[0]);
         // 如果变多,就卖.币安规定交易额最少是10美元。信息来源：CELOBUSD交易对的NOTIONAL过滤器 https://www.binance.com/api/v3/exchangeInfo
-        if (diffAmount > 10.0 / prop.moneyPrice / currentBalance.getPrice()) {// 如果变多,就卖.
+        if (diffAmount > prop.minTradeMoney / currentBalance.getPrice()) {// 如果变多,就卖.
             log.info("总goods增多" + diffAmount);
             // 增加一个虚拟的低价市场卖单，诱使程序在其他平台卖
             virtualTrade.setCurrentPrice(currentBalance.getPrice());
             // 设置市场挂单
-            MarketDepth depth = virtualTrade.getMarketDepth();
+            ArrayList<MarketOrder>[] depth = virtualTrade.getMarketDepth();
             MarketOrder marketOrder = new MarketOrder();
             marketOrder.setPlatId(virtualTrade.platId);
             marketOrder.setPrice(currentBalance.getPrice() * (1 - prop.huaDian));//价格设置不不光是在这里，还要在下一轮比价时
             marketOrder.setVolume(diffAmount);
-            depth.getAskList().add(marketOrder);
-            // log.info("virtual:卖单" + depth.getAskList().size());
+            depth[0].add(marketOrder);
+            // log.info("virtual:卖单" + depth[0].size());
             // 设置账户信息
             AccountInfo accInfo = new AccountInfo();
-            accInfo.setFreeMoney(diffAmount * currentBalance.getPrice());
+            accInfo.freeToken[1] = diffAmount * currentBalance.getPrice();
             virtualTrade.setAccInfo(accInfo);
-        } else if (diffAmount < -10.0 / prop.moneyPrice / currentBalance.getPrice()) {// 如果变少就买
+        } else if (diffAmount < -prop.minTradeMoney / currentBalance.getPrice()) {// 如果变少就买
             diffAmount = 0 - diffAmount;
             log.info("总goods减少" + diffAmount);
             // 增加一个虚拟的高价市场买单，诱使程序在其他平台买
             virtualTrade.setCurrentPrice(currentBalance.getPrice());
             // 设置市场挂单
-            MarketDepth depth = virtualTrade.getMarketDepth();
+            ArrayList<MarketOrder>[] depth = virtualTrade.getMarketDepth();
             MarketOrder marketOrder = new MarketOrder();
             marketOrder.setPlatId(virtualTrade.platId);
             marketOrder.setPrice(currentBalance.getPrice() * (1 + prop.huaDian));//价格设置不不光是在这里，还要在下一轮比价时
             marketOrder.setVolume(diffAmount);
-            depth.getBidList().add(marketOrder);
-            log.info("virtual:买单" + depth.getBidList().size() + ",市场均价" + currentBalance.getPrice());
+            depth[1].add(marketOrder);
+            log.info("virtual:买单" + depth[1].size() + ",市场均价" + currentBalance.getPrice());
             // log.info("currentBalance.getPrice():"+currentBalance.getPrice());
             // 设置账户信息
             AccountInfo accInfo = new AccountInfo();
-            accInfo.setFreeGoods(diffAmount + 10);
+            accInfo.freeToken[0] = diffAmount + 10;
             virtualTrade.setAccInfo(accInfo);
 
         }
@@ -1182,18 +1212,18 @@ public class Engine {
     public void checkTotalMoney() throws Exception {
         currentBalance = getCurrentBalance();
         Balance initBal = new Balance(prop, firstBalance);
-        double diffAmount = currentBalance.getTotalMoney() - initBal.getTotalMoney();
+        double diffAmount = currentBalance.totalToken[1] - initBal.totalToken[1];
 
-        log.debug("diffAmount:" + currentBalance.getTotalMoney() + " , " + initBal.getTotalMoney());
-        if (diffAmount > 10.0 / prop.moneyPrice) {// 如果变多,就卖
+        log.debug("diffAmount:" + currentBalance.totalToken[1] + " , " + initBal.totalToken[1]);
+        if (diffAmount > prop.minTradeMoney) {// 如果变多,就卖
             log.info("总Money增多" + diffAmount);
-            //log.info("diffAmount:" + currentBalance.getTotalMoney() + " , " + initBal.getTotalMoney());
+            //log.info("diffAmount:" + currentBalance.totalToken[1] + " , " + initBal.totalToken[1]);
 
             //
-        } else if (diffAmount < -10.0 / prop.moneyPrice) {// 如果变少就买
+        } else if (diffAmount < -prop.minTradeMoney) {// 如果变少就买
             diffAmount = 0 - diffAmount;
             log.info("总Money减少" + diffAmount);
-            //log.info("diffAmount:" + currentBalance.getTotalMoney() + " , " + initBal.getTotalMoney());
+            //log.info("diffAmount:" + currentBalance.totalToken[1] + " , " + initBal.totalToken[1]);
 
             //
         }
@@ -1353,6 +1383,32 @@ public class Engine {
         this.openPriceGap = openPriceGap;
         try {
             saveXmlProp("openPriceGap", openPriceGap + "");
+        } catch (Exception e) {
+            log.error("", e);
+        }
+    }
+
+    public double getPgoods0() {
+        return pgoods0;
+    }
+
+    public void setPgoods0(double pgoods0) {
+        this.pgoods0 = pgoods0;
+        try {
+            saveXmlProp("Pgoods0", pgoods0 + "");
+        } catch (Exception e) {
+            log.error("", e);
+        }
+    }
+
+    public double getGoodsRate() {
+        return goodsRate;
+    }
+
+    public void setGoodsRate(double goodsRate) {
+        this.goodsRate = goodsRate;
+        try {
+            saveXmlProp("goodsRate", goodsRate + "");
         } catch (Exception e) {
             log.error("", e);
         }

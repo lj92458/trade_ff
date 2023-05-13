@@ -17,7 +17,9 @@
 4. 将applicaion-prd和conf.mxl传到服务器端jar包所在目录。然后修改这两个配置文件，包括conf.xml末尾的firstBalance。prd文件里面要写weth，而不能是eth
 5. 执行数据库建表/建库语句，插入初始化数据。
 6. 需要授权某合约能花费自己的token。不能从uniswap界面上操作，而是要调用trade.js里面的getTokenTransferApproval函数，对SwapRouter合约授权。或者在etherscan上调用。
-
+7. cex的充值地址，要加入js项目的白名单；dex的充值地址，也要在okx白名单(每种网络都有自己的白名单)、在币安认证过的地址。
+8. 启动命令： nohup java -jar trade_ff-0.0.1-SNAPSHOT.jar --appName=arbitrum --okx.passphrase=xxx  >>out.txt &
+   
 #### 使用说明
 
 1. 为了方便随时编辑application-prd.yml，将配置文件放到了jar包所在目录，这里的优先级高于jar包内。[参考spring官网](https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#features.external-config.files)

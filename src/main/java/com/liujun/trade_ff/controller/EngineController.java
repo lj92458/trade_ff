@@ -79,10 +79,43 @@ public class EngineController {
     public Map<String, String> saveAdjustPrice(@RequestParam String adjustPrice) {
         Map<String, String> map = new HashMap<>();
         map.put("retCode", "0000");
-
         stopEngine();
         try {
             engineThread.engine.saveAdjustPrice(adjustPrice);
+            map.put("retMsg", "设置成功，引擎已经重启。");
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+            map.put("retMsg", "出现异常:" + e.getMessage());
+        }
+        startEngine();
+        return map;
+    }
+
+    @RequestMapping(value = "/engine/pgoods0", method = RequestMethod.POST)
+    @ResponseBody
+    public Map<String, String> savePgoods0(@RequestParam String pgoods0) {
+        Map<String, String> map = new HashMap<>();
+        map.put("retCode", "0000");
+        stopEngine();
+        try {
+            engineThread.engine.setPgoods0(Double.parseDouble(pgoods0));
+            map.put("retMsg", "设置成功，引擎已经重启。");
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+            map.put("retMsg", "出现异常:" + e.getMessage());
+        }
+        startEngine();
+        return map;
+    }
+
+    @RequestMapping(value = "/engine/goodsRate", method = RequestMethod.POST)
+    @ResponseBody
+    public Map<String, String> saveGoodsRate(@RequestParam String goodsRate) {
+        Map<String, String> map = new HashMap<>();
+        map.put("retCode", "0000");
+        stopEngine();
+        try {
+            engineThread.engine.setGoodsRate(Double.parseDouble(goodsRate));
             map.put("retMsg", "设置成功，引擎已经重启。");
         } catch (Exception e) {
             log.error(e.getMessage(), e);
@@ -156,7 +189,8 @@ public class EngineController {
 
                 }
                 map.put("adjustPrice", adjustPriceMap);
-                //上次什么时候调整的偏差？
+                map.put("Pgoods0", engineThread.engine.getPgoods0());
+                map.put("goodsRate", engineThread.engine.getGoodsRate());
 
                 map.put("retCode", "0000");
             } else {

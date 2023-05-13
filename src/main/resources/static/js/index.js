@@ -57,7 +57,7 @@ var load = function (timeUnit, maxCell) {
     $.getJSON(contextPath + '/engine/queryDiffPrice',
         {unit: timeUnit, maxCell: maxCell},
         function (data) {
-            if (data.retCode != '0000') {// 如果有异常消息
+            if (data.retCode !== '0000') {// 如果有异常消息
                 alert(data.retCode + ':' + data.retMsg);
             } else {
                 showEchart(data.legend, data.xAxis, data.series);
@@ -75,6 +75,22 @@ var load = function (timeUnit, maxCell) {
                         '</tr>\n'
                     );
                 }
+                //调节第零个平台的goods占比
+                $('#table_Pgoods').append(
+                    '<tr>' +
+                    '<td>' + data.legend[0] + '</td>\n' +
+                    ' <td> <input type="text" name="Pgoods0" id="Pgoods0" value="' + data.Pgoods0 + '"  >' +
+                    '<span></span> </td>\n' +
+                    '</tr>\n'
+                );
+                //goods价值占总投资额的比例
+                $('#table_goodsRate').append(
+                    '<tr>' +
+                    '<td>' + data.legend[0] + '</td>\n' +
+                    ' <td> <input type="text" name="goodsRate" id="goodsRate" value="' + data.goodsRate + '"  >' +
+                    '<span></span> </td>\n' +
+                    '</tr>\n'
+                );
 
 
             }// end else
@@ -96,10 +112,27 @@ var initPage = function () {
         }
         priceStr = priceStr.substr(1);
         $.post(contextPath + '/engine/adjustPrice',
-            {
-                adjustPrice: priceStr
-
+            {adjustPrice: priceStr},
+            function (data) {
+                $('#retMsg').html(data.retMsg);
             },
+            'json'
+        );
+    });
+    //设置pgoods0
+    $('#setPgoods0').bind('click', function () {
+        $.post(contextPath + '/engine/pgoods0',
+            {pgoods0: $('#Pgoods0').val()},
+            function (data) {
+                $('#retMsg').html(data.retMsg);
+            },
+            'json'
+        );
+    });
+    //设置goodsRate
+    $('#setPgoods0').bind('click', function () {
+        $.post(contextPath + '/engine/goodsRate',
+            {goodsRate: $('#goodsRate').val()},
             function (data) {
                 $('#retMsg').html(data.retMsg);
             },

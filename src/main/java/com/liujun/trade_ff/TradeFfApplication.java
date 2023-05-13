@@ -14,7 +14,9 @@ import org.springframework.core.io.ClassPathResource;
 public class TradeFfApplication {//不好归类的配置就放在这里
 
 	public static void main(String[] args) {
+
 		SpringApplication.run(TradeFfApplication.class, args);
+
 	}
 
 

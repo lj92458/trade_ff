@@ -1,16 +1,13 @@
 package com.liujun.trade_ff.core;
 
 import com.liujun.trade_ff.core.modle.AccountInfo;
-import com.liujun.trade_ff.core.modle.MarketDepth;
 import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
 import com.liujun.trade_ff.core.util.HttpUtil;
-import lombok.*;
-import org.apache.catalina.User;
+import lombok.Getter;
+import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
@@ -19,7 +16,7 @@ import java.util.List;
 
 @Getter
 @Setter
-public abstract class Trade {
+public abstract class Trade {//goods和money放到了数组。数组中有两个元素，分别是goods和token，别搞反了
     private static final Logger log = LoggerFactory.getLogger(Trade.class);
     public final int platId;
     public final double usdRate;
@@ -27,16 +24,17 @@ public abstract class Trade {
     protected Engine engine;
     public boolean initSuccess = false;
 
-    private String goods;
-    private String goodsAddress;
-    private String goodsNetWork;
-    private String money;
-    private String moneyAddress;
-    private String moneyNetWork;
+    public String[] token = new String[2];
+    public String[] tokenAddress = new String[2];
     /**
-     * 每次交易需要的固定费用(例如uniswap的矿工费)，单位是trade.money，例如usdt、btc
+     * 最对币安，支持多种提币网络。必须指定一种一种网络。例如：uniswap运行在在arbitrum网络上，所以为了给uniswap充值，应该从币安把币提到arbitrum
+     */
+    public String[] tokenNetWork = new String[2];
+    /**
+     * 每次交易需要的固定费用(例如dex的矿工费)，单位是trade.money，例如usdt、btc
      */
     public double fixFee = 0.0;
+    private String naitveToken;//仅针对dex
     /**
      * 即将要提交的订单的收益率，它一定会大于atLeastRate。这个也用来限制dex滑点
      */
@@ -51,13 +49,14 @@ public abstract class Trade {
     private int modeLock = 0;
 
     /**
-     * 市场深度
+     * 市场深度,分别存储ask和bid
      */
-    private MarketDepth marketDepth = new MarketDepth();
+    private ArrayList<MarketOrder>[] marketDepth = new ArrayList[]{new ArrayList<MarketOrder>(), new ArrayList<MarketOrder>()};
+
     /**
-     * 备份的市场深度
+     * 备份的市场深度,分别存储ask和bid
      */
-    private MarketDepth backupDepth = new MarketDepth();
+    private ArrayList<MarketOrder>[] backupDepth = new ArrayList[]{new ArrayList<MarketOrder>(), new ArrayList<MarketOrder>()};
     /**
      * 账户资产信息
      */
@@ -75,13 +74,9 @@ public abstract class Trade {
     private List<UserOrder> userOrderList;
 
     /**
-     * goods数量比平均值差了多少
+     * token数量比平均值差了多少
      */
-    public double diffGoods;
-    /**
-     * money数量比平均值差了多少
-     */
-    public double diffMoney;
+    public double[] diffToken = new double[2];
 
 
     // ==========================================================
@@ -111,11 +106,11 @@ public abstract class Trade {
     /**
      * 对市场挂单排序。买方从大到小排序,卖方从小到大排序
      */
-    public void sort(MarketDepth m) {
+    public void sort(ArrayList<MarketOrder>[] arrayLists) {
 
-        Collections.sort(m.getAskList()); // 对卖方排序，从小到大
-        Collections.sort(m.getBidList());// 对买方排序,然后颠倒
-        Collections.reverse(m.getBidList());
+        Collections.sort(arrayLists[0]); // 对卖方排序，从小到大
+        Collections.sort(arrayLists[1]);// 对买方排序,然后颠倒
+        Collections.reverse(arrayLists[1]);
 
     }
 
@@ -136,61 +131,39 @@ public abstract class Trade {
      */
     public abstract void cancelOrder() throws Exception;
 
-    @AllArgsConstructor
-    @ToString
-    public static class WithdrawArgs {
-        public String productName;
-        public double amount;
-        public String address;
-    }
 
     /**
-     * 提取Goods
+     * 提取资产，发送token到外界.为什么一定要等待，直到被打包呢？因为要拿到哈希值。有了哈希值，才能调用nodeJS的receiveToken服务，进而把eth包装成weth。
      *
+     * @param productName
+     * @param amount
+     * @param address
+     * @param needWrap    只有dex需要。当dex被要求发送eth而不是weth，needWrap应该为true，这样就能把weth变成eth并发送。当dex被要求发送weth, needWrap却还是设为true,就会把eth转成weth并发送(这好像没什么意义)
+     * @return txId 交易哈希
      * @throws Exception
      */
-    public abstract void withdraw(WithdrawArgs args) throws Exception;
+    public abstract String withdraw(String productName, double amount, String address, boolean needWrap) throws Exception;
 
     /**
      * 将不超出账户余额的挂单保存起来
      */
     public void backupUsefulOrder() {
-        // 处理市场卖单。如果有足够的货币余额，能将该订单买下，就将它备份起来
-        backupDepth.getAskList().clear();
-        double freeMoney = accInfo.getFreeMoney();
-        for (MarketOrder o : marketDepth.getAskList()) {
-            double needMoney = o.getPrice() * o.getVolume();
-            MarketOrder order = o.clone();
-            if (freeMoney >= needMoney) {
-                backupDepth.getAskList().add(order);
-                freeMoney -= needMoney;
-            } else if (0 < freeMoney) {
-                order.setVolume(freeMoney / order.getPrice());
-                if (order.getVolume() >= prop.minAmount) {
-                    backupDepth.getAskList().add(order);
-                }
-                freeMoney = 0.00;
-            } else {
-                break;
-            }
-        }
-        // 处理市场买单。如果有足够的货物，能卖给该订单，就将它备份起来
-        backupDepth.getBidList().clear();
-        double freeGoods = accInfo.getFreeGoods();
-        for (MarketOrder o : marketDepth.getBidList()) {
-            double needGoods = o.getVolume();
-            MarketOrder order = o.clone();
-            if (freeGoods >= needGoods) {
-                backupDepth.getBidList().add(order);
-                freeGoods -= needGoods;
-            } else if (0 < freeGoods) {
-                order.setVolume(freeGoods);
-                if (freeGoods >= prop.minAmount) {
-                    backupDepth.getBidList().add(order);
-                }
-                freeGoods = 0.00;
-            } else {
-                break;
+        for (int i = 0; i < 2; i++) {// 处理市场ask和bid. 0代表ask, 1代表bid
+            backupDepth[i].clear();
+            double freeToken = accInfo.freeToken[1 - i];//处理市场卖单时，这里的freeToken指我拥有的money；反之处理市场买单，我需要出goods. 所以0和1要交换
+            for (MarketOrder o : marketDepth[i]) {
+                double needToken = (i == 0 ? o.getPrice() : 1) * o.getVolume();//0表示市场卖单，我需要出钱买下来.
+                MarketOrder order = o.clone();
+                if (freeToken >= needToken) {
+                    backupDepth[i].add(order);
+                    freeToken -= needToken;
+                } else if (0 < freeToken) {
+                    order.setVolume(freeToken / (i == 0 ? order.getPrice() : 1));
+                    if (order.getVolume() >= prop.minAmount) {
+                        backupDepth[i].add(order);
+                    }
+                    freeToken = 0.00;
+                } else break;
             }
         }
     }
@@ -199,13 +172,13 @@ public abstract class Trade {
      * 市场挂单价格减去调整值。考虑到手续费
      */
     public void changeMarketPrice(double buyRate, double sellRate) {
-        if (marketDepth.getAskList() != null) {
-            for (MarketOrder o : marketDepth.getAskList()) {
+        if (marketDepth[0] != null) {
+            for (MarketOrder o : marketDepth[0]) {
                 o.setPrice(o.getPrice() * sellRate - getChangePrice());
             }
         }
-        if (marketDepth.getBidList() != null) {
-            for (MarketOrder o : marketDepth.getBidList()) {
+        if (marketDepth[1] != null) {
+            for (MarketOrder o : marketDepth[1]) {
                 o.setPrice(o.getPrice() * buyRate - getChangePrice());
             }
         }
@@ -323,7 +296,7 @@ public abstract class Trade {
             lastOrder.setPrice(totalMoney / totalVolume);
         }
         userOrderList.clear();
-        if (lastOrder.getVolume() >= prop.minCoinNum) {
+        if (lastOrder.getVolume() >= prop.minTradeMoney / engine.currentBalance.getPrice()) {
             userOrderList.add(lastOrder);
         } else {
             log.warn(getPlatName() + "数量太小" + lastOrder.getVolume());
@@ -335,10 +308,22 @@ public abstract class Trade {
 
 
     public double getTotalGoods() {
-        return accInfo.getFreeGoods() + accInfo.getFreezedGoods();
+        return accInfo.freeToken[0] + accInfo.freezedToken[0];
     }
 
     public double getTotalMoney() {
-        return accInfo.getFreeMoney() + accInfo.getFreezedMoney();
+        return accInfo.freeToken[1] + accInfo.freezedToken[1];
     }
+
+    /**
+     * 接收来自外界的转账。
+     *
+     * @param asset    资产名称，symbol
+     * @param txId     交易哈希
+     * @param amount   金额
+     * @param needWrap 只有dex需要。当dex收到eth而不是weth，needWrap应该为true，这样就能把eth变成weth。当dex收到weth, needWrap却还是设为true,就会把weth转成eth(这好像没什么意义)
+     * @return 网络确认数量。-1表示失败
+     * @throws Exception
+     */
+    public abstract Integer depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception;
 }
