@@ -14,7 +14,9 @@
 1. 在 linux系统 安装java8和sqlite3
 2. 根据yml文件中logging.file.path的值，创建日志目录。这里也会用来存放数据库。
 3. 激活maven的prd配置，刷新maven，并打包；将安装包传输到服务器。
-4. 将applicaion-prd和conf.mxl传到服务器端jar包所在目录。然后修改这两个配置文件，包括conf.xml末尾的firstBalance。prd文件里面要写weth，而不能是eth
+4. 将applicaion-prd和conf.mxl传到服务器端jar包所在目录。然后修改这两个配置文件，包括conf.xml末尾的firstBalance。prd文件里面要写weth，而不能是eth。
+   配置yml时，各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串(okex的Avalanche和币安的avaxc,共同点是ava; 
+   okex的polygon和币安的matic共同点是:币安的network字段或name字段包含polygon)。
 5. 执行数据库建表/建库语句，插入初始化数据。
 6. 需要授权某合约能花费自己的token。不能从uniswap界面上操作，而是要调用trade.js里面的getTokenTransferApproval函数，对SwapRouter合约授权。或者在etherscan上调用。
 7. cex的充值地址，要加入js项目的白名单；dex的充值地址，也要在okx白名单(每种网络都有自己的白名单)、在币安认证过的地址。

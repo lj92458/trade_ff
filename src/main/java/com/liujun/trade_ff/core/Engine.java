@@ -4,16 +4,14 @@ import com.liujun.trade_ff.core.modle.*;
 import com.liujun.trade_ff.core.thread.AvgpriceThread;
 import com.liujun.trade_ff.core.util.HttpUtil;
 import com.liujun.trade_ff.core.util.StringUtil;
+import com.liujun.trade_ff.core.util.TransTokenUtil;
 import com.liujun.trade_ff.core.util.XmlConfigUtil;
 import com.liujun.trade_ff.utils.SpringContextUtil;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.input.ReversedLinesFileReader;
-import org.apache.commons.lang3.StringUtils;
 import org.dom4j.Document;
 import org.dom4j.Node;
-import org.dom4j.io.OutputFormat;
 import org.dom4j.io.SAXReader;
-import org.dom4j.io.XMLWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,7 +21,6 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
@@ -146,18 +143,10 @@ public class Engine {
 
     private String futureState;//期现套利状态：empty空仓，hold持仓
 
-    private double openPriceGap;//开仓时，两个平台之间的差价.跟配置文件中平台出现的先后顺序有关：用前一个平台的价格减后一个平台
-    /**
-     * 设0平台goods权重为Pgoods0 (0<=Pgoods0<=1) ,那么1平台goods权重就是Pgoods1= 1-Pgoods0;同时0平台的money权重是1-Pgoods0;同时1平台的money权重是Pgoods0;
-     * 数据结构是二维数组：[[Pgoods0, Pgoods1],[Pmoney0, Pmoney1]]. 设Pgoods0 = p 那么该数组的值为[[p, 1-p], [1-p, p] ];
-     * 如果有三个平台怎么办？只需 Pgoods0 + Pgoods1 + Pgoods2 = 1
-     */
-    private double pgoods0;
-    /**
-     * 数据结构是二维数组：[[Pgoods0, Pgoods1],[Pmoney0, Pmoney1]]，第1维是各平台的goods权重，第2维是各平台的money权重。
-     */
+    private double openPriceGap;//期货开仓时，两个平台之间的差价.跟配置文件中平台出现的先后顺序有关：用前一个平台的价格减后一个平台
+
     private double goodsRate;//goods价值占总投资额的比例
-    private double[][] powerArr;
+    public String xmlFilePath = "./conf.xml";
 
     private java.util.concurrent.ThreadPoolExecutor threadPoolExecutor;
     // ====================
@@ -190,7 +179,7 @@ public class Engine {
     public void init() {
         try {
             log.info("当前路径：" + new File("./").getAbsolutePath());
-            try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(Paths.get("./conf.xml")), charset)) {
+            try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(Paths.get(xmlFilePath)), charset)) {
                 SAXReader sax = new SAXReader();
                 xmlDoc = sax.read(reader);
 
@@ -202,11 +191,6 @@ public class Engine {
             firstBalance = readXmlProp("firstBalance");
 
             openPriceGap = Double.parseDouble(readXmlProp("openPriceGap"));
-            pgoods0 = Double.parseDouble(readXmlProp("Pgoods0"));
-            if (pgoods0 < 0 || pgoods0 > 1) {
-                throw new Exception("pgoods0的取值范围是[0,1]");
-            }
-            powerArr = new double[][]{{pgoods0, 1 - pgoods0}, {1 - pgoods0, pgoods0}};
 
             goodsRate = Double.parseDouble(readXmlProp("goodsRate"));
             if (goodsRate < 0 || goodsRate > 1) {
@@ -226,12 +210,20 @@ public class Engine {
                     throw new Exception(platName + ":初始化失败!!!");
                 }
                 //设置配置属性
-                String changePriceStr = readXmlAttribute(platName, CHANGE_PRICE);
-                if (StringUtil.isEmpty(changePriceStr)) {
-                    changePriceStr = "0";
-                }
-                trade.setChangePrice(Double.parseDouble(changePriceStr));
+                trade.setChangePrice(Double.parseDouble(readXmlAttribute(platName, CHANGE_PRICE)));
+                trade.pToken = new double[]{
+                        Double.parseDouble(readXmlAttribute(platName, "pgoods")),
+                        Double.parseDouble(readXmlAttribute(platName, "pmoney"))
+                };
+
                 platList.add(trade);
+            }
+            //检查合法性
+            double sumPrice = platList.stream().mapToDouble(Trade::getChangePrice).sum();
+            double sumPgoods = platList.stream().mapToDouble(o -> o.pToken[0]).sum();
+            double sumPmoney = platList.stream().mapToDouble(o -> o.pToken[1]).sum();
+            if (sumPrice != 0 || sumPgoods != 1 || sumPmoney != 1) {
+                throw new Exception("price或pgoods或pmoney总和不合法！");
             }
 
             //添加虚拟平台
@@ -323,8 +315,6 @@ public class Engine {
                     saveBalance();
                     //检查系统健康状况
                     checkStatus(beginTime);
-                } else {
-                    log.info("资金没有平衡，系统正在等它平衡......");
                 }
                 // 睡眠一段时间,保证两次搬运间隔time_queryOrder秒
                 long useTime = System.currentTimeMillis() - beginTime;// 用时
@@ -382,7 +372,12 @@ public class Engine {
             Balance bal = getCurrentBalance();
             log.info(bal.getPlatInfo());
             isBalanceFinished = bal.totalToken[0] / currentBalance.totalToken[0] > 0.99
-                    && bal.totalToken[1] / currentBalance.totalToken[0] > 0.99;
+                    && bal.totalToken[1] / currentBalance.totalToken[1] > 0.99;
+            if (!isBalanceFinished) {
+                log.info("资金没有平衡，系统正在等它平衡......");
+            } else if (isBalanceFinished) {
+                log.info("资金已经平衡");
+            }
         }
 
     }
@@ -1008,18 +1003,20 @@ public class Engine {
         boolean needBalance = false;
         for (int platIndex = 0; platIndex < actualPlats().size(); platIndex++) {
             Trade trade = actualPlats().get(platIndex);
-            double perfectAmount = currentBalance.totalToken[tokenIndex] * powerArr[tokenIndex][platIndex];
-            //当该平台的配置参数tokenNetWork不为空，才表示开启划转
-            if (StringUtils.isNotEmpty(trade.getTokenNetWork()[tokenIndex])) {
-                if (trade.accInfo.freeToken[tokenIndex] / perfectAmount > 1) {//粗略的把每个平台划分成多方、少方
-                    trade.diffToken[tokenIndex] = trade.accInfo.freeToken[tokenIndex] - perfectAmount;
-                    sendTokenList.add(trade);
-                    if (trade.accInfo.freeToken[tokenIndex] / perfectAmount > 1 + whenBalance) needBalance = true;
+            double targetAmount = currentBalance.totalToken[tokenIndex] * trade.pToken[tokenIndex];
+            if (trade.pToken[tokenIndex] > 0.01) {//只对有效的pToken进行处理
+                //当该平台的配置参数tokenNetWork不为空，才表示开启划转
+                if (trade.getTokenNetWork()[tokenIndex].length > 0) {
+                    if (trade.accInfo.freeToken[tokenIndex] / targetAmount > 1) {//粗略的把每个平台划分成多方、少方
+                        trade.diffToken[tokenIndex] = trade.accInfo.freeToken[tokenIndex] - targetAmount;
+                        sendTokenList.add(trade);
+                        if (trade.accInfo.freeToken[tokenIndex] / targetAmount > 1 + whenBalance) needBalance = true;
 
-                } else if (trade.accInfo.freeToken[tokenIndex] / perfectAmount < 1) {
-                    trade.diffToken[tokenIndex] = perfectAmount - trade.accInfo.freeToken[tokenIndex];
-                    receiveTokenList.add(trade);
-                    if (trade.accInfo.freeToken[tokenIndex] / perfectAmount < 1 - whenBalance) needBalance = true;
+                    } else if (trade.accInfo.freeToken[tokenIndex] / targetAmount < 1) {
+                        trade.diffToken[tokenIndex] = targetAmount - trade.accInfo.freeToken[tokenIndex];
+                        receiveTokenList.add(trade);
+                        if (trade.accInfo.freeToken[tokenIndex] / targetAmount < 1 - whenBalance) needBalance = true;
+                    }
                 }
             }
         }//end for
@@ -1035,36 +1032,23 @@ public class Engine {
                 double mindiff = Math.min(t1.diffToken[tokenIndex], t2.diffToken[tokenIndex]);
                 double amount = Double.parseDouble(prop.transTokenFromat.format(mindiff));
                 log.info("mindiff=" + mindiff + ", 格式化后amount=" + amount);
-                //扣除双方金额，并生成转账单
-                t1.diffToken[tokenIndex] -= amount;
-                t2.diffToken[tokenIndex] -= amount;
-                balanceFutureList.add(CompletableFuture.runAsync(() -> {
-                    try {
-                        boolean withdrawNeedWrap = t1.fixFee > 0 && t1.token[tokenIndex].equalsIgnoreCase("w" + t2.token[tokenIndex])
-                                && t2.token[tokenIndex].equalsIgnoreCase(t1.getNaitveToken());//如果t1作为dex负责发送，t2要求接收eth
-                        String sendToken = withdrawNeedWrap ? t1.getNaitveToken() : t1.token[tokenIndex];//t1发送什么币？默认和t1一致,满足withdrawNeedWrap条件才会用NaitveToken
-
-                        String txId = t1.withdraw(sendToken, amount, t2.getTokenAddress()[tokenIndex], withdrawNeedWrap);
-
-                        //t1发送完了，t2开始接收
-                        if (StringUtils.isNotEmpty(txId)) {
-                            //t2作为dex接收到eth，t2却只想要weth 就应该转换
-                            boolean depositNeedWrap = t2.fixFee > 0 && t2.token[tokenIndex].equalsIgnoreCase("w" + sendToken)
-                                    && sendToken.equalsIgnoreCase(t2.getNaitveToken());
-
-                            int confirmNum = t2.depositToken(sendToken, txId, amount, depositNeedWrap);//t1发送什么币，t2就接收什么
-                            if (confirmNum >= 0) {
-                                log.info(t2.getPlatName() + "收款成功，confirmNum=" + confirmNum);
-                            } else {
-                                throw new Exception(t2.getPlatName() + " confirmNum=" + confirmNum);
-                            }
-                        } else {
-                            throw new Exception(t1.getPlatName() + ".withdraw发生异常:返回的txId为空");
+                //检测amount价值多少美元。如果大于10美元，才处理
+                double amountValue = tokenIndex == 0 ? amount / t1.getCurrentPrice() : amount / prop.moneyPrice;
+                if (amountValue > 10) {
+                    //扣除双方金额，并生成转账单
+                    t1.diffToken[tokenIndex] -= amount;
+                    t2.diffToken[tokenIndex] -= amount;
+                    balanceFutureList.add(CompletableFuture.runAsync(() -> {
+                        try {
+                            double receiveAmount = TransTokenUtil.trans(this, t1, t2, tokenIndex, amount);
+                            log.info("最终收到" + receiveAmount + ", 损耗" + (amount - receiveAmount) + ", 损耗率" + (1 - receiveAmount / amount));
+                        } catch (Exception e) {
+                            log.error(t1.getPlatName() + "." + t1.token[tokenIndex] + "_" + t2.getPlatName() + "." + t2.token[tokenIndex] + "发送goods异常:", e);
                         }
-                    } catch (Exception e) {
-                        log.error(t1.getPlatName() + "." + t1.token[tokenIndex] + "_" + t2.getPlatName() + "." + t2.token[tokenIndex] + "发送goods异常:", e);
-                    }
-                }, threadPoolExecutor));
+                    }, threadPoolExecutor));
+                } else {
+                    log.info("要转移的金额小于10美元，忽略不计。amountValue=" + amountValue);
+                }
             }//end while
 
             //【不要在这里等，而是在调用它的函数内等】等待币转移到账。最多等10分钟。如果正常结束，就必然到账了。如果没到账，系统会检测资金总量，并一直等待
@@ -1075,11 +1059,13 @@ public class Engine {
 
     /**
      * 调节goods价值占总投资额的比例。如果偏差达到一定值，就买
+     *
      * @return
      * @throws Exception
      */
     public boolean balanceTokensRate() throws Exception {
 
+        return false;
     }
 
     /**
@@ -1231,7 +1217,7 @@ public class Engine {
     }
 
     /**
-     * 从xml配置文件中读取参数
+     * 从xml配置文件中读取node值
      *
      * @param key 路径
      * @return 文本
@@ -1247,7 +1233,7 @@ public class Engine {
     }
 
     /**
-     * 读取xml元素的属性
+     * 读取xml node属性
      */
     private String readXmlAttribute(String elementName, String attrName) {
         String path = elementName.replace("_", "/") + "/@" + attrName;
@@ -1262,22 +1248,14 @@ public class Engine {
     /**
      * 修改xmlDoc对象，并把xmlDoc保存到文件
      *
-     * @param key   路径
+     * @param key   路径。如果包含下划线，会被替换成斜杠。
      * @param value 值
      * @throws Exception 异常
      */
-    private void saveXmlProp(String key, String value) throws Exception {
+    private void saveXmlNodeValue(String key, String value) throws Exception {
         synchronized (xmlDoc) {//对xmlDoc的写操作，可能引发线程安全问题，所以要加锁
             String path = key.replace("_", "/");
-            xmlDoc.selectSingleNode("conf/" + path).setText(value);
-            FileOutputStream fos = new FileOutputStream("./conf.xml", false);
-            OutputFormat format = OutputFormat.createPrettyPrint();
-            format.setEncoding(charset);
-            XMLWriter xmlWriter = new XMLWriter(fos, format);
-            xmlWriter.write(xmlDoc);
-            xmlWriter.flush();
-            xmlWriter.close();
-            fos.close();
+            XmlConfigUtil.saveXmlAttribute(xmlDoc, null, "conf/" + path, null, value);
         }
     }
 
@@ -1295,7 +1273,7 @@ public class Engine {
             }
         }
 
-        saveXmlProp(key, value);
+        saveXmlNodeValue(key, value);
 
     }
 
@@ -1303,7 +1281,7 @@ public class Engine {
         int index = id1 * 10 + id2;
         priceArray[index] = value;
 
-        saveXmlProp(keyArray[index], "" + value);
+        saveXmlNodeValue(keyArray[index], "" + value);
 
     }
 
@@ -1330,33 +1308,54 @@ public class Engine {
     }
 
     /**
-     * 手动设置偏差。<b>设置后必须重启!!!</b>当两个平台之间长期不交叉时，把平台价格看作是围绕现在的价格波动。
+     * 手动调节参数。<b>设置后必须重启!!!</b>
+     * 设置price：当两个平台之间长期不交叉时，把平台价格看作是围绕现在的价格波动。 格式 okcoin:1.2,btcchina:-1.2
+     * 设置pgoods：每个平台的goods占总goods的比例
+     * 设置pmoney：每个平台的money,占总money的比例
      *
-     * @param adjustPrice 价格偏差设置。格式 okcoin:1.2,btcchina:-1.2
+     * @param key   动作：price或pgoods或pmoney
+     * @param value 每个平台要设置的值，共同拼接成一个字符串：okcoin:0.2,binance:0.8
      */
-    public void saveAdjustPrice(String adjustPrice) throws Exception {
+    public void saveAdjustX(String key, String value) throws Exception {
         synchronized (this) {
-            String filePath = "./conf.xml";
-
-            String[] adjustArr = adjustPrice.split(",");
-            for (int i = 0; i < adjustArr.length; i++) {//处理每一个平台
-                String adjStr = adjustArr[i];
-                String[] arr = adjStr.split(":");// okcoin:1.2
-                if (arr.length != 2 || arr[1] == null || arr[1].equals("")) {//如果某平台值是空的，就跳过
-                    continue;
-                } else {
-                    //试着转成double，看看是否报错
-                    Double.parseDouble(arr[1]);
-                }
-                //设置偏差（大标签）
-                XmlConfigUtil.saveXmlAttribute(filePath, "conf/" + arr[0], "changePrice", arr[1]);
-                //初始化阀值（小标签），将大标签里面的每个小标签都设为1
-                for (int j = 0; j < adjustArr.length; j++) {
-                    if (i != j) {
-                        String elementPath = "conf/" + arr[0] + "/" + adjustArr[j].split(":")[0];
-                        XmlConfigUtil.saveXmlProp(filePath, elementPath, "" + (0.142 / prop.moneyPrice));
+            //检查各值总和
+            double sum = Arrays.stream(value.split(",|:")).filter(o -> o.startsWith("0")).mapToDouble(Double::parseDouble).sum();
+            if ((sum == 0 && key.equals("price")) || (sum == 1 && (key.equals("pgoods") || key.equals("pmoney")))
+            ) {
+                String[] valueArr = value.split(",");
+                for (int i = 0; i < valueArr.length; i++) {//处理每一个平台
+                    String adjStr = valueArr[i];
+                    String[] arr = adjStr.split(":");//okcoin:0.2
+                    if (arr.length != 2 || arr[1] == null || arr[1].equals("")) {//如果某平台值是空的，就跳过
+                        continue;
+                    } else {
+                        //试着转成double，看看是否报错
+                        Double.parseDouble(arr[1]);
                     }
-                }
+                    switch (key) {
+                        case "price":
+                            //设置偏差（大标签）
+                            XmlConfigUtil.saveXmlAttribute(xmlDoc, null, "conf/" + arr[0], CHANGE_PRICE, arr[1]);
+                            //初始化阀值（小标签），将大标签里面的每个小标签都设为0
+                            for (int j = 0; j < valueArr.length; j++) {
+                                if (i != j) {
+                                    String elementPath = "conf/" + arr[0] + "/" + valueArr[j].split(":")[0];
+                                    XmlConfigUtil.saveXmlAttribute(xmlDoc, null, elementPath, null, "" + (0 / prop.moneyPrice));
+                                }
+                            }
+                            break;
+                        case "pgoods":
+                            XmlConfigUtil.saveXmlAttribute(xmlDoc, null, "conf/" + arr[0], "pgoods", arr[1]);
+                            break;
+                        case "pmoney":
+                            XmlConfigUtil.saveXmlAttribute(xmlDoc, null, "conf/" + arr[0], "pmoney", arr[1]);
+                            break;
+                        default:
+                            throw new Exception("未知的动作" + key);
+                    }
+                }//end for
+            } else {
+                throw new Exception("各项值总和不合法: price总和应该是0， pgoods和pmoney总和应该是1");
             }
 
         }//synchronized
@@ -1382,20 +1381,7 @@ public class Engine {
     public void setOpenPriceGap(double openPriceGap) {
         this.openPriceGap = openPriceGap;
         try {
-            saveXmlProp("openPriceGap", openPriceGap + "");
-        } catch (Exception e) {
-            log.error("", e);
-        }
-    }
-
-    public double getPgoods0() {
-        return pgoods0;
-    }
-
-    public void setPgoods0(double pgoods0) {
-        this.pgoods0 = pgoods0;
-        try {
-            saveXmlProp("Pgoods0", pgoods0 + "");
+            saveXmlNodeValue("openPriceGap", openPriceGap + "");
         } catch (Exception e) {
             log.error("", e);
         }
@@ -1408,7 +1394,7 @@ public class Engine {
     public void setGoodsRate(double goodsRate) {
         this.goodsRate = goodsRate;
         try {
-            saveXmlProp("goodsRate", goodsRate + "");
+            saveXmlNodeValue("goodsRate", goodsRate + "");
         } catch (Exception e) {
             log.error("", e);
         }
@@ -1426,7 +1412,7 @@ public class Engine {
      *
      * @return 真实平台
      */
-    private List<Trade> actualPlats() {
+    public List<Trade> actualPlats() {
         if (platList.contains(virtualTrade)) {
             return platList.subList(0, platList.size() - 1);
         } else {

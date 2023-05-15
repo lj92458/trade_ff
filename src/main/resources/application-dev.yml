@@ -92,10 +92,11 @@ okcoin:
   goodsAddress: "0x0e7a26909abecd20de80f849b41d692d40abe773"
   #提币时，提到哪个网络？空着表示不参与转账。eth支持5个网络：ERC20，Arbitrum one，OKTC， Optimism，zkSync Lite
   # usdc支持7个网络：ERC20, Arbitrum one, OKTC, Polygon, Optimism, TRC20, Avalanche C-Chain
-  goodsNetWork: arbitrum #空着表示不参与转账。
+  #各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串(okex的Avalanche和币安的avaxc,共同点是ava; okex的polygon和币安的matic共同点是:币安的network字段或name字段包含polygon)。
+  goodsNetWork: arbitrum,optimism,oktc,zksync #空着表示不参与转账。各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串
   money: usdc #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
   moneyAddress: "0x0e7a26909abecd20de80f849b41d692d40abe773"
-  moneyNetWork: arbitrum #提币时，提到哪个网络？空着表示不参与转账。
+  moneyNetWork: arbitrum,optimism,polygon,ava,zkSync,oktc,trc20 #提币时，提到哪个网络？空着表示不参与转账。
   apiKey: 72794b7e-bdd4-4c21-b96a-b95b55c23f13
   secretKey: FDD6E6055E550125A528918DABB0FC72
   url: https://www.okx.com
@@ -129,11 +130,11 @@ binance:
   #调用WalletAPIService.queryAllCoin，能查出各种币的网络名称。例如USDC有10种网络：BSC,AVAXC,ALGO,BNB,ETH,MATIC,RON,SOL,XLM,TRX; usdt还支持EOS,NEAR,XTZ.
   #ETH支持5种网络：BSC,ETH,ARBITRUM,BNB,OPTIMISM;    反过来看，OPTIMISM支持的币有：SNX,ETH,OP,BUSD,SYN;
   #BNB支持种3网络：BSC,BNB,ETH;  BUSD支持7种网络: BSC,AVAXC,BNB,ETH,OPTIMISM,MATIC,TRX;
-  goodsNetWork: ARBITRUM #提币时，提到哪个网络
+  goodsNetWork: arbitrum,optimism,bsc #提币时，提到哪个网络。各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串。
   money: usdc #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
   #moneyAddress: "0x6803c2566b114196e56949999b4bbbee413777f0" #我
   moneyAddress: "0x7b74755C1252804EAA265003C0a9E745C792d68f" #她
-  moneyNetWork:  #调用WalletAPIService.queryAllCoin，能查出各种币的网络名称
+  moneyNetWork: polygon,ava,bsc,sol,trx # 币安的usdc提币，不支持arb网络。所以，可以借道okex平台。由于币安和okex都支持polygon和ava链，我就可以把usdc从币安，提到okex, 再从okex提到arb
   #apiKey: jgAwHsnY3SBLYda2z7Cikt4oezNehQREjIaKbbZWiBOI7neQSmxKh8GgFLsn1hhU #我
   #secretKey: iXkhZhtx7ouxJcSbO00LxEFsMgCbZZbePXsmWsjUFlyN7452aepCuzQ5nZAS1Jge #我
   apiKey: 3nigqXkeksvz9kyohgBKJVZyma0P4FNcknOVFxWgW50yRhADILONDu5UXYAhHu4Q #她
@@ -155,7 +156,7 @@ binanceF:
 #矿工费4美元。要求利润大于这个数，才能交易。
 #dex执行一次可能要30秒，那么这期间这个系统都被阻塞
 uniswap:
-  netWork: ARBITRUM #网络简称叫什么？ 币安上的USDC有10种网络：BSC,AVAXC,ALGO,BNB,ETH,MATIC,RON,SOL,XLM,TRX;
+  netWork: arbitrum #网络名称叫什么？ 各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串
   naitveToken: eth #链的原生币，大小写都行。也是gas消耗的币的名称。因为uniswap能用在多个区块链
   goods: weth #交易哪种商品。大小写随意，由各平台对应的trade类负责转换
   goodsAddress: "0xB0d1435590B4f14A5f4414f93489945546162ffc"

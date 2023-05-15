@@ -16,6 +16,7 @@ import com.liujun.trade_ff.core.uniswap.api.service.impl.OrderApiServiceImpl;
 import com.liujun.trade_ff.core.uniswap.api.service.impl.ProductAPIServiceImpl;
 import com.liujun.trade_ff.core.uniswap.api.service.impl.WalletAPIServiceImpl;
 import com.liujun.trade_ff.core.util.HttpUtil;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -321,7 +322,7 @@ public class Trade_uniswap extends Trade {
      * @throws Exception
      */
     @Override
-    public String withdraw(String productName, double amount, String address, boolean needWrap) throws Exception {
+    public String withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
         WithdrawParam param = new WithdrawParam(productName, address, amount, needWrap);
 
         WithdrawResult result = this.walletAPIService.withdraw(param, gasPriceGwei);
@@ -335,7 +336,7 @@ public class Trade_uniswap extends Trade {
     }
 
     @Override
-    public Integer depositToken(String asset, String txId, double amount, boolean needWrap) {
+    public double depositToken(String asset, String txId, double amount, boolean needWrap) {
         return this.walletAPIService.receiveToken(asset, txId, amount, needWrap, gasPriceGwei);
     }
 
@@ -361,12 +362,12 @@ public class Trade_uniswap extends Trade {
 
     @Value("${uniswap.netWork}")
     public void setGoodsNetWork(String goodsNetWork) {
-        tokenNetWork[0] = goodsNetWork;
+        tokenNetWork[0] = StringUtils.isEmpty(goodsNetWork) ? new String[0] : goodsNetWork.split(",");
     }
 
     @Value("${uniswap.netWork}")
     public void setMoneyNetWork(String moneyNetWork) {
-        tokenNetWork[1] = moneyNetWork;
+        tokenNetWork[1] = StringUtils.isEmpty(moneyNetWork) ? new String[0] : moneyNetWork.split(",");
     }
 
     @Value("${uniswap.naitveToken}")

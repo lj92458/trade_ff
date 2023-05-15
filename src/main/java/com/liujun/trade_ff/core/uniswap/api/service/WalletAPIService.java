@@ -14,5 +14,5 @@ public interface WalletAPIService {
      */
     WithdrawResult withdraw(WithdrawParam param, double gasPriceGwei) throws Exception;
 
-    Integer receiveToken(String asset, String txId, double amount, boolean needWrap, double gasPriceGwei);
+    double receiveToken(String asset, String txId, double amount, boolean needWrap, double gasPriceGwei);
 }

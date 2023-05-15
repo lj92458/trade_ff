@@ -26,6 +26,7 @@ import com.liujun.trade_ff.core.modle.AccountInfo;
 import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
 import com.liujun.trade_ff.core.util.HttpUtil;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -418,7 +419,7 @@ public class Trade_binanceF extends Trade {
      * @throws Exception
      */
     @Override
-    public String withdraw(String productName, double amount, String address, boolean needWrap) throws Exception {
+    public String withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
 
         String myOrderId = System.currentTimeMillis() + "";
         WithdrawParam param = new WithdrawParam(productName, address, amount);
@@ -428,7 +429,7 @@ public class Trade_binanceF extends Trade {
         return "";
     }
 
-    public Integer depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception {
+    public double depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception {
         return -1;
     }
 
@@ -481,11 +482,11 @@ public class Trade_binanceF extends Trade {
 
     @Value("${binanceF.goodsNetWork}")
     public void setGoodsNetWork(String goodsNetWork) {
-        tokenNetWork[0] = goodsNetWork;
+        tokenNetWork[0] = StringUtils.isEmpty(goodsNetWork) ? new String[0] : goodsNetWork.split(",");
     }
 
     @Value("${binanceF.moneyNetWork}")
     public void setMoneyNetWork(String moneyNetWork) {
-        tokenNetWork[1] = moneyNetWork;
+        tokenNetWork[1] = StringUtils.isEmpty(moneyNetWork) ? new String[0] : moneyNetWork.split(",");
     }
 }

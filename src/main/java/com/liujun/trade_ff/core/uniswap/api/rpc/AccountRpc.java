@@ -23,6 +23,6 @@ public interface AccountRpc {
      *
      * @return 网络确认数量。0个表示异常
      */
-    Promise<Integer> receiveToken(String symbol, String txId, double amount, boolean needWrap, int maxWaitSeconds, double gasPriceGwei);
+    Promise<Double> receiveToken(String symbol, String txId, double amount, boolean needWrap, int maxWaitSeconds, double gasPriceGwei);
 
 }

@@ -2,22 +2,20 @@
 
 <conf>
     <!-- 启用的平台 -->
-    <enablePlat>uniswap,binance</enablePlat>
+    <enablePlat>uniswap,okcoin,binance</enablePlat>
     <!-- 开仓时，两个平台之间的差价。跟配置文件中平台出现的先后顺序有关：用前一个平台减后一个 -->
     <openPriceGap>0</openPriceGap>
     <lastChange>2016-01-02 10:01:01</lastChange>
-    <!--设0平台goods权重为Pgoods0 (0<=Pgoods0<=1) ,那么1平台goods权重就是Pgoods1= 1-Pgoods0;同时0平台的money权重是1-Pgoods0;同时1平台的money权重是Pgoods0;
-    数据结构是二维数组：[[Pgoods0, Pgoods1],[Pmoney0, Pmoney1]]. 设Pgoods0 = p 那么该数组的值为[[p, 1-p], [1-p, p] ];
-    如果有三个平台怎么办？只需 Pgoods0 + Pgoods1 + Pgoods2 = 1
-    -->
-    <Pgoods0>0.5</Pgoods0>
     <!-- goods价值占总投资额的比例 -->
     <goodsRate>0.5</goodsRate>
     <!-- changePrice属性为：为了在差价长期不出现反转的平台之间搬运，给查询到的市场挂单价格减去该值，给发送出去的订单加上该值。 -->
     <!-- changePrice = 平台的价格 - 平均值    -->
-
+    <!--设0平台goods权重为pgoods (0<=pgoods<=1) ,那么1平台goods权重就是pgoods1= 1-pgoods;同时0平台的money权重是1-pgoods;同时1平台的money权重是pgoods;
+        数据结构是二维数组：[[pgoods, pgoods1],[Pmoney0, Pmoney1]]. 设pgoods = p 那么该数组的值为[[p, 1-p], [1-p, p] ];
+        如果有三个平台怎么办？只需 pgoods + pgoods1 + pgoods2 = 1
+        -->
     <!-- 币从huobi平台流向其它平台时需满足 的最小差价 -->
-    <huobi changePrice="0">
+    <huobi changePrice="0" pgoods="0" pmoney="0" >
         <okcoin>0.0</okcoin>
         <binance>0.0</binance>
         <okcoinF>0.0</okcoinF>
@@ -25,35 +23,35 @@
         <uniswap>0.0</uniswap>
     </huobi>
     <!-- 币从okcoin平台流向其它平台时需满足 的最小差价 -->
-    <okcoin changePrice="0">
+    <okcoin changePrice="0"  pgoods="0.5" pmoney="0.5" >
         <okcoinF>0.0</okcoinF>
         <huobi>0.0</huobi>
         <binance>0.0</binance>
         <binanceF>0.0</binanceF>
         <uniswap>0.0</uniswap>
     </okcoin>
-    <binance changePrice="0">
+    <binance changePrice="0"  pgoods="0.5" pmoney="0.5" >
         <okcoinF>0.0</okcoinF>
         <huobi>0.0</huobi>
         <okcoin>0.0</okcoin>
         <binanceF>0.0</binanceF>
         <uniswap>0.0</uniswap>
     </binance>
-    <okcoinF changePrice="0">
+    <okcoinF changePrice="0"  pgoods="0" pmoney="0" >
         <okcoin>0.0</okcoin>
         <huobi>0.0</huobi>
         <binance>0.0</binance>
         <binanceF>0.0</binanceF>
         <uniswap>0.0</uniswap>
     </okcoinF>
-    <binanceF changePrice="0">
+    <binanceF changePrice="0"  pgoods="0" pmoney="0" >
         <okcoinF>0.0</okcoinF>
         <huobi>0.0</huobi>
         <okcoin>0.0</okcoin>
         <binance>0.0</binance>
         <uniswap>0.0</uniswap>
     </binanceF>
-    <uniswap changePrice="0">
+    <uniswap changePrice="0"  pgoods="0.5" pmoney="0.5" >
         <okcoinF>0.0</okcoinF>
         <huobi>0.0</huobi>
         <okcoin>0.0</okcoin>

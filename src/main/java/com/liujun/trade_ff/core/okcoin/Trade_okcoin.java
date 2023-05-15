@@ -24,6 +24,7 @@ import com.okex.open.api.service.marketData.MarketDataAPIService;
 import com.okex.open.api.service.marketData.impl.MarketDataAPIServiceImpl;
 import com.okex.open.api.service.trade.TradeAPIService;
 import com.okex.open.api.service.trade.impl.TradeAPIServiceImpl;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -341,7 +342,7 @@ public class Trade_okcoin extends Trade {
      * @throws Exception
      */
     @Override
-    public String withdraw(String productName, double amount, String address, boolean needWrap) throws Exception {
+    public String withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
         JSONArray jsonArr = this.fundingAPIService.getCurrencies(productName).getJSONArray("data");//如果要查询多个币种，用逗号分隔
         JSONObject ccy = null;
         String chain = null;//网络名称
@@ -350,7 +351,7 @@ public class Trade_okcoin extends Trade {
             chain = ccy.getString("chain");
             //china名称举例：ETH-ERC20， ETH-Arbitrum one，ETHK-OKTC， ETH-Optimism，ETH-zkSync Lite
             //USDC-ERC20, USDC-Arbitrum one, USDC-OKTC, USDC-Polygon, USDC-Optimism, USDC-TRC20, USDC-Avalanche C-Chain
-            if (chain.toLowerCase().contains(productName.equalsIgnoreCase(token[0]) ? tokenNetWork[0] : tokenNetWork[1]))
+            if (chain.toUpperCase().contains(netWorkShort.toUpperCase()))
                 break;
             else ccy = null;
         }
@@ -379,15 +380,19 @@ public class Trade_okcoin extends Trade {
             } else {
                 log.info("资金账户余额不足，已划转" + transAmount + ",等待到账....");
             }
+            double financeAmount2 = 0;
             for (int i = 0; i < 10; i++) {
                 Thread.sleep(2000);//等2秒
-                double financeAmount2 = queryFinanceAmount(productName);
+                financeAmount2 = queryFinanceAmount(productName);
                 if (financeAmount2 >= amount) {
                     log.info("资金划转已到账，当前余额" + financeAmount2);
                     break;
                 } else {
                     log.info("资金账户当前余额" + financeAmount2 + ", 等待划转到账");
                 }
+            }//end for
+            if (financeAmount2 < amount) {//如果还是不行，就没办法了
+                return "";
             }
         }
 
@@ -442,7 +447,7 @@ public class Trade_okcoin extends Trade {
         return Double.parseDouble(((JSONObject) balanceObj.getJSONArray("data").get(0)).getString("availBal"));
     }
 
-    public Integer depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception {
+    public double depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception {
         //轮番查询状态，直到返回链上交易哈希tranId. 最多等10分钟
         int sleepSecond = 3;//每三秒查询一次
         for (int i = 0; i < 10 * 60 / sleepSecond; i++) {
@@ -451,7 +456,7 @@ public class Trade_okcoin extends Trade {
                 JSONObject queryResult = fundingAPIService.getDepositHistory(null, null, null, null, null, txId).getJSONArray("data").getJSONObject(0);
                 if (queryResult != null && queryResult.getString("state").equals("2")) {
                     log.info("okx充值已到账" + ", 确认次数actualDepBlkConfirm=" + queryResult.getString("actualDepBlkConfirm"));
-                    return Integer.parseInt(queryResult.getString("actualDepBlkConfirm"));
+                    return Double.parseDouble(queryResult.getString("amt"));
                 } else {
                     if (queryResult != null) {
                         log.info("等待okx充值到账，stat3=" + queryResult.getString("state") + ", 确认次数actualDepBlkConfirm=" + queryResult.getString("actualDepBlkConfirm"));
@@ -488,11 +493,11 @@ public class Trade_okcoin extends Trade {
 
     @Value("${okcoin.goodsNetWork}")
     public void setGoodsNetWork(String goodsNetWork) {
-        tokenNetWork[0] = goodsNetWork;
+        tokenNetWork[0] = StringUtils.isEmpty(goodsNetWork) ? new String[0] : goodsNetWork.split(",");
     }
 
     @Value("${okcoin.moneyNetWork}")
     public void setMoneyNetWork(String moneyNetWork) {
-        tokenNetWork[1] = moneyNetWork;
+        tokenNetWork[1] = StringUtils.isEmpty(moneyNetWork) ? new String[0] : moneyNetWork.split(",");
     }
 }

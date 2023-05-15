@@ -1,7 +1,7 @@
-var avgDiff_maxCell = 500;
+let avgDiff_maxCell = 500;
 $(document).ready(function () {
     initPage();
-    load(5, avgDiff_maxCell);
+    load(1, avgDiff_maxCell);
 
 
 });
@@ -13,11 +13,11 @@ $(document).ready(function () {
  * xAxis_dataArr x坐标数据
  * seriesArr y坐标数据
  */
-var showEchart = function (legend_dataArr, xAxis_dataArr, seriesArr) {
-    var myChart = echarts.init(document.getElementById('main'));
+let showEchart = function (legend_dataArr, xAxis_dataArr, seriesArr) {
+    let myChart = echarts.init(document.getElementById('main'));
 
 // 指定图表的配置项和数据
-    var option = {
+    let option = {
         title: {
             text: '价格偏差走势图'
         },
@@ -53,7 +53,7 @@ var showEchart = function (legend_dataArr, xAxis_dataArr, seriesArr) {
     myChart.setOption(option);
 }//end function
 
-var load = function (timeUnit, maxCell) {
+let load = function (timeUnit, maxCell) {
     $.getJSON(contextPath + '/engine/queryDiffPrice',
         {unit: timeUnit, maxCell: maxCell},
         function (data) {
@@ -64,73 +64,54 @@ var load = function (timeUnit, maxCell) {
                 $('#balance').text('总收入：' + data.totalEarn + ',最近收入：' + data.thisEarn);
                 $('#retMsg').html(data.engineState);
                 // 填充文本框
-                $('#table_adjPrice').html('');
-                for (var i = 0; i < data.legend.length; i++) {
-                    var platName = data.legend[i];
-                    $('#table_adjPrice').append(
-                        '<tr>' +
-                        '<td>' + platName + ':</td>\n' +
-                        ' <td> <input type="text" name="adjustPrice" id="' + platName + '" value="' + data.adjustPrice[platName] + '"  >' +
-                        '<span></span> </td>\n' +
-                        '</tr>\n'
-                    );
+                let html = '<tr><td>adjPrice：</td>\n'
+                for (let platName of data.legend) {
+                    html += '<td>' + platName + ':</td>\n' +
+                        ' <td> <input type="text" style="width: 40px" name="price" id="price_' + platName + '" value="' + data.price[platName] + '"  >' +
+                        '<span></span> </td>\n'
                 }
-                //调节第零个平台的goods占比
-                $('#table_Pgoods').append(
-                    '<tr>' +
-                    '<td>' + data.legend[0] + '</td>\n' +
-                    ' <td> <input type="text" name="Pgoods0" id="Pgoods0" value="' + data.Pgoods0 + '"  >' +
-                    '<span></span> </td>\n' +
-                    '</tr>\n'
-                );
+                $('#table_price').html(html + '</tr>\n');
+
+                //调节平台的goods占比
+                html = '<tr><td>pgoods：</td>'
+                for (let platName of data.legend) {
+                    html += '<td>' + platName + '</td>\n' +
+                        ' <td> <input type="text" style="width: 40px" name="pgoods" id="pgoods_' + platName + '" value="' + data.pgoods[platName] + '"  >' +
+                        '<span></span> </td>\n'
+                }
+                $('#table_pgoods').html(html + '</tr>\n')
+
+                //调节平台的money占比
+                html = '<tr><td>pmoney：</td>'
+                for (let platName of data.legend) {
+                    html += '<td>' + platName + '</td>\n' +
+                        ' <td> <input type="text" style="width: 40px" name="pmoney" id="pmoney_' + platName + '" value="' + data.pmoney[platName] + '"  >' +
+                        '<span></span> </td>\n'
+                }
+                $('#table_pmoney').html(html + '</tr>\n')
+
                 //goods价值占总投资额的比例
-                $('#table_goodsRate').append(
-                    '<tr>' +
-                    '<td>' + data.legend[0] + '</td>\n' +
-                    ' <td> <input type="text" name="goodsRate" id="goodsRate" value="' + data.goodsRate + '"  >' +
+                html = '<tr><td>goodsRate：</td>'
+                html += '<td>各平台总量</td>\n' +
+                    ' <td> <input type="text" style="width: 40px" name="goodsRate" id="goodsRate_' + '' + '" value="' + data.goodsRate + '"  >' +
                     '<span></span> </td>\n' +
-                    '</tr>\n'
-                );
+                    '<td></td>'.repeat((data.legend.length - 1) * 2)
 
-
+                $('#table_goodsRate').html(html + '</tr>\n')
             }// end else
 
         });
 };
 
 
-var initPage = function () {
-
+let initPage = function () {
     //设置偏差
-    $('#setPrice').bind('click', function () {
-        //收集价格
-        var priceStr = '';
-        var inputArr = $('input[name="adjustPrice"]');
-        for (var i = 0; i < inputArr.length; i++) {
-            priceStr += ',';
-            priceStr += $(inputArr[i]).attr('id') + ':' + $(inputArr[i]).val();
-        }
-        priceStr = priceStr.substr(1);
-        $.post(contextPath + '/engine/adjustPrice',
-            {adjustPrice: priceStr},
-            function (data) {
-                $('#retMsg').html(data.retMsg);
-            },
-            'json'
-        );
-    });
-    //设置pgoods0
-    $('#setPgoods0').bind('click', function () {
-        $.post(contextPath + '/engine/pgoods0',
-            {pgoods0: $('#Pgoods0').val()},
-            function (data) {
-                $('#retMsg').html(data.retMsg);
-            },
-            'json'
-        );
-    });
+    $('#set_price').bind('click', () => setX('price'))
+    $('#set_pgoods').bind('click', () => setX('pgoods'))
+    $('#set_pmoney').bind('click', () => setX('pmoney'))
+
     //设置goodsRate
-    $('#setPgoods0').bind('click', function () {
+    $('#set_goodsRate').bind('click', function () {
         $.post(contextPath + '/engine/goodsRate',
             {goodsRate: $('#goodsRate').val()},
             function (data) {
@@ -146,6 +127,7 @@ var initPage = function () {
             {},
             function (data) {
                 $('#retMsg').html(data.retMsg);
+                load(1, avgDiff_maxCell);
             },
             'json'
         );
@@ -181,7 +163,7 @@ var initPage = function () {
                 newPage.document.body.innerText = text;
             },
             dataType: 'text',
-            headers: {Range: 'bytes=-5120'} //http协议中的range协议，bytes=m-n
+            headers: {Range: 'bytes=-25600'} //http协议中的range协议，bytes=m-n
         });
 
     });
@@ -189,5 +171,28 @@ var initPage = function () {
     $('.timeGape').bind('click', function () {
         load($(this).attr('title'), avgDiff_maxCell);
 
+    });
+}
+
+/**
+ * 设置price，pgoods , pmoney
+ * @param x price，pgoods , pmoney
+ */
+function setX(x) {
+    $('#set_' + x).bind('click', function () {
+        //收集value
+        let xStr = '';
+        let inputArr = $('input[name=' + x + ']');
+        for (let input of inputArr) {
+            xStr += ',';
+            xStr += $(input).attr('id').split('_')[1] + ':' + $(input).val();
+        }
+        $.post(contextPath + '/engine/adjust',
+            {key: x, value: xStr.slice(1)},
+            function (data) {
+                $('#retMsg').html(data.retMsg);
+            },
+            'json'
+        );
     });
 }

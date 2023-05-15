@@ -36,7 +36,7 @@ public class WalletAPIServiceImpl implements WalletAPIService {
     }
 
     @Override
-    public Integer receiveToken(String asset, String txId, double amount, boolean needWrap, double gasPriceGwei) {
+    public double receiveToken(String asset, String txId, double amount, boolean needWrap, double gasPriceGwei) {
         try {
             return accountRpc.receiveToken(asset, txId, amount, needWrap, config.getMaxWaitSeconds(), gasPriceGwei)
                     .toFuture().get(config.getMaxWaitSeconds(), TimeUnit.SECONDS);

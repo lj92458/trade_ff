@@ -1,8 +1,11 @@
 package com.liujun.trade_ff.core.binance;
 
+import com.alibaba.fastjson.JSON;
 import com.liujun.trade_ff.core.Engine;
 import com.liujun.trade_ff.core.Prop;
 import com.liujun.trade_ff.core.Trade;
+import com.liujun.trade_ff.core.binance.api.bean.common.CoinInfo;
+import com.liujun.trade_ff.core.binance.api.bean.common.NetWork;
 import com.liujun.trade_ff.core.binance.api.bean.spot.param.PlaceOrderParam;
 import com.liujun.trade_ff.core.binance.api.bean.spot.result.*;
 import com.liujun.trade_ff.core.binance.api.bean.wallet.param.DepositQueryParam;
@@ -26,6 +29,8 @@ import com.liujun.trade_ff.core.modle.AccountInfo;
 import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
 import com.liujun.trade_ff.core.util.HttpUtil;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,6 +38,8 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -84,6 +91,7 @@ public class Trade_binance extends Trade {
     @Value("${binance.feeRate}")
     private double feeRate;
     private String coinPair;
+    private List<CoinInfo> coinInfoList;
     //------------------------
 
 
@@ -94,7 +102,7 @@ public class Trade_binance extends Trade {
     }
 
     @PostConstruct
-    private void init() {
+    private void init() throws IOException {
         this.config = new APIConfiguration();
         config.setEndpoint(url_prex);
         config.setApiKey(apiKey);
@@ -107,7 +115,7 @@ public class Trade_binance extends Trade {
         this.spotAccountAPIService = new SpotAccountAPIServiceImpl(this.config);
         this.spotOrderAPIService = new SpotOrderAPIServiceImpl(this.config);
         this.walletAPIService = new WalletAPIServiceImpl(this.config);
-        coinPair = token[0]+ token[1];
+        coinPair = token[0] + token[1];
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
@@ -115,6 +123,8 @@ public class Trade_binance extends Trade {
             log.error(getPlatName() + " : " + e.getMessage(), e);
 
         }
+        String json = IOUtils.toString(Trade_binance.class.getResourceAsStream("allCoin.json"), StandardCharsets.UTF_8);
+        coinInfoList = JSON.parseArray(json, CoinInfo.class);
 
         this.initSuccess = true;
     }
@@ -307,16 +317,18 @@ public class Trade_binance extends Trade {
      * @throws Exception
      */
     @Override
-    public String withdraw(String productName, double amount, String address, boolean needWrap) throws Exception {
+    public String withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
         String myOrderId = System.currentTimeMillis() + "";
         WithdrawParam param = new WithdrawParam(productName, address, amount);
         //提取货物，就用货物的网络
-        param.setNetwork(productName.equalsIgnoreCase(token[0]) ? tokenNetWork[0] : tokenNetWork[1]);
+        List<NetWork> netWorks = coinInfoList.stream().filter(o -> o.getCoin().equalsIgnoreCase(productName)).findFirst().get().getNetworkList();
+        String netWork = netWorks.stream().filter(o -> o.getNetwork().toUpperCase().contains(netWorkShort.toUpperCase()) || o.getName().toUpperCase().contains(netWorkShort.toUpperCase())).findFirst().get().getNetwork();
+        param.setNetwork(netWork);
         param.setWithdrawOrderId(myOrderId);
-        param.setTransactionFeeFlag(false);
+        param.setTransactionFeeFlag(true);// 手续费从谁扣
         WithdrawResult result = this.walletAPIService.withdraw(param);
         log.info(getPlatName() + "提币请求已提交，id=" + result.getId() + "，请求参数" + param);
-        if(result.getId()==null){
+        if (result.getId() == null) {
             return "";
         }
         //轮番查询状态，直到返回链上交易哈希tranId. 最多等10分钟
@@ -349,10 +361,10 @@ public class Trade_binance extends Trade {
      * @param txId
      * @param amount
      * @param needWrap
-     * @return 网络确认数量。-1表示异常
+     * @return 收到资金量。-1表示异常
      */
     @Override
-    public Integer depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception {
+    public double depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception {
         //轮番查询状态，直到返回链上交易哈希tranId. 最多等10分钟
         int sleepSecond = 3;//每三秒查询一次
         DepositQueryParam param = new DepositQueryParam();
@@ -363,7 +375,7 @@ public class Trade_binance extends Trade {
                 DepositQueryResult queryResult = this.walletAPIService.depositQuery(param);
                 if (queryResult != null && queryResult.getStatus() == 1) {
                     log.info("binance充值已到账" + ", 确认次数confirmTimes=" + queryResult.getConfirmTimes());
-                    return Integer.parseInt(queryResult.getConfirmTimes().split("/")[0]); //onfirmTimes格式是5/100，因此要切割
+                    return Double.parseDouble(queryResult.getAmount());
                 } else {
                     if (queryResult != null) {
                         log.info("等待binance充值到账，status=" + queryResult.getStatus() + ", 确认次数confirmTimes=" + queryResult.getConfirmTimes());
@@ -400,11 +412,11 @@ public class Trade_binance extends Trade {
 
     @Value("${binance.goodsNetWork}")
     public void setGoodsNetWork(String goodsNetWork) {
-        tokenNetWork[0] = goodsNetWork;
+        tokenNetWork[0] = StringUtils.isEmpty(goodsNetWork) ? new String[0] : goodsNetWork.split(",");
     }
 
     @Value("${binance.moneyNetWork}")
     public void setMoneyNetWork(String moneyNetWork) {
-        tokenNetWork[1] = moneyNetWork;
+        tokenNetWork[1] = StringUtils.isEmpty(moneyNetWork) ? new String[0] : moneyNetWork.split(",");
     }
 }

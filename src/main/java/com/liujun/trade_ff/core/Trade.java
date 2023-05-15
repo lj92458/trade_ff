@@ -29,7 +29,7 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
     /**
      * 最对币安，支持多种提币网络。必须指定一种一种网络。例如：uniswap运行在在arbitrum网络上，所以为了给uniswap充值，应该从币安把币提到arbitrum
      */
-    public String[] tokenNetWork = new String[2];
+    public String[][] tokenNetWork = new String[2][];
     /**
      * 每次交易需要的固定费用(例如dex的矿工费)，单位是trade.money，例如usdt、btc
      */
@@ -43,6 +43,7 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
      * 为了在差价长期不出现翻转的平台之间搬运， 对查到的市场挂单，减去该价格，对要发送出的订单，加上该价格。
      */
     private double changePrice = 0.0;
+    public double[] pToken = new double[2];//pgoods和pmoney. pgoods每个平台的goods占总goods的比例
     /**
      * 模式锁定：0无锁，1只能跨平台搬运 ， 2只能在自己平台内部btc/ltc/cny之间转换。因为平台内和跨平台是冲突的
      */
@@ -138,11 +139,12 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
      * @param productName
      * @param amount
      * @param address
+     * @param netWorkShort 简短的网络名称，跟yml中配置的一致。例如avax又叫Avalanche,它们的共同部分就是ava
      * @param needWrap    只有dex需要。当dex被要求发送eth而不是weth，needWrap应该为true，这样就能把weth变成eth并发送。当dex被要求发送weth, needWrap却还是设为true,就会把eth转成weth并发送(这好像没什么意义)
      * @return txId 交易哈希
      * @throws Exception
      */
-    public abstract String withdraw(String productName, double amount, String address, boolean needWrap) throws Exception;
+    public abstract String withdraw(String productName, double amount, String address,String netWorkShort, boolean needWrap) throws Exception;
 
     /**
      * 将不超出账户余额的挂单保存起来
@@ -322,8 +324,8 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
      * @param txId     交易哈希
      * @param amount   金额
      * @param needWrap 只有dex需要。当dex收到eth而不是weth，needWrap应该为true，这样就能把eth变成weth。当dex收到weth, needWrap却还是设为true,就会把weth转成eth(这好像没什么意义)
-     * @return 网络确认数量。-1表示失败
+     * @return 收到资金量。-1表示失败
      * @throws Exception
      */
-    public abstract Integer depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception;
+    public abstract double depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception;
 }
