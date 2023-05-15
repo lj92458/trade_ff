@@ -64,40 +64,40 @@ let load = function (timeUnit, maxCell) {
                 $('#balance').text('总收入：' + data.totalEarn + ',最近收入：' + data.thisEarn);
                 $('#retMsg').html(data.engineState);
                 // 填充文本框
-                let html = '<tr><td>adjPrice：</td>\n'
+                let html = '<td>adjPrice：</td>\n'
                 for (let platName of data.legend) {
                     html += '<td>' + platName + ':</td>\n' +
                         ' <td> <input type="text" style="width: 40px" name="price" id="price_' + platName + '" value="' + data.price[platName] + '"  >' +
                         '<span></span> </td>\n'
                 }
-                $('#table_price').html(html + '</tr>\n');
+                $('#tr_price').html(html);
 
                 //调节平台的goods占比
-                html = '<tr><td>pgoods：</td>'
+                html = '<td>pgoods：</td>'
                 for (let platName of data.legend) {
                     html += '<td>' + platName + '</td>\n' +
                         ' <td> <input type="text" style="width: 40px" name="pgoods" id="pgoods_' + platName + '" value="' + data.pgoods[platName] + '"  >' +
                         '<span></span> </td>\n'
                 }
-                $('#table_pgoods').html(html + '</tr>\n')
+                $('#tr_pgoods').html(html )
 
                 //调节平台的money占比
-                html = '<tr><td>pmoney：</td>'
+                html = '<td>pmoney：</td>'
                 for (let platName of data.legend) {
                     html += '<td>' + platName + '</td>\n' +
                         ' <td> <input type="text" style="width: 40px" name="pmoney" id="pmoney_' + platName + '" value="' + data.pmoney[platName] + '"  >' +
                         '<span></span> </td>\n'
                 }
-                $('#table_pmoney').html(html + '</tr>\n')
+                $('#tr_pmoney').html(html )
 
                 //goods价值占总投资额的比例
-                html = '<tr><td>goodsRate：</td>'
+                html = '<td>goodsRate：</td>'
                 html += '<td>各平台总量</td>\n' +
                     ' <td> <input type="text" style="width: 40px" name="goodsRate" id="goodsRate_' + '' + '" value="' + data.goodsRate + '"  >' +
                     '<span></span> </td>\n' +
                     '<td></td>'.repeat((data.legend.length - 1) * 2)
 
-                $('#table_goodsRate').html(html + '</tr>\n')
+                $('#tr_goodsRate').html(html )
             }// end else
 
         });
