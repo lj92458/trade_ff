@@ -28,7 +28,6 @@ public class VirtualTrade extends Trade {
 
         // 初始查询账户信息。今后只有交易后,才需要重新查询。
         flushAccountInfo();
-        setAccInfo(new AccountInfo());
     }
 
     /**
@@ -45,7 +44,8 @@ public class VirtualTrade extends Trade {
      * 查询账户资产信息 初始化时,需要查询账户信息。今后只有交易后,才需要重新查询。
      */
     public void flushAccountInfo() throws Exception {
-
+        setAccInfo(new AccountInfo());
+        accInfo.freeToken = new double[]{10000000000.0, 10000000000.0};
     }
 
     /**
@@ -56,8 +56,8 @@ public class VirtualTrade extends Trade {
         getMarketDepth()[0].clear();
         getMarketDepth()[1].clear();
         // 清空账户信息
-        getAccInfo().freeToken[0] = 0;
-        getAccInfo().freeToken[1] = 0;
+        //getAccInfo().freeToken[0] = 0;
+        //getAccInfo().freeToken[1] = 0;
         return 0;
     }
 
