@@ -394,20 +394,41 @@
     </pluginRepositories>
 
     <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <fork>false</fork> <!--重要，否则devtools不生效。 实际上是会在 maven 编译的时候新创建一个虚拟机执行。这个新创建 JVM 就是这里的 fork-->
-                </configuration>
-            </plugin>
-        </plugins>
+        <pluginManagement>
+            <plugins>
+<!--                <plugin>-->
+<!--                    <groupId>org.springframework.boot</groupId>-->
+<!--                    <artifactId>spring-boot-maven-plugin</artifactId>-->
+<!--                    <configuration>-->
+<!--                        <fork>false</fork> &lt;!&ndash;重要，否则devtools不生效。 实际上是会在 maven 编译的时候新创建一个虚拟机执行。这个新创建 JVM 就是这里的 fork&ndash;&gt;-->
+<!--                    </configuration>-->
+<!--                </plugin>-->
+            </plugins>
+        </pluginManagement>
+
+        <!-- 一旦自己写了resources，就会把继承的覆盖掉。因此应该把spring-boot-starter-parent里面的内容复制过来 -->
         <resources>
+            <resource>
+                <directory>${basedir}/src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>**/application*.yml</include>
+                    <include>**/application*.yaml</include>
+                    <include>**/application*.properties</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>${basedir}/src/main/resources</directory>
+                <excludes>
+                    <exclude>**/application*.yml</exclude>
+                    <exclude>**/application*.yaml</exclude>
+                    <exclude>**/application*.properties</exclude>
+                </excludes>
+            </resource>
             <resource>
                 <directory>${basedir}/src/main/java</directory>
                 <excludes>
-                    <exclude> **/*.java</exclude>
+                    <exclude>**/*.java</exclude>
                 </excludes>
             </resource>
         </resources>

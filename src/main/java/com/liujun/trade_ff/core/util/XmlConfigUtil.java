@@ -55,8 +55,8 @@ public class XmlConfigUtil {
     /**
      * 保存xml某元素的值，或多个属性。
      *
-     * @param xmlDoc      内存中的Document对象。它的优先级比filePath高，如果内存中没有该对象，传filePath也行
-     * @param filePath    文件路径
+     * @param xmlDoc      内存中的Document对象。它的优先级比filePath高，可以不传
+     * @param filePath    文件路径。必须提供
      * @param elementPath 元素路径
      * @param attr        如果不是null，就是保存元素属性；是null就是保存元素值
      * @param value       值

@@ -360,8 +360,18 @@ public class Engine {
                         }
                         // 检查goods总数量,如果不跟初始值相等,就立即买卖调整。为什么要设置在这里呢？因为挂单后，可能导致超时。然后就抛出异常，跳出for循环没机会检查goods
                         //只有当资金分布均匀，才能处理资金总量的变动。因为前者会误导后者
-                        if (prop.earnMoney) checkTotalGoods();
-                        else checkTotalMoney();
+                        boolean hasAdjust;
+                        if (prop.earnMoney) {
+                            hasAdjust = checkTotalGoods();
+                            if (!hasAdjust) {//如果没有调节goods总量，才应该调节goods占比
+                                checkGoodsRate();
+                            }
+                        } else {
+                            hasAdjust = checkTotalMoney();
+                            if (!hasAdjust) {
+
+                            }
+                        }
 
                     }
                 }
@@ -1083,8 +1093,7 @@ public class Engine {
          * 如果(当前hour)%(时间间隔)==(起始hour)%(时间间隔),
          * 且lastBalance中的"yyyy-MM-dd HH"不等于当前的时间
          */
-        if (currentHour % time_waitBalance == time_beginBalance % time_waitBalance
-                && !currentDateHour.equals(lastBalanceDateHour)) {
+        if (currentHour % time_waitBalance == time_beginBalance % time_waitBalance && !currentDateHour.equals(lastBalanceDateHour)) {
 
             // 将本次余额设置为最后一次余额
             lastBalance = currentBalance;
@@ -1127,7 +1136,7 @@ public class Engine {
         if (prop.earnMoney) {//如果是赚货币，我们认为货币会增加，商品是不会变的。
             totalEarn = bal.totalToken[1] - initBalance.totalToken[1] + bal.getPrice() * (bal.totalToken[0] - initBalance.totalToken[0]);
         } else {//如果是赚商品，我们认为商品会增加，货币是不会变的。
-            totalEarn = (bal.totalToken[1] - initBalance.totalToken[1]) / bal.getPrice() + bal.totalToken[0] - initBalance.totalToken[0];
+            totalEarn = (bal.totalToken[0] - initBalance.totalToken[0]) / bal.getPrice() + bal.totalToken[1] - initBalance.totalToken[1];
         }
         bal.setTotalEarn(totalEarn);
         // 跟上次盈亏比较,计算本次盈亏
@@ -1144,50 +1153,62 @@ public class Engine {
      *
      * @throws Exception 异常
      */
-    public void checkTotalGoods() throws Exception {
-        currentBalance = getCurrentBalance();
+    public boolean checkTotalGoods() throws Exception {
         Balance initBal = new Balance(prop, firstBalance);
         double diffAmount = currentBalance.totalToken[0] - initBal.totalToken[0];
-
-        log.debug("diffAmount:" + currentBalance.totalToken[0] + " , " + initBal.totalToken[0]);
         // 如果变多,就卖.币安规定交易额最少是10美元。信息来源：CELOBUSD交易对的NOTIONAL过滤器 https://www.binance.com/api/v3/exchangeInfo
         if (diffAmount > prop.minTradeMoney / currentBalance.getPrice()) {// 如果变多,就卖.
             log.info("总goods增多" + diffAmount);
-            // 增加一个虚拟的低价市场卖单，诱使程序在其他平台卖
-            virtualTrade.setCurrentPrice(currentBalance.getPrice());
-            // 设置市场挂单
-            ArrayList<MarketOrder>[] depth = virtualTrade.getMarketDepth();
-            MarketOrder marketOrder = new MarketOrder();
-            marketOrder.setPlatId(virtualTrade.platId);
-            marketOrder.setPrice(currentBalance.getPrice() * (1 - prop.huaDian));//价格设置不不光是在这里，还要在下一轮比价时
-            marketOrder.setVolume(diffAmount);
-            depth[0].add(marketOrder);
-            // log.info("virtual:卖单" + depth[0].size());
-            // 设置账户信息
-            AccountInfo accInfo = new AccountInfo();
-            accInfo.freeToken[1] = diffAmount * currentBalance.getPrice();
-            virtualTrade.setAccInfo(accInfo);
+            putVirtualOrder(true, diffAmount);
+            return true;
         } else if (diffAmount < -prop.minTradeMoney / currentBalance.getPrice()) {// 如果变少就买
             diffAmount = 0 - diffAmount;
             log.info("总goods减少" + diffAmount);
-            // 增加一个虚拟的高价市场买单，诱使程序在其他平台买
-            virtualTrade.setCurrentPrice(currentBalance.getPrice());
-            // 设置市场挂单
-            ArrayList<MarketOrder>[] depth = virtualTrade.getMarketDepth();
-            MarketOrder marketOrder = new MarketOrder();
-            marketOrder.setPlatId(virtualTrade.platId);
-            marketOrder.setPrice(currentBalance.getPrice() * (1 + prop.huaDian));//价格设置不不光是在这里，还要在下一轮比价时
-            marketOrder.setVolume(diffAmount);
-            depth[1].add(marketOrder);
-            log.info("virtual:买单" + depth[1].size() + ",市场均价" + currentBalance.getPrice());
-            // log.info("currentBalance.getPrice():"+currentBalance.getPrice());
-            // 设置账户信息
-            AccountInfo accInfo = new AccountInfo();
-            accInfo.freeToken[0] = diffAmount + 10;
-            virtualTrade.setAccInfo(accInfo);
-
+            putVirtualOrder(false, diffAmount);
+            return true;
         }
+        return false;
+    }
 
+    public boolean checkGoodsRate() throws Exception {
+        Balance initBal = new Balance(prop, firstBalance);
+        double targetAmount = (currentBalance.totalToken[0] + currentBalance.totalToken[1] / currentBalance.getPrice()) * goodsRate;
+        double diffAmount = currentBalance.totalToken[0] - targetAmount;
+        // 如果变多了whenBalance,就卖.币安规定交易额最少是10美元。信息来源：CELOBUSD交易对的NOTIONAL过滤器 https://www.binance.com/api/v3/exchangeInfo
+        if (currentBalance.totalToken[0] / targetAmount > 1 + whenBalance && diffAmount > prop.minTradeMoney / currentBalance.getPrice()) {// 如果变多,就卖.
+            log.info("总goods比targetAmount多" + diffAmount);
+            initBal.totalToken[0] -= diffAmount;
+            initBal.totalToken[1] += diffAmount * currentBalance.getPrice();
+            //putVirtualOrder(true, diffAmount);
+        } else if (currentBalance.totalToken[0] / targetAmount < 1 - whenBalance && diffAmount < -prop.minTradeMoney / currentBalance.getPrice()) {// 如果变少就买
+            diffAmount = 0 - diffAmount;
+            log.info("总goods比targetAmount少" + diffAmount);
+            initBal.totalToken[0] += diffAmount;
+            initBal.totalToken[1] -= diffAmount * currentBalance.getPrice();
+            //putVirtualOrder(false, diffAmount);
+        } else {
+            return false;
+        }
+        firstBalance = initBal.toString();
+        saveXmlNodeValue("firstBalance", firstBalance);
+        return true;
+    }
+
+    private void putVirtualOrder(boolean isSell, double diffAmount) {
+        virtualTrade.setCurrentPrice(currentBalance.getPrice());
+        ArrayList<MarketOrder>[] depth = virtualTrade.getMarketDepth();
+        MarketOrder marketOrder = new MarketOrder();
+        marketOrder.setPlatId(virtualTrade.platId);
+        marketOrder.setVolume(diffAmount);
+        if (isSell) {// 增加一个虚拟的低价市场卖单，诱使程序在其他平台卖
+            marketOrder.setPrice(currentBalance.getPrice() * (1 - prop.huaDian));//价格设置不不光是在这里，还要在下一轮比价时
+            depth[0].add(marketOrder);
+            //virtualTrade.accInfo.freeToken[1] = diffAmount * currentBalance.getPrice();
+        } else {// 增加一个虚拟的高价市场买单，诱使程序在其他平台买
+            marketOrder.setPrice(currentBalance.getPrice() * (1 + prop.huaDian));//价格设置不不光是在这里，还要在下一轮比价时
+            depth[1].add(marketOrder);
+            //virtualTrade.accInfo.freeToken[0] = diffAmount + 10;
+        }
     }
 
     /**
@@ -1195,8 +1216,7 @@ public class Engine {
      *
      * @throws Exception 异常
      */
-    public void checkTotalMoney() throws Exception {
-        currentBalance = getCurrentBalance();
+    public boolean checkTotalMoney() throws Exception {
         Balance initBal = new Balance(prop, firstBalance);
         double diffAmount = currentBalance.totalToken[1] - initBal.totalToken[1];
 
@@ -1206,14 +1226,16 @@ public class Engine {
             //log.info("diffAmount:" + currentBalance.totalToken[1] + " , " + initBal.totalToken[1]);
 
             //
+            return true;
         } else if (diffAmount < -prop.minTradeMoney) {// 如果变少就买
             diffAmount = 0 - diffAmount;
             log.info("总Money减少" + diffAmount);
             //log.info("diffAmount:" + currentBalance.totalToken[1] + " , " + initBal.totalToken[1]);
 
             //
+            return true;
         }
-
+        return false;
     }
 
     /**
@@ -1255,7 +1277,7 @@ public class Engine {
     private void saveXmlNodeValue(String key, String value) throws Exception {
         synchronized (xmlDoc) {//对xmlDoc的写操作，可能引发线程安全问题，所以要加锁
             String path = key.replace("_", "/");
-            XmlConfigUtil.saveXmlAttribute(xmlDoc, null, "conf/" + path, null, value);
+            XmlConfigUtil.saveXmlAttribute(xmlDoc, xmlFilePath, "conf/" + path, null, value);
         }
     }
 
@@ -1335,20 +1357,20 @@ public class Engine {
                     switch (key) {
                         case "price":
                             //设置偏差（大标签）
-                            XmlConfigUtil.saveXmlAttribute(xmlDoc, null, "conf/" + arr[0], CHANGE_PRICE, arr[1]);
+                            XmlConfigUtil.saveXmlAttribute(xmlDoc, xmlFilePath, "conf/" + arr[0], CHANGE_PRICE, arr[1]);
                             //初始化阀值（小标签），将大标签里面的每个小标签都设为0
                             for (int j = 0; j < valueArr.length; j++) {
                                 if (i != j) {
                                     String elementPath = "conf/" + arr[0] + "/" + valueArr[j].split(":")[0];
-                                    XmlConfigUtil.saveXmlAttribute(xmlDoc, null, elementPath, null, "" + (0 / prop.moneyPrice));
+                                    XmlConfigUtil.saveXmlAttribute(xmlDoc, xmlFilePath, elementPath, null, "" + (0 / prop.moneyPrice));
                                 }
                             }
                             break;
                         case "pgoods":
-                            XmlConfigUtil.saveXmlAttribute(xmlDoc, null, "conf/" + arr[0], "pgoods", arr[1]);
+                            XmlConfigUtil.saveXmlAttribute(xmlDoc, xmlFilePath, "conf/" + arr[0], "pgoods", arr[1]);
                             break;
                         case "pmoney":
-                            XmlConfigUtil.saveXmlAttribute(xmlDoc, null, "conf/" + arr[0], "pmoney", arr[1]);
+                            XmlConfigUtil.saveXmlAttribute(xmlDoc, xmlFilePath, "conf/" + arr[0], "pmoney", arr[1]);
                             break;
                         default:
                             throw new Exception("未知的动作" + key);
