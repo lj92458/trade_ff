@@ -100,6 +100,7 @@ public class Trade_okcoin extends Trade {
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
+            flushMarketDeeps();
         } catch (Exception e) {
             log.error(getPlatName() + " : " + e.getMessage(), e);
 
@@ -407,8 +408,12 @@ public class Trade_okcoin extends Trade {
         w.setFee(prop.transTokenFromat.format(fee));
         w.setChain(chain);
         log.info("提币请求" + w);
-        JSONObject drawResult = (JSONObject) this.fundingAPIService.Withdrawal(w).getJSONArray("data").get(0);
-        log.info("提币结果：" + drawResult.toJSONString());
+        JSONObject jsonObject = this.fundingAPIService.Withdrawal(w);
+        log.info("提币结果：" + jsonObject.toJSONString());
+        if (!jsonObject.getString("code").equals("0")) {
+            return "";
+        }
+        JSONObject drawResult = (JSONObject) jsonObject.getJSONArray("data").get(0);
         if (drawResult.getString("wdId") == null) {
             return "";
         }

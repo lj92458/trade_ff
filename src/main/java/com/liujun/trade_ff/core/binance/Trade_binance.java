@@ -119,6 +119,7 @@ public class Trade_binance extends Trade {
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
+            flushMarketDeeps();
         } catch (Exception e) {
             log.error(getPlatName() + " : " + e.getMessage(), e);
 

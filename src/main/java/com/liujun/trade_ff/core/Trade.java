@@ -65,7 +65,7 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
     /**
      * 当前价格。执行了flushMarketDeeps才会赋值
      */
-    private double currentPrice = 1;
+    private double currentPrice = 0;
     public HttpUtil httpUtil;
 
     /**

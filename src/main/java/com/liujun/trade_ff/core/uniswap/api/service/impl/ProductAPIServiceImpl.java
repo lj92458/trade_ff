@@ -73,7 +73,7 @@ public class ProductAPIServiceImpl implements ProductAPIService {
                 double[] priceArr = productRpc.getGasPriceGweiAndEthPrice(moneySymbol, poolFee).toFuture().get(10L, TimeUnit.SECONDS);
                 return priceArr;
             } catch (Exception e) {
-                log.error("queryTokenBalance异常", e);
+                log.error("getGasPriceGweiAndEthPrice异常", e);
                 if (e.getMessage() != null && e.getMessage().contains("failed to meet quorum")) {
                     log.error("多个节点返回值不一致(继续重试)" + e.getMessage().substring(0, 140));
                     if (retryCount >= maxRetry - 1) {

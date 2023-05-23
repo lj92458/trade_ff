@@ -84,7 +84,8 @@ public class VirtualTrade extends Trade {
     }
 
     public boolean isActive() {
-        return getAccInfo().freeToken[0] > 0 || getAccInfo().freeToken[1] > 0;
+        //return getAccInfo().freeToken[0] > 0 || getAccInfo().freeToken[1] > 0;
+        return getMarketDepth()[0].size() > 0 || getMarketDepth()[1].size() > 0;
     }
 
     /**

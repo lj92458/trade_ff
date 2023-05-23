@@ -39,7 +39,7 @@ public class AccountAPIServiceImpl implements AccountAPIService {
 
                 return list;
             } catch (Exception e) {
-                log.error("queryTokenBalance异常", e);
+                log.error("getAccounts异常", e);
                 if (e.getMessage() != null && e.getMessage().contains("failed to meet quorum")) {
                     log.error("多个节点返回值不一致(继续重试)" + e.getMessage().substring(0, 140));
                     if (retryCount >= maxRetry - 1) {

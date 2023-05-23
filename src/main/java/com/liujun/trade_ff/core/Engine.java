@@ -209,6 +209,7 @@ public class Engine {
                 if (!trade.initSuccess) {
                     throw new Exception(platName + ":初始化失败!!!");
                 }
+                //trade.flushAccountInfo();
                 //设置配置属性
                 trade.setChangePrice(Double.parseDouble(readXmlAttribute(platName, CHANGE_PRICE)));
                 trade.pToken = new double[]{
@@ -1043,11 +1044,11 @@ public class Engine {
                 double amount = Double.parseDouble(prop.transTokenFromat.format(mindiff));
                 log.info("mindiff=" + mindiff + ", 格式化后amount=" + amount);
                 //检测amount价值多少美元。如果大于10美元，才处理
-                double amountValue = tokenIndex == 0 ? amount / t1.getCurrentPrice() : amount / prop.moneyPrice;
+                double amountValue = tokenIndex == 0 ? amount * t1.getCurrentPrice() : amount * prop.moneyPrice;
+                t1.diffToken[tokenIndex] -= amount;
+                t2.diffToken[tokenIndex] -= amount;
                 if (amountValue > 10) {
                     //扣除双方金额，并生成转账单
-                    t1.diffToken[tokenIndex] -= amount;
-                    t2.diffToken[tokenIndex] -= amount;
                     balanceFutureList.add(CompletableFuture.runAsync(() -> {
                         try {
                             double receiveAmount = TransTokenUtil.trans(this, t1, t2, tokenIndex, amount);
@@ -1057,7 +1058,7 @@ public class Engine {
                         }
                     }, threadPoolExecutor));
                 } else {
-                    log.info("要转移的金额小于10美元，忽略不计。amountValue=" + amountValue);
+                    log.info("要转移的金额小于10美元，不用启动线程。amountValue=" + amountValue);
                 }
             }//end while
 
@@ -1106,7 +1107,7 @@ public class Engine {
     /**
      * 用当前余额,减去最近一次存储的余额,计算盈亏
      */
-    public Balance getCurrentBalance() {
+    public Balance getCurrentBalance() throws Exception {
         Balance bal = new Balance(prop);
         // 从最后一个参数开始设置
         double totalPrice = 0;
@@ -1116,6 +1117,9 @@ public class Engine {
         for (Trade trade : actualPlats()) {
             log.debug(trade.getPlatName() + "当前价格" + trade.getCurrentPrice());
             AccountInfo inf = trade.getAccInfo();
+            if (trade.getCurrentPrice() == 0) {
+                throw new Exception(trade.getPlatName() + ": trade.getCurrentPrice()返回的结果是0,代表异常");
+            }
             totalPrice += trade.getCurrentPrice();
             if (platInfo.length() != 0) {
                 platInfo.append(",");
