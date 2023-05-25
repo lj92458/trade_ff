@@ -367,6 +367,9 @@ public class Trade_okcoin extends Trade {
             FundsTransfer fundsTransfer = new FundsTransfer();
             fundsTransfer.setCcy(productName);
             String transAmount = prop.transTokenFromat.format((amount - financeAmount) * 1.0001);//多增加万分之一，防止浮点数误差带来的失败
+            if (Double.parseDouble(transAmount) > amount) {//如果扩大万分之一，导致超过原来的值，就要用原来的值
+                transAmount = prop.transTokenFromat.format(amount);
+            }
             fundsTransfer.setAmt(transAmount);//6：资金账户 18：交易账户
             fundsTransfer.setFrom("18");
             fundsTransfer.setTo("6");

@@ -300,22 +300,14 @@ public class Engine {
         try {
 
             for (long i = 0; !stop && i < 86400 / time_queryOrder; i++) {// 每隔24小时(),自动退出
-                //
                 long beginTime = System.currentTimeMillis();
-
+                queryMarketDepth(i);//查询市场挂单，以及账户余额
+                matchMarketDepth();//匹配/撮合市场挂单。
                 balanceAccount(i);//检测是否平衡，如果发现不平，就调平
-
                 if (isBalanceFinished) {
-                    //查询市场挂单，以及账户余额
-                    queryMarketDepth(i);
-                    //匹配/撮合市场挂单。
-                    matchMarketDepth();
-                    //匹配/撮合备份的市场挂单,并完成交易(已确保我方有相应的资金，能吃掉这些挂单)。这两种匹配是独立的，没有关系。
-                    matchBackupDepth();
-                    // 盘点当前余额,计算盈亏------------------------
-                    saveBalance();
-                    //检查系统健康状况
-                    checkStatus(beginTime);
+                    matchBackupDepth();//匹配/撮合备份的市场挂单,并完成交易(已确保我方有相应的资金，能吃掉这些挂单)。这两种匹配是独立的，没有关系。
+                    saveBalance();// 盘点当前余额,计算盈亏------------------------
+                    checkStatus(beginTime);//检查系统健康状况
                 }
                 // 睡眠一段时间,保证两次搬运间隔time_queryOrder秒
                 long useTime = System.currentTimeMillis() - beginTime;// 用时
@@ -386,7 +378,7 @@ public class Engine {
                     && bal.totalToken[1] / currentBalance.totalToken[1] > 0.99;
             if (!isBalanceFinished) {
                 log.info("资金没有平衡，系统正在等它平衡......");
-            } else if (isBalanceFinished) {
+            } else {
                 log.info("资金已经平衡");
             }
         }
