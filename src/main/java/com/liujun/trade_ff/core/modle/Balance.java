@@ -29,8 +29,8 @@ public class Balance {
     private void init() {
         fmt_goods = new DecimalFormat(prop.formatGoodsStr);
         fmt_money = new DecimalFormat(prop.formatMoneyStr);
-        fmt_goods.setRoundingMode(RoundingMode.HALF_UP);
-        fmt_money.setRoundingMode(RoundingMode.HALF_UP);
+        fmt_goods.setRoundingMode(RoundingMode.DOWN);
+        fmt_money.setRoundingMode(RoundingMode.DOWN);
 
     }
 

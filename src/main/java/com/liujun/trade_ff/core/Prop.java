@@ -60,10 +60,11 @@ public class Prop {
     public String transTokenFormatStr = "0.000000";//minAmount小数位数，必须跟transTokenFormatStr位数保持一致，否则engine.balanceToken的while循环是死循环
     //0.000003是个非常小的数，假设币价10万美元，0.000003才价值0.3美元，面对2000美元的以太币，它才价值0.006美元
     public double minAmount = 3.0 / (Double.parseDouble(transTokenFormatStr.replace("0.", "1")));
-    public Format transTokenFromat = new DecimalFormat(transTokenFormatStr);
+    public DecimalFormat transTokenFromat = new DecimalFormat(transTokenFormatStr);
 
     @PostConstruct
     public void init() {
+        transTokenFromat.setRoundingMode(RoundingMode.DOWN);
         minTradeMoney = 10.0 / moneyPrice;
         minMoney = atLeastEarn / this.moneyPrice;//一次最少要赚的钱
         //滑点，用来强制调平资金.这是一个比例. 1%应该够了吧？如果平台深度不足以吃到足够的单，再把这个滑点调大。
@@ -72,19 +73,19 @@ public class Prop {
         huaDian2 = 0.03 / 100;//滑点，正常下单时，为了买到。这是一个比例
         /*
         fmt_goods = new DecimalFormat(this.formatGoodsStr);
-        fmt_goods.setRoundingMode(RoundingMode.HALF_UP);
+        fmt_goods.setRoundingMode(RoundingMode.DOWN);
 
         fmt_money = new DecimalFormat(this.formatMoneyStr);
-        fmt_money.setRoundingMode(RoundingMode.HALF_UP);
+        fmt_money.setRoundingMode(RoundingMode.DOWN);
         */
         fmt_goods = ThreadLocal.withInitial(() -> {
             DecimalFormat fmt = new DecimalFormat(this.formatGoodsStr);
-            fmt.setRoundingMode(RoundingMode.HALF_UP);
+            fmt.setRoundingMode(RoundingMode.DOWN);
             return fmt;
         });
         fmt_money = ThreadLocal.withInitial(() -> {
             DecimalFormat fmt = new DecimalFormat(this.formatMoneyStr);
-            fmt.setRoundingMode(RoundingMode.HALF_UP);
+            fmt.setRoundingMode(RoundingMode.DOWN);
             return fmt;
         });
 
