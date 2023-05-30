@@ -234,7 +234,7 @@ public class Trade_uniswap extends Trade {
         for (; orderCount < userOrderList.size(); orderCount++) {
             UserOrder order = userOrderList.get(orderCount);
             // 为了确保能成交，可以将卖单价格降低。买单不能动。因为可能导致money不够。
-            double addPrice = (order.getType().equals("sell") ? -1 * prop.huaDian2 : prop.huaDian2);
+            double addPrice = (order.getType().equals("sell") ? -1 * prop.huaDian2 : 0);
             TransResult result = this.orderAPIService.addOrder(
                     coinPair,
                     order.getType(),

@@ -220,7 +220,7 @@ public class Trade_binance extends Trade {
             UserOrder order = userOrderList.get(orderCount);
 
             // 为了确保能成交，可以将卖单价格降低。买单不能动。因为可能导致money不够。
-            double addPrice = (order.getType().equals("sell") ? -1 * prop.huaDian2 : prop.huaDian2);
+            double addPrice = (order.getType().equals("sell") ? -1 * prop.huaDian2 : 0);
             PlaceOrderParam param = new PlaceOrderParam();
             param.setSymbol(coinPair);//symbol
             param.setSide(Enum.valueOf(OrderSide.class, order.getType().toUpperCase()));// orderSide
