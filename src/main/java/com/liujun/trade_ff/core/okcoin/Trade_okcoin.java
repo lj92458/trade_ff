@@ -403,13 +403,13 @@ public class Trade_okcoin extends Trade {
         //开始从资金账户提币
         Withdrawal w = new Withdrawal();
         w.setCcy(productName);
-        w.setAmt("" + amount);
         w.setDest("4");
         w.setToAddr(address);//必须是认证过的地址
         //手续费取中间值。不用格式化成6位小数吧？
         double fee = (Double.parseDouble(ccy.getString("minFee")) + Double.parseDouble(ccy.getString("maxFee"))) / 2.0;
         w.setFee(prop.transTokenFromat.format(fee));
         w.setChain(chain);
+        w.setAmt("" + (amount - fee));
         log.info("提币请求" + w);
         JSONObject jsonObject = this.fundingAPIService.Withdrawal(w);
         log.info("提币结果：" + jsonObject.toJSONString());

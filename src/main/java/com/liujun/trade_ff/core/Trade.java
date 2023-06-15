@@ -13,6 +13,7 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Getter
 @Setter
@@ -140,11 +141,11 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
      * @param amount
      * @param address
      * @param netWorkShort 简短的网络名称，跟yml中配置的一致。例如avax又叫Avalanche,它们的共同部分就是ava
-     * @param needWrap    只有dex需要。当dex被要求发送eth而不是weth，needWrap应该为true，这样就能把weth变成eth并发送。当dex被要求发送weth, needWrap却还是设为true,就会把eth转成weth并发送(这好像没什么意义)
+     * @param needWrap     只有dex需要。当dex被要求发送eth而不是weth，needWrap应该为true，这样就能把weth变成eth并发送。当dex被要求发送weth, needWrap却还是设为true,就会把eth转成weth并发送(这好像没什么意义)
      * @return txId 交易哈希
      * @throws Exception
      */
-    public abstract String withdraw(String productName, double amount, String address,String netWorkShort, boolean needWrap) throws Exception;
+    public abstract String withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception;
 
     /**
      * 将不超出账户余额的挂单保存起来
@@ -282,27 +283,34 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
         }
     }
 
-    //对订单进行合并。
+    //对订单进行合并。如果1inch同时存在买单和卖单，就分别合并。
     protected void merge() {
         log.info(getPlatName() + "存在订单:" + userOrderList.toString());
-        double totalMoney = userOrderList.stream().mapToDouble(o -> o.getPrice() * o.getVolume()).sum();
-        double totalVolume = userOrderList.stream().mapToDouble(UserOrder::getVolume).sum();
-        //todo 买单按照价格从低往高排列，所以用最高价买，更容易成交? dex不能这样，因为容易亏损：如果你用高价买，会导致needAmountOut和slippage失去意义
-        UserOrder lastOrder = userOrderList.get(userOrderList.size() - 1);
-        lastOrder.setVolume(totalVolume);
-        if (this.fixFee == 0) {//cex可以
-            lastOrder.setPrice(lastOrder.getPrice()
-                    //+ (lastOrder.getType().equals("buy") ? 1 : -1) * 0.0142 / prop.moneyPrice//为了确保成交，就提高买价，压低卖价
-            );
-        } else {//dex不可以
-            lastOrder.setPrice(totalMoney / totalVolume);
-        }
-        userOrderList.clear();
-        if (lastOrder.getVolume() >= prop.minTradeMoney / engine.currentBalance.getPrice()) {
-            userOrderList.add(lastOrder);
-        } else {
-            log.warn(getPlatName() + "数量太小" + lastOrder.getVolume());
-        }
+        List<UserOrder> mergedList = new ArrayList<>();
+        String[] orderTypes = new String[]{"buy", "sell"};
+        for (String orderType : orderTypes) {
+            List<UserOrder> orderList = userOrderList.stream().filter(o -> o.getType().equals(orderType)).collect(Collectors.toList());
+            if (orderList.size() > 0) {
+                double totalMoney = orderList.stream().mapToDouble(o -> o.getPrice() * o.getVolume()).sum();
+                double totalVolume = orderList.stream().mapToDouble(UserOrder::getVolume).sum();
+                //todo 买单按照价格从低往高排列，所以用最高价买，更容易成交? dex不能这样，因为容易亏损：如果你用高价买，会导致needAmountOut和slippage失去意义
+                UserOrder lastOrder = orderList.get(orderList.size() - 1);
+                lastOrder.setVolume(totalVolume);
+                if (this.fixFee == 0) {//cex可以
+                    lastOrder.setPrice(lastOrder.getPrice()
+                            //+ (lastOrder.getType().equals("buy") ? 1 : -1) * 0.0142 / prop.moneyPrice//为了确保成交，就提高买价，压低卖价
+                    );
+                } else {//dex不可以
+                    lastOrder.setPrice(totalMoney / totalVolume);
+                }
+                if (lastOrder.getVolume() >= prop.minTradeMoney / engine.currentBalance.getPrice()) {
+                    mergedList.add(lastOrder);
+                } else {
+                    log.warn(getPlatName() + "数量太小" + lastOrder.getVolume());
+                }
+            }
+        }//end for
+        userOrderList = mergedList;
     }
 
 

@@ -1,4 +1,4 @@
-package com.liujun.trade_ff.core.uniswap;
+package com.liujun.trade_ff.core.oneInch;
 
 import com.liujun.trade_ff.core.Engine;
 import com.liujun.trade_ff.core.Prop;
@@ -8,12 +8,12 @@ import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
 import com.liujun.trade_ff.core.uniswap.api.bean.*;
 import com.liujun.trade_ff.core.uniswap.api.service.AccountAPIService;
-import com.liujun.trade_ff.core.uniswap.api.service.OrderAPIService;
-import com.liujun.trade_ff.core.uniswap.api.service.ProductAPIService;
+import com.liujun.trade_ff.core.oneInch.api.service.OrderAPIService;
+import com.liujun.trade_ff.core.oneInch.api.service.ProductAPIService;
 import com.liujun.trade_ff.core.uniswap.api.service.WalletAPIService;
 import com.liujun.trade_ff.core.uniswap.api.service.impl.AccountAPIServiceImpl;
-import com.liujun.trade_ff.core.uniswap.api.service.impl.OrderApiServiceImpl;
-import com.liujun.trade_ff.core.uniswap.api.service.impl.ProductAPIServiceImpl;
+import com.liujun.trade_ff.core.oneInch.api.service.impl.OrderApiServiceImpl;
+import com.liujun.trade_ff.core.oneInch.api.service.impl.ProductAPIServiceImpl;
 import com.liujun.trade_ff.core.uniswap.api.service.impl.WalletAPIServiceImpl;
 import com.liujun.trade_ff.core.util.HttpUtil;
 import org.apache.commons.lang3.StringUtils;
@@ -31,10 +31,10 @@ import java.util.List;
 @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
 @Component
 @Scope("prototype")
-public class Trade_uniswap extends Trade {
-    private static final Logger log = LoggerFactory.getLogger(Trade_uniswap.class);
+public class Trade_oneInch extends Trade {
+    private static final Logger log = LoggerFactory.getLogger(Trade_oneInch.class);
     private static final Logger log_haveTrade = LoggerFactory.getLogger("have_trade");
-    public static final String platName = "uniswap";
+    public static final String platName = "oneInch";
 
 
     // ===============================
@@ -46,20 +46,17 @@ public class Trade_uniswap extends Trade {
     /**
      * 网址前缀
      */
-    @Value("${uniswap.url}")
+    @Value("${oneInch.url}")
     private String url_prex;
 
-    @Value("${uniswap.ethAddress}")
+    @Value("${oneInch.ethAddress}")
     private String ethAddress;
 
-    @Value("${uniswap.gasPercent}")
-    private double gasPercent;
-
-    @Value("${uniswap.feeRate}")
-    private double feeRate;// 对于uniswap来说，不要用feeRate调整挂单价格，因为返回的市场挂单价格，已经把手续费考虑进去了。
+    @Value("${oneInch.feeRate}")
+    private double feeRate;// 对于oneInch来说，不要用feeRate调整挂单价格，因为返回的市场挂单价格，已经把手续费考虑进去了？？？
     private String coinPair;
     private double gasPriceGwei;
-    @Value("${uniswap.gasLimit}")
+    @Value("${oneInch.gasLimit}")
     double gasLimit;
     //------------------------
 
@@ -72,7 +69,7 @@ public class Trade_uniswap extends Trade {
         return new Double(feeRate * 100_0000).intValue();
     }
 
-    public Trade_uniswap(HttpUtil httpUtil, int platId, double usdRate, Prop prop, Engine engine) throws Exception {
+    public Trade_oneInch(HttpUtil httpUtil, int platId, double usdRate, Prop prop, Engine engine) throws Exception {
         super(httpUtil, platId, usdRate, prop, engine);
 
 
@@ -111,18 +108,20 @@ public class Trade_uniswap extends Trade {
         // 初始化,清空
         ArrayList<MarketOrder>[] depth = getMarketDepth();
         try {
-            Book book = productAPIService.bookProductsByProductId(coinPair, prop.marketOrderSize + "", "" + (feeRate + 0.001), getPoolFee());
+            Book book = productAPIService.bookProductsByProductId(coinPair, accInfo.freeToken[0],accInfo.freeToken[1]);
 
-            // 处理卖方、卖方挂单
+            // 处理卖方、卖方挂单。asks里面每个元素是数组，数组中有两个字符串,依次代表：price,volume. oneInch还会返回更多信息：protocols和estimatedGas
             List<String[]>[] listArr = new List[]{book.getAsks(), book.getBids()};
             for (int i = 0; i < 2; i++) {
                 depth[i].clear();
-                for (String[] strings : listArr[i])
+                for (String[] strings : listArr[i]) {
                     depth[i].add(new MarketOrder(platId, Double.parseDouble(strings[0]), Double.parseDouble(strings[1])));
+                    log.info("protocols=" + strings[2] + ", estimatedGas=" + strings[3]);
+                }
             }
 
             sort(depth);// 排序
-            changeMarketPrice(1 - 0, 1 + 0);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了
+            changeMarketPrice(1 - feeRate, 1 + feeRate);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了？？？
             backupUsefulOrder();
             // 设置当前价格
             setCurrentPrice((depth[0].get(0).getPrice() + depth[1].get(0).getPrice()) / 2.0);
@@ -175,8 +174,7 @@ public class Trade_uniswap extends Trade {
 
     private double adjustGasPrice(double gasPrice) {
         double percent;
-
-        percent = gasPercent;
+        percent = 1.0;
         return Double.parseDouble(new DecimalFormat("0.0000").format(gasPrice * percent));
 
     }
@@ -196,7 +194,7 @@ public class Trade_uniswap extends Trade {
             }
         }// end for
         merge();//对订单进行合并
-        changeMyOrderPrice(1 - 0, 1 + 0);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了
+        changeMyOrderPrice(1 - feeRate, 1 + feeRate);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了
         for (; orderCount < userOrderList.size(); orderCount++) {
             UserOrder order = userOrderList.get(orderCount);
             // 为了确保能成交，可以将卖单价格降低。买单不能动。因为可能导致money不够。
@@ -209,8 +207,7 @@ public class Trade_uniswap extends Trade {
                     this.gasPriceGwei + "",
                     //(this.profitRate + prop.atLeastRate) * 0.5,//todo profitRate是大于prop.atLeastRate的，允许更大的滑点，会导致更容易成交，但这也是亏损的根源。
                     //prop.atLeastRate * 1.0,// todo 如果在激烈的竞争下，竞争不赢别人，就不要用大滑点。小滑点导致不容易成交，会白白浪费矿工费，但在矿工费便宜的链上就没关系
-                    this.profitRate,
-                    getPoolFee()
+                    this.profitRate
             );
             // 设置orderId
             order.setOrderId("" + result.getOrderId());
@@ -265,8 +262,8 @@ public class Trade_uniswap extends Trade {
                 haveEarn += order.getDiffPrice() * order.getVolume();
             }
         }// end for
-        log.info("-----uniswap已删掉" + finishedList.size() + "个已成交的,还剩" + userOrderList.size() + "个未成交");
-        log_haveTrade.info("uniswap++++++++++++++至少赚了" + prop.formatMoney(haveEarn) + ". 完全成交" + finishedList.size() + "个订单：" + finishedList.toString());
+        log.info("-----oneInch已删掉" + finishedList.size() + "个已成交的,还剩" + userOrderList.size() + "个未成交");
+        log_haveTrade.info("oneInch++++++++++++++至少赚了" + prop.formatMoney(haveEarn) + ". 完全成交" + finishedList.size() + "个订单：" + finishedList.toString());
 
         // userOrderList里面剩下的是没完全成交的,全部撤单。一次最多撤10个
 
@@ -307,37 +304,37 @@ public class Trade_uniswap extends Trade {
         return this.walletAPIService.receiveToken(asset, txId, amount, needWrap, gasPriceGwei);
     }
 
-    @Value("${uniswap.goods}")
+    @Value("${oneInch.goods}")
     public void setGoods(String goods) {
         token[0] = goods;
     }
 
-    @Value("${uniswap.money}")
+    @Value("${oneInch.money}")
     public void setMoney(String money) {
         token[1] = money;
     }
 
-    @Value("${uniswap.goodsAddress}")
+    @Value("${oneInch.goodsAddress}")
     public void setGoodsAddress(String goodsAddress) {
         tokenAddress[0] = goodsAddress;
     }
 
-    @Value("${uniswap.moneyAddress}")
+    @Value("${oneInch.moneyAddress}")
     public void setMoneyAddress(String moneyAddress) {
         tokenAddress[1] = moneyAddress;
     }
 
-    @Value("${uniswap.netWork}")
+    @Value("${oneInch.netWork}")
     public void setGoodsNetWork(String goodsNetWork) {
         tokenNetWork[0] = StringUtils.isEmpty(goodsNetWork) ? new String[0] : goodsNetWork.split(",");
     }
 
-    @Value("${uniswap.netWork}")
+    @Value("${oneInch.netWork}")
     public void setMoneyNetWork(String moneyNetWork) {
         tokenNetWork[1] = StringUtils.isEmpty(moneyNetWork) ? new String[0] : moneyNetWork.split(",");
     }
 
-    @Value("${uniswap.naitveToken}")
+    @Value("${oneInch.naitveToken}")
     public void setNativeToken(String nativeToken) {
         super.setNaitveToken(nativeToken);
     }

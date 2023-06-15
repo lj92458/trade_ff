@@ -1171,12 +1171,12 @@ public class Engine {
         double targetAmount = (currentBalance.totalToken[0] + currentBalance.totalToken[1] / currentBalance.getPrice()) * goodsRate;
         double diffAmount = currentBalance.totalToken[0] - targetAmount;
         // 如果变多了whenBalance,就卖.币安规定交易额最少是10美元。信息来源：CELOBUSD交易对的NOTIONAL过滤器 https://www.binance.com/api/v3/exchangeInfo
-        if (currentBalance.totalToken[0] / targetAmount > 1 + whenBalance && diffAmount > prop.minTradeMoney / currentBalance.getPrice()) {// 如果变多,就卖.
+        if (currentBalance.totalToken[0] / targetAmount > 1 + whenBalance / 2.0 && diffAmount > prop.minTradeMoney / currentBalance.getPrice()) {// 如果变多,就卖.
             log.info("总goods比targetAmount多" + diffAmount);
             initBal.totalToken[0] -= diffAmount;
             initBal.totalToken[1] += diffAmount * currentBalance.getPrice();
             //putVirtualOrder(true, diffAmount);
-        } else if (currentBalance.totalToken[0] / targetAmount < 1 - whenBalance && diffAmount < -prop.minTradeMoney / currentBalance.getPrice()) {// 如果变少就买
+        } else if (currentBalance.totalToken[0] / targetAmount < 1 - whenBalance / 2.0 && diffAmount < -prop.minTradeMoney / currentBalance.getPrice()) {// 如果变少就买
             diffAmount = 0 - diffAmount;
             log.info("总goods比targetAmount少" + diffAmount);
             initBal.totalToken[0] += diffAmount;
