@@ -94,9 +94,13 @@ okcoin:
   # usdc支持7个网络：ERC20, Arbitrum one, OKTC, Polygon, Optimism, TRC20, Avalanche C-Chain
   #各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串(okex的Avalanche和币安的avaxc,共同点是ava; okex的polygon和币安的matic共同点是:币安的network字段或name字段包含polygon)。
   goodsNetWork: arbitrum,optimism,oktc,zksync #空着表示不参与转账。各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串
+  goodsNetWorkContain:  #goodsNetWork还应该包含什么?例如ETH-Arbitrum one和ETH-Arbitrum one (bridge) 的区分
+  goodsNetWorkNotContain:  #goodsNetWork不包含什么
   money: usdc #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
   moneyAddress: "0x0e7a26909abecd20de80f849b41d692d40abe773"
   moneyNetWork: arbitrum,optimism,polygon,ava,zkSync,oktc,trc20 #提币时，提到哪个网络？空着表示不参与转账。
+  moneyNetWorkContain: #moneyNetWork还应该包含什么?例如ETH-Arbitrum one和ETH-Arbitrum one (bridge) 的区分
+  moneyNetWorkNotContain: #moneyNetWork不包含什么
   apiKey: 72794b7e-bdd4-4c21-b96a-b95b55c23f13
   secretKey: FDD6E6055E550125A528918DABB0FC72
   url: https://www.okx.com

@@ -111,7 +111,7 @@ public class Trade_uniswap extends Trade {
         // 初始化,清空
         ArrayList<MarketOrder>[] depth = getMarketDepth();
         try {
-            Book book = productAPIService.bookProductsByProductId(coinPair, prop.marketOrderSize + "", "" + (feeRate + 0.001), getPoolFee());
+            Book book = productAPIService.bookProductsByProductId(coinPair, prop.marketOrderSize + "", "" + (feeRate + 0.0005), getPoolFee());
 
             // 处理卖方、卖方挂单
             List<String[]>[] listArr = new List[]{book.getAsks(), book.getBids()};

@@ -340,32 +340,29 @@ public class Engine {
         if (isBalanceFinished) {//如果资金调平已完成(已到账)，才让引擎正常工作。如果没完成就只能等待
             //查询资金情况 -----------间隔小于6秒时，每隔6秒，查一次账户。否则每次都查.
             if (i != 0 && (time_queryOrder > 6 || (i * time_queryOrder) % 6 == 0)) {
-                boolean needBalance = true;
                 this.currentBalance = getCurrentBalance();
-                try {
-                    needBalance = balanceTokens();// 检查各平台的coin数量,如果分布不平衡,就自动转移。转移成功后，再查询账户
-                } finally {
-                    if (needBalance) {//只有真正的转移了资金，才需要查询账户
-                        isBalanceFinished = false;
-                    } else if (needCheckTotalAmount) {
-                        if ((i * time_queryOrder) % 12 == 0) {
-                            flushAccount(true);
-                        }
-                        // 检查goods总数量,如果不跟初始值相等,就立即买卖调整。为什么要设置在这里呢？因为挂单后，可能导致超时。然后就抛出异常，跳出for循环没机会检查goods
-                        //只有当资金分布均匀，才能处理资金总量的变动。因为前者会误导后者
-                        boolean hasAdjust;
-                        if (prop.earnMoney) {
-                            hasAdjust = checkTotalGoods();
-                            if (!hasAdjust) {//如果没有调节goods总量，才应该调节goods占比
+                if (needCheckTotalAmount) {
+                    if ((i * time_queryOrder) % 12 == 0) {
+                        flushAccount(true);
+                    }
+                    // 检查goods总数量,如果不跟初始值相等,就立即买卖调整。为什么要设置在这里，而不能在挂单函数里？因为挂单后，可能导致超时。然后就抛出异常、跳出for循环，没机会检查goods
+                    //只有当资金分布均匀，才能处理资金总量的变动。因为前者会误导后者
+                    if (prop.earnMoney) {
+                        if (!checkTotalGoods()) {//如果没有调节goods总量，才应该调节goods分布
+                            if (balanceTokens()) {// 如果调节了goods的分布，才需要查询账户
+                                isBalanceFinished = false;
+                            } else {//调节总goods占总财富比例，优先级是最低的。别的事情都没发生，才会调节总goods占总财富比例
                                 checkGoodsRate();
                             }
-                        } else {
-                            hasAdjust = checkTotalMoney();
-                            if (!hasAdjust) {
-
+                        }
+                    } else {
+                        if (!checkTotalMoney()) {//如果没有调节goods总量，才应该调节goods分布
+                            if (balanceTokens()) {// 如果调节了goods的分布，才需要查询账户
+                                isBalanceFinished = false;
+                            } else {//调节总goods占总财富比例，优先级是最低的。别的事情都没发生，才会调节总goods占总财富比例
+                                checkGoodsRate();
                             }
                         }
-
                     }
                 }
             }
@@ -744,7 +741,8 @@ public class Engine {
      * @return EarnCost
      * @throws Exception 异常
      */
-    private EarnCost helpadjustLimit(MarketOrder ask, MarketOrder bid, boolean[] passArr, boolean[] passAdjust1Arr, Set<Integer> platIdSet, EarnCost maxEarnCost) throws
+    private EarnCost helpadjustLimit(MarketOrder ask, MarketOrder bid, boolean[] passArr,
+                                     boolean[] passAdjust1Arr, Set<Integer> platIdSet, EarnCost maxEarnCost) throws
             Exception {
         int arrayIndex = bid.getPlatId() * 10 + ask.getPlatId();
         // 计算差价
@@ -841,7 +839,8 @@ public class Engine {
      * @return EarnCost
      * @throws Exception 异常
      */
-    private EarnCost helpCreateOrders(MarketOrder ask, MarketOrder bid, boolean[] passArr, Set<Integer> platIdSet, EarnCost maxEarnCost) throws Exception {
+    private EarnCost helpCreateOrders(MarketOrder ask, MarketOrder bid, boolean[] passArr, Set<
+            Integer> platIdSet, EarnCost maxEarnCost) throws Exception {
 
         int arrayIndex = bid.getPlatId() * 10 + ask.getPlatId();
         // 计算差价
@@ -1013,12 +1012,14 @@ public class Engine {
                     if (trade.accInfo.freeToken[tokenIndex] / targetAmount > 1) {//粗略的把每个平台划分成多方、少方
                         trade.diffToken[tokenIndex] = trade.accInfo.freeToken[tokenIndex] - targetAmount;
                         sendTokenList.add(trade);
-                        if (trade.accInfo.freeToken[tokenIndex] / targetAmount > 1 + whenBalance) needBalance = true;
+                        if (trade.accInfo.freeToken[tokenIndex] / targetAmount > 1 + whenBalance)
+                            needBalance = true;
 
                     } else if (trade.accInfo.freeToken[tokenIndex] / targetAmount < 1) {
                         trade.diffToken[tokenIndex] = targetAmount - trade.accInfo.freeToken[tokenIndex];
                         receiveTokenList.add(trade);
-                        if (trade.accInfo.freeToken[tokenIndex] / targetAmount < 1 - whenBalance) needBalance = true;
+                        if (trade.accInfo.freeToken[tokenIndex] / targetAmount < 1 - whenBalance)
+                            needBalance = true;
                     }
                 }
             }

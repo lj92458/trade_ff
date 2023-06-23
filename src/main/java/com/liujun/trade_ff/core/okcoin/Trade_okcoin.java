@@ -33,7 +33,9 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 第五版api https://github.com/CollmeYH/okex-java-sdk-api-v5
@@ -72,6 +74,10 @@ public class Trade_okcoin extends Trade {
     @Value("${okcoin.feeRate}")
     private double feeRate;
     private String coinPair;
+    @Value("${okcoin.moneyNetWorkContain}")
+    public String moneyNetWorkContain;
+    @Value("${okcoin.moneyNetWorkNotContain}")
+    public String moneyNetWorkNotContain;
     //------------------------
 
 
@@ -346,19 +352,24 @@ public class Trade_okcoin extends Trade {
     public String withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
         JSONArray jsonArr = this.fundingAPIService.getCurrencies(productName).getJSONArray("data");//如果要查询多个币种，用逗号分隔
         JSONObject ccy = null;
-        String chain = null;//网络名称
+        List<JSONObject> ccyList = new ArrayList<>();
         for (Object o : jsonArr) {//从多条链中找到我们要的链
             ccy = (JSONObject) o;
-            chain = ccy.getString("chain");
             //china名称举例：ETH-ERC20， ETH-Arbitrum one，ETHK-OKTC， ETH-Optimism，ETH-zkSync Lite
             //USDC-ERC20, USDC-Arbitrum one, USDC-OKTC, USDC-Polygon, USDC-Optimism, USDC-TRC20, USDC-Avalanche C-Chain
-            if (chain.toUpperCase().contains(netWorkShort.toUpperCase()))
-                break;
-            else ccy = null;
+            if (ccy.getString("chain").toUpperCase().contains(netWorkShort.toUpperCase()))
+                ccyList.add(ccy);
         }
-        if (ccy == null) {
+        if (ccyList.size() == 0) {
             throw new Exception(productName + " 不存在于指定网络:" + tokenNetWork[0] + "_" + tokenNetWork[1] + ", 可选的网络是：" + jsonArr.toJSONString());
         }
+        if (StringUtils.isNotEmpty(moneyNetWorkContain)) {
+            ccyList = ccyList.stream().filter(o -> o.getString("chain").toUpperCase().contains(moneyNetWorkContain.toUpperCase())).collect(Collectors.toList());
+        }
+        if (StringUtils.isNotEmpty(moneyNetWorkNotContain)) {
+            ccyList = ccyList.stream().filter(o -> !o.getString("chain").toUpperCase().contains(moneyNetWorkNotContain.toUpperCase())).collect(Collectors.toList());
+        }
+        ccy = ccyList.get(0);
 
         //如果资金账户余额不足，就从交易账户划转
         double financeAmount = queryFinanceAmount(productName);
@@ -408,7 +419,7 @@ public class Trade_okcoin extends Trade {
         //手续费取中间值。不用格式化成6位小数吧？
         double fee = (Double.parseDouble(ccy.getString("minFee")) + Double.parseDouble(ccy.getString("maxFee"))) / 2.0;
         w.setFee(prop.transTokenFromat.format(fee));
-        w.setChain(chain);
+        w.setChain(ccy.getString("chain"));
         w.setAmt("" + (amount - fee));
         log.info("提币请求" + w);
         JSONObject jsonObject = this.fundingAPIService.Withdrawal(w);
@@ -508,4 +519,5 @@ public class Trade_okcoin extends Trade {
     public void setMoneyNetWork(String moneyNetWork) {
         tokenNetWork[1] = StringUtils.isEmpty(moneyNetWork) ? new String[0] : moneyNetWork.split(",");
     }
+
 }

@@ -310,7 +310,8 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
                 }
             }
         }//end for
-        userOrderList = mergedList;
+        userOrderList.clear();
+        userOrderList.addAll(mergedList);
     }
 
 
