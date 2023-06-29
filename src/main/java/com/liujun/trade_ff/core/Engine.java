@@ -1423,7 +1423,10 @@ public class Engine {
      * 如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与
      */
     private boolean needSkipDexWhenAdjustGoods(Trade trade) {
-        return !dexSync && virtualTrade.isActive() && trade.getFixFee() > 0;
+        //return !dexSync && virtualTrade.isActive() && trade.getFixFee() > 0;
+        // bug修复：如果不从dex调节goods,系统就会卡住：因为币都在okx了，但是币还是不够，那么就要买。但是这时usdc都在dex了，不从dex买，还能在哪里买？
+        //goods总量对不上，就不会触发goods跨平台搬运
+        return false;
     }
 
     /**
