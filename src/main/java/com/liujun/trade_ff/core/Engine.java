@@ -66,7 +66,7 @@ public class Engine {
     Prop prop;
     public boolean initSuccess = false;//初始化是否成功
     public boolean stop = false;//是否结束
-    public String firstBalance;
+    public String firstBalanceStr;
     public Document xmlDoc;// 可修改可存储的配置参数,xml文件。在jar文件外面
     public AvgpriceThread avgpriceThread;
     public int maxOrderNum = 75;//最多处理多少市场挂单
@@ -125,6 +125,8 @@ public class Engine {
     public boolean canBalance;
     @Value("${trade.needCheckTotalAmount}")
     public boolean needCheckTotalAmount;
+    @Value("${trade.tokenAllInDex}")
+    public boolean tokenAllInDex;
     // ====重要属性=============
     /**
      * 存放各个平台的交易对象
@@ -188,7 +190,7 @@ public class Engine {
                 throw e;
             }
 
-            firstBalance = readXmlProp("firstBalance");
+            firstBalanceStr = readXmlProp("firstBalance");
 
             openPriceGap = Double.parseDouble(readXmlProp("openPriceGap"));
 
@@ -209,7 +211,6 @@ public class Engine {
                 if (!trade.initSuccess) {
                     throw new Exception(platName + ":初始化失败!!!");
                 }
-                //trade.flushAccountInfo();
                 //设置配置属性
                 trade.setChangePrice(Double.parseDouble(readXmlAttribute(platName, CHANGE_PRICE)));
                 trade.pToken = new double[]{
@@ -270,8 +271,8 @@ public class Engine {
                 lastBalance = new Balance(prop, lastBalanceStr);
             } catch (Exception e) {
                 // 如果余额文件不存在,就创建并写入初始记录,并赋值给lastBalance
-                FileUtils.writeStringToFile(balanceFile, firstBalance, charset);
-                lastBalance = new Balance(prop, firstBalance);
+                FileUtils.writeStringToFile(balanceFile, firstBalanceStr, charset);
+                lastBalance = new Balance(prop, firstBalanceStr);
             }
             currentBalance = getCurrentBalance();
             // end 设置余额记录---------------------------
@@ -504,6 +505,9 @@ public class Engine {
         //如果平台备份的有。
         if (totalDepth[1].size() > 0 && totalDepth[0].size() > 0) {
 
+            if (totalDepth[1].get(0).getPrice() <= 0 || totalDepth[0].get(0).getPrice() <= 0) {
+                throw new Exception("价格不能为负数：市场买单" + totalDepth[1].get(0).getPrice() + ", 市场卖单" + totalDepth[0].get(0).getPrice());
+            }
             double diffPrice = totalDepth[1].get(0).getPrice()
                     - totalDepth[0].get(0).getPrice();
             if (diffPrice > 0) {
@@ -653,7 +657,6 @@ public class Engine {
                                 }
                             }//end for
                             trade.cancelOrder();// 撤销没完全成交的订单
-                            trade.flushAccountInfo();// 并刷新账户信息
                         } else {
                             log_haveTrade.info(trade.getPlatName() + "--------  0 个挂单---------------------------------------");
                         }
@@ -670,6 +673,7 @@ public class Engine {
             CompletableFuture.allOf(tradeFutureList.toArray(new CompletableFuture<?>[0])).get(time_oneCycle, TimeUnit.SECONDS);
         } finally {
             flushAccount(true);
+            checkTotalGoods();
         }
 
         log_haveTrade.info("===================================================================================");
@@ -976,7 +980,7 @@ public class Engine {
 
 
     /**
-     * 检查各平台的goods数量,如果分布不平衡,就自动转移。转移成功后，再查询账户。
+     * 检查各平台的两种token数量,如果分布不平衡,就自动转移。转移成功后，再查询账户。
      * 这个方法会造成主线程阻塞
      *
      * @return boolean 是否发生了转移
@@ -1006,7 +1010,7 @@ public class Engine {
         for (int platIndex = 0; platIndex < actualPlats().size(); platIndex++) {
             Trade trade = actualPlats().get(platIndex);
             double targetAmount = currentBalance.totalToken[tokenIndex] * trade.pToken[tokenIndex];
-            if (trade.pToken[tokenIndex] > 0.01) {//只对有效的pToken进行处理
+            if (trade.pToken[tokenIndex] >= 0.001) {//只对有效的pToken进行处理
                 //当该平台的配置参数tokenNetWork不为空，才表示开启划转
                 if (trade.getTokenNetWork()[tokenIndex].length > 0) {
                     if (trade.accInfo.freeToken[tokenIndex] / targetAmount > 1) {//粗略的把每个平台划分成多方、少方
@@ -1055,8 +1059,7 @@ public class Engine {
                 }
             }//end while
 
-            //【不要在这里等，而是在调用它的函数内等】等待币转移到账。最多等10分钟。如果正常结束，就必然到账了。如果没到账，系统会检测资金总量，并一直等待
-            //CompletableFuture.allOf(balanceFutureList.toArray(new CompletableFuture<?>[0])).get(60 * 10, TimeUnit.SECONDS);
+            //【不要在这里等，而是在调用它的函数balanceTokens内等】等待币转移到账。最多等10分钟。如果正常结束，就必然到账了。如果没到账，系统会检测资金总量，并一直等待
         }//end if
         return balanceFutureList;
     }
@@ -1110,8 +1113,8 @@ public class Engine {
         for (Trade trade : actualPlats()) {
             log.debug(trade.getPlatName() + "当前价格" + trade.getCurrentPrice());
             AccountInfo inf = trade.getAccInfo();
-            if (trade.getCurrentPrice() == 0) {
-                throw new Exception(trade.getPlatName() + ": trade.getCurrentPrice()返回的结果是0,代表异常");
+            if (trade.getCurrentPrice() <= 0) {
+                throw new Exception(trade.getPlatName() + ": trade.getCurrentPrice() <=0,代表异常:" + trade.getCurrentPrice());
             }
             totalPrice += trade.getCurrentPrice();
             if (platInfo.length() != 0) {
@@ -1128,7 +1131,7 @@ public class Engine {
         bal.totalToken[1] = totalMoney;
         //
         // 跟初始余额比较,计算总共盈亏
-        Balance initBalance = new Balance(prop, firstBalance);
+        Balance initBalance = new Balance(prop, firstBalanceStr);
         double totalEarn;
         if (prop.earnMoney) {//如果是赚货币，我们认为货币会增加，商品是不会变的。
             totalEarn = bal.totalToken[1] - initBalance.totalToken[1] + bal.getPrice() * (bal.totalToken[0] - initBalance.totalToken[0]);
@@ -1151,7 +1154,7 @@ public class Engine {
      * @throws Exception 异常
      */
     public boolean checkTotalGoods() throws Exception {
-        Balance initBal = new Balance(prop, firstBalance);
+        Balance initBal = new Balance(prop, firstBalanceStr);
         double diffAmount = currentBalance.totalToken[0] - initBal.totalToken[0];
         // 如果变多,就卖.币安规定交易额最少是10美元。信息来源：CELOBUSD交易对的NOTIONAL过滤器 https://www.binance.com/api/v3/exchangeInfo
         if (diffAmount > prop.minTradeMoney / currentBalance.getPrice()) {// 如果变多,就卖.
@@ -1167,31 +1170,39 @@ public class Engine {
         return false;
     }
 
+    /**
+     * 检查并调整goods价值占总财富的比例。当goods被调整时，money也跟着调整
+     *
+     * @return
+     * @throws Exception
+     */
     public boolean checkGoodsRate() throws Exception {
-        Balance initBal = new Balance(prop, firstBalance);
+        Balance initBal = new Balance(prop, firstBalanceStr);
         double targetAmount = (currentBalance.totalToken[0] + currentBalance.totalToken[1] / currentBalance.getPrice()) * goodsRate;
         double diffAmount = currentBalance.totalToken[0] - targetAmount;
         // 如果变多了whenBalance,就卖.币安规定交易额最少是10美元。信息来源：CELOBUSD交易对的NOTIONAL过滤器 https://www.binance.com/api/v3/exchangeInfo
         if (currentBalance.totalToken[0] / targetAmount > 1 + whenBalance / 2.0 && diffAmount > prop.minTradeMoney / currentBalance.getPrice()) {// 如果变多,就卖.
             log.info("总goods比targetAmount多" + diffAmount);
-            initBal.totalToken[0] -= diffAmount;
+            initBal.totalToken[0] = targetAmount;
             initBal.totalToken[1] += diffAmount * currentBalance.getPrice();
-            //putVirtualOrder(true, diffAmount);
         } else if (currentBalance.totalToken[0] / targetAmount < 1 - whenBalance / 2.0 && diffAmount < -prop.minTradeMoney / currentBalance.getPrice()) {// 如果变少就买
             diffAmount = 0 - diffAmount;
             log.info("总goods比targetAmount少" + diffAmount);
-            initBal.totalToken[0] += diffAmount;
+            initBal.totalToken[0] = targetAmount;
             initBal.totalToken[1] -= diffAmount * currentBalance.getPrice();
-            //putVirtualOrder(false, diffAmount);
         } else {
             return false;
         }
-        firstBalance = initBal.toString();
-        saveXmlNodeValue("firstBalance", firstBalance);
+        firstBalanceStr = initBal.toString();
+        saveXmlNodeValue("firstBalance", firstBalanceStr);
+        log.info("currentBalance: " + currentBalance);
+        log.info("重新设置firstBalance: " + firstBalanceStr);
+
+        checkTotalGoods();
         return true;
     }
 
-    private void putVirtualOrder(boolean isSell, double diffAmount) {
+    private void putVirtualOrder(boolean isSell, double diffAmount) throws Exception {
         virtualTrade.setCurrentPrice(currentBalance.getPrice());
         ArrayList<MarketOrder>[] depth = virtualTrade.getMarketDepth();
         MarketOrder marketOrder = new MarketOrder();
@@ -1199,12 +1210,10 @@ public class Engine {
         marketOrder.setVolume(diffAmount);
         if (isSell) {// 增加一个虚拟的低价市场卖单，诱使程序在其他平台卖
             marketOrder.setPrice(currentBalance.getPrice() * (1 - prop.huaDian));//价格设置不不光是在这里，还要在下一轮比价时
-            depth[0].add(marketOrder);
-            //virtualTrade.accInfo.freeToken[1] = diffAmount * currentBalance.getPrice();
+            if (depth[0].size() == 0) depth[0].add(marketOrder);
         } else {// 增加一个虚拟的高价市场买单，诱使程序在其他平台买
             marketOrder.setPrice(currentBalance.getPrice() * (1 + prop.huaDian));//价格设置不不光是在这里，还要在下一轮比价时
-            depth[1].add(marketOrder);
-            //virtualTrade.accInfo.freeToken[0] = diffAmount + 10;
+            if (depth[1].size() == 0) depth[1].add(marketOrder);
         }
     }
 
@@ -1214,7 +1223,7 @@ public class Engine {
      * @throws Exception 异常
      */
     public boolean checkTotalMoney() throws Exception {
-        Balance initBal = new Balance(prop, firstBalance);
+        Balance initBal = new Balance(prop, firstBalanceStr);
         double diffAmount = currentBalance.totalToken[1] - initBal.totalToken[1];
 
         log.debug("diffAmount:" + currentBalance.totalToken[1] + " , " + initBal.totalToken[1]);

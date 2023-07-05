@@ -108,8 +108,8 @@ public class Trade_oneInch extends Trade {
         // 初始化,清空
         ArrayList<MarketOrder>[] depth = getMarketDepth();
         try {
-            Book book = productAPIService.bookProductsByProductId(coinPair, accInfo.freeToken[0],accInfo.freeToken[1]);
-
+            Book book = productAPIService.bookProductsByProductId(coinPair, accInfo.freeToken[0], accInfo.freeToken[1]);
+            //Book book = productAPIService.bookProductsByProductId(coinPair, 0.001, 10);
             // 处理卖方、卖方挂单。asks里面每个元素是数组，数组中有两个字符串,依次代表：price,volume. oneInch还会返回更多信息：protocols和estimatedGas
             List<String[]>[] listArr = new List[]{book.getAsks(), book.getBids()};
             for (int i = 0; i < 2; i++) {
@@ -121,13 +121,16 @@ public class Trade_oneInch extends Trade {
             }
 
             sort(depth);// 排序
-            changeMarketPrice(1 - feeRate, 1 + feeRate);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了？？？
+            changeMarketPrice(1 - 0, 1 + 0);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了？？？
             backupUsefulOrder();
             // 设置当前价格
             setCurrentPrice((depth[0].get(0).getPrice() + depth[1].get(0).getPrice()) / 2.0);
+            //log.info("最大差价：" + (depth[1].get(0).getPrice() - depth[0].get(0).getPrice()));
             //
         } catch (Exception e) {
-            // log.error(getPlatName()+"" + e.getMessage());
+            log.error(getPlatName() + e.getMessage());
+            depth[0].clear();
+            depth[1].clear();
             throw e;
         }
     }
@@ -194,24 +197,46 @@ public class Trade_oneInch extends Trade {
             }
         }// end for
         merge();//对订单进行合并
-        changeMyOrderPrice(1 - feeRate, 1 + feeRate);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了
-        for (; orderCount < userOrderList.size(); orderCount++) {
-            UserOrder order = userOrderList.get(orderCount);
+        changeMyOrderPrice(1 - 0, 1 + 0);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了
+
+        //如果两个订单，分别是买单、卖单。就调用1inch特制的函数
+        if (userOrderList.size() == 2 && !userOrderList.get(0).getType().equals(userOrderList.get(1).getType())) {
+            UserOrder order1 = userOrderList.get(0);
+            UserOrder order2 = userOrderList.get(1);
             // 为了确保能成交，可以将卖单价格降低。买单不能动。因为可能导致money不够。
-            double addPrice = (order.getType().equals("sell") ? -1 * prop.huaDian2 : 0);
-            TransResult result = this.orderAPIService.addOrder(
+            TransResult result = this.orderAPIService.addTwoOrder(
                     coinPair,
-                    order.getType(),
-                    Prop.fmt_money.get().format(order.getPrice() * (1 + addPrice)),
-                    Prop.fmt_goods.get().format(order.getVolume()),
+                    order1.getType(),
+                    Prop.fmt_money.get().format(order1.getPrice()),
+                    Prop.fmt_goods.get().format(order1.getVolume()),
                     this.gasPriceGwei + "",
                     //(this.profitRate + prop.atLeastRate) * 0.5,//todo profitRate是大于prop.atLeastRate的，允许更大的滑点，会导致更容易成交，但这也是亏损的根源。
                     //prop.atLeastRate * 1.0,// todo 如果在激烈的竞争下，竞争不赢别人，就不要用大滑点。小滑点导致不容易成交，会白白浪费矿工费，但在矿工费便宜的链上就没关系
-                    this.profitRate
+                    this.profitRate * 0.5,
+                    order2.getType(),
+                    Prop.fmt_money.get().format(order2.getPrice()),
+                    Prop.fmt_goods.get().format(order2.getVolume())
             );
-            // 设置orderId
-            order.setOrderId("" + result.getOrderId());
-        }// end for
+            // 设置orderId ?同步提交的订单，不会返回id
+            //order.setOrderId("" + result.getOrderId());
+        } else {
+            for (; orderCount < userOrderList.size(); orderCount++) {
+                UserOrder order = userOrderList.get(orderCount);
+                // 为了确保能成交，可以将卖单价格降低。买单不能动。因为可能导致money不够。
+                TransResult result = this.orderAPIService.addOrder(
+                        coinPair,
+                        order.getType(),
+                        Prop.fmt_money.get().format(order.getPrice()),
+                        Prop.fmt_goods.get().format(order.getVolume()),
+                        this.gasPriceGwei + "",
+                        //(this.profitRate + prop.atLeastRate) * 0.5,//todo profitRate是大于prop.atLeastRate的，允许更大的滑点，会导致更容易成交，但这也是亏损的根源。
+                        //prop.atLeastRate * 1.0,// todo 如果在激烈的竞争下，竞争不赢别人，就不要用大滑点。小滑点导致不容易成交，会白白浪费矿工费，但在矿工费便宜的链上就没关系
+                        this.profitRate * 0.5
+                );
+                // 设置orderId
+                order.setOrderId("" + result.getOrderId());
+            }// end for
+        }
         return userOrderList.size();
     }
 

@@ -16,7 +16,6 @@ import java.text.DecimalFormat;
  */
 @Getter
 @Setter
-@AllArgsConstructor
 @NoArgsConstructor
 public class MarketOrder implements Comparable<MarketOrder>, Cloneable {
     /**
@@ -32,6 +31,15 @@ public class MarketOrder implements Comparable<MarketOrder>, Cloneable {
      * 数量
      */
     private double volume;
+
+    public MarketOrder(int platId, double price, double volume) throws Exception {
+        if (price <= 0 || volume <= 0) {
+            throw new Exception("price或volume不能为负数： price=" + price + ", volume=" + volume);
+        }
+        this.platId = platId;
+        this.price = price;
+        this.volume = volume;
+    }
 
 
     public int compareTo(MarketOrder arg0) {

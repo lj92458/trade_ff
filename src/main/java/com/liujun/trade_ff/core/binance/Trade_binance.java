@@ -138,14 +138,13 @@ public class Trade_binance extends Trade {
     public void flushMarketDeeps() throws Exception {
         // 初始化,清空
         ArrayList<MarketOrder>[] depth = getMarketDepth();
-        depth[0].clear();
-        depth[1].clear();
         try {
             Depth depthResult = spotProductAPIService.marketDepth(coinPair, prop.marketOrderSize);
             List<String[]>[] listArr = new List[]{depthResult.getAsks(), depthResult.getBids()};
             for (int i = 0; i < 2; i++) {
-                for (String[] arr : listArr[i])
-                    depth[i].add(new MarketOrder(platId, Double.parseDouble(arr[0]), Double.parseDouble(arr[1])));
+                depth[i].clear();
+                for (String[] strings : listArr[i])
+                    depth[i].add(new MarketOrder(platId, Double.parseDouble(strings[0]), Double.parseDouble(strings[1])));
             }
 
             sort(depth);// 排序
@@ -155,7 +154,9 @@ public class Trade_binance extends Trade {
             setCurrentPrice((depth[0].get(0).getPrice() + depth[1].get(0).getPrice()) / 2.0);
             //
         } catch (Exception e) {
-            // log.error(getPlatName()+"" + e.getMessage());
+            log.error(getPlatName() + e.getMessage());
+            depth[0].clear();
+            depth[1].clear();
             throw e;
         }
     }
@@ -218,6 +219,10 @@ public class Trade_binance extends Trade {
         changeMyOrderPrice(1 - feeRate, 1 + feeRate);
         for (; orderCount < userOrderList.size(); orderCount++) {
             UserOrder order = userOrderList.get(orderCount);
+
+            //如果需要调拨资金，就不要提交订单
+            if (tokenTransferDex2Cex(order))
+                return 0;
 
             // 为了确保能成交，可以将卖单价格降低。买单不能动。因为可能导致money不够。
             double addPrice = (order.getType().equals("sell") ? -1 * prop.huaDian2 : 0);

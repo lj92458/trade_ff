@@ -2,7 +2,7 @@
 
 <conf>
     <!-- 启用的平台 -->
-    <enablePlat>uniswap,okcoin,binance</enablePlat>
+    <enablePlat>oneInch,okcoin,binance</enablePlat>
     <!-- 开仓时，两个平台之间的差价。跟配置文件中平台出现的先后顺序有关：用前一个平台减后一个 -->
     <openPriceGap>0</openPriceGap>
     <lastChange>2016-01-02 10:01:01</lastChange>
@@ -19,12 +19,12 @@
         <uniswap>0.0</uniswap>
     </huobi>
     <!-- 币从okcoin平台流向其它平台时需满足 的最小差价 -->
-    <okcoin changePrice="0" pgoods="0.5" pmoney="0.5">
+    <okcoin changePrice="0" pgoods="0.001" pmoney="0.001">
         <okcoinF>0.0</okcoinF>
         <huobi>0.0</huobi>
         <binance>0.0</binance>
         <binanceF>0.0</binanceF>
-        <uniswap>0.0</uniswap>
+        <uniswap>0.39</uniswap>
         <oneInch>0.0</oneInch>
     </okcoin>
     <binance changePrice="0" pgoods="0" pmoney="0">
@@ -32,7 +32,7 @@
         <huobi>0.0</huobi>
         <okcoin>0.0</okcoin>
         <binanceF>0.0</binanceF>
-        <uniswap>0.0</uniswap>
+        <uniswap>5.83</uniswap>
         <oneInch>0.0</oneInch>
     </binance>
     <okcoinF changePrice="0" pgoods="0" pmoney="0">
@@ -49,15 +49,15 @@
         <binance>0.0</binance>
         <uniswap>0.0</uniswap>
     </binanceF>
-    <uniswap changePrice="0" pgoods="0.5" pmoney="0.5">
+    <uniswap changePrice="0" pgoods="0.999" pmoney="0.999">
         <okcoinF>0.0</okcoinF>
         <huobi>0.0</huobi>
-        <okcoin>0.0</okcoin>
-        <binance>0.0</binance>
+        <okcoin>6.85</okcoin>
+        <binance>3.84</binance>
         <binanceF>0.0</binanceF>
         <oneInch>0.0</oneInch>
     </uniswap>
-    <oneInch changePrice="0" pgoods="0.5" pmoney="0.5">
+    <oneInch changePrice="0" pgoods="0.999" pmoney="0.999">
         <okcoinF>0.0</okcoinF>
         <huobi>0.0</huobi>
         <okcoin>0.0</okcoin>
@@ -66,7 +66,5 @@
         <uniswap>0.0</uniswap>
     </oneInch>
     <!-- 第一条余额记录。格式：时间,总收入,本次收入,当前money,当前btc,okcoinMoney,okcoinGoods,chbtcMoney,chbtcGoods,当前价格, -->
-    <firstBalance>dateTime:2021-05-11
-        00:00:00,totalEarn:0,thisEarn:0,totalMoney:-1410900,totalGoods:26.8594,{okcoinMoney:0,okcoinGoods:0.0018,binanceFMoney:0,binanceFGoods:26.392497},price:55270,
-    </firstBalance>
+    <firstBalance>dateTime:2023-06-12 00:00:00,totalEarn:0.0,thisEarn:0.0,totalMoney:22524,totalGoods:12.298479530925551,{uniswapMoney:7094.5,uniswapGoods:3.5,okcoinMoney:0,binanceGoods:8.47260449},price:28024.0,</firstBalance>
 </conf>

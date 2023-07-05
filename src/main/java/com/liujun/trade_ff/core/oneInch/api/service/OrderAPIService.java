@@ -6,8 +6,9 @@ public interface OrderAPIService {
 
     /**
      * 挂单。
-     * @param coinPair 格式：goods-money，例如：eth-usdc
-     * @param orderType buy,sell
+     *
+     * @param coinPair     格式：goods-money，例如：eth-usdc
+     * @param orderType    buy,sell
      * @param price
      * @param volume
      * @param gasPriceGwei
@@ -20,4 +21,7 @@ public interface OrderAPIService {
     String queryOrder(String coinPair, String orderId);
 
     void cancelOrder(String coinPair, String orderId);
+
+    TransResult addTwoOrder(String coinPair, String orderType1, String price1, String volume1, String gasPriceGwei, double slippage,
+                            String orderType2, String price2, String volume2);
 }

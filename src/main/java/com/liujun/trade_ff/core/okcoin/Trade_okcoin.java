@@ -10,6 +10,7 @@ import com.liujun.trade_ff.core.modle.AccountInfo;
 import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
 import com.liujun.trade_ff.core.util.HttpUtil;
+import com.liujun.trade_ff.core.util.TransTokenUtil;
 import com.okex.open.api.bean.funding.param.FundsTransfer;
 import com.okex.open.api.bean.funding.param.Withdrawal;
 import com.okex.open.api.bean.trade.param.CancelOrder;
@@ -146,7 +147,9 @@ public class Trade_okcoin extends Trade {
             setCurrentPrice((bidPrice + askPrice) / 2.0);
             //
         } catch (Exception e) {
-            // log.error(getPlatName()+"" + e.getMessage());
+            log.error(getPlatName() + e.getMessage());
+            depth[0].clear();
+            depth[1].clear();
             throw e;
         }
     }
@@ -201,6 +204,10 @@ public class Trade_okcoin extends Trade {
         for (; orderCount < userOrderList.size(); orderCount++) {
             UserOrder order = userOrderList.get(orderCount);
             order.setFinished(true);//默认都成交了。只因okex平台只能查出没成交的，所以我们必须默认成交了。
+
+            //如果需要调拨资金，就不要提交订单
+            if (tokenTransferDex2Cex(order))
+                return 0;
 
             // 如果新的批次开始,就结束前面批次
             if (0 == orderCount % max_batch_amount_trad) {
@@ -468,7 +475,7 @@ public class Trade_okcoin extends Trade {
 
     public double depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception {
         //轮番查询状态，直到返回链上交易哈希tranId. 最多等10分钟
-        int sleepSecond = 3;//每三秒查询一次
+        int sleepSecond = 1;//每三秒查询一次
         for (int i = 0; i < 10 * 60 / sleepSecond; i++) {
             Thread.sleep(1000 * sleepSecond);
             try {

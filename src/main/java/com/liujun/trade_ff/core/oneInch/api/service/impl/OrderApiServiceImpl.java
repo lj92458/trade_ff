@@ -23,8 +23,9 @@ public class OrderApiServiceImpl implements OrderAPIService {
 
     /**
      * 最多5秒返回。
-     * @param coinPair 格式：goods-money，例如：eth-usdc
-     * @param orderType buy,sell
+     *
+     * @param coinPair     格式：goods-money，例如：eth-usdc
+     * @param orderType    buy,sell
      * @param price
      * @param volume
      * @param gasPriceGwei
@@ -81,5 +82,20 @@ public class OrderApiServiceImpl implements OrderAPIService {
     @Override
     public void cancelOrder(String coinPair, String orderId) {
 
+    }
+
+    @Override
+    public TransResult addTwoOrder(String coinPair, String orderType1, String price1, String volume1, String gasPriceGwei, double slippage,
+                                   String orderType2, String price2, String volume2) {
+
+        try {
+            log.info("开始调用orderRpc.addTwoOrderOneInch");
+            TransResult transResult = orderRpc.addTwoOrderOneInch(coinPair, orderType1, price1, volume1, config.getMaxWaitSeconds(), gasPriceGwei, slippage,
+                    coinPair, orderType2, price2, volume2, config.getMaxWaitSeconds(), gasPriceGwei, slippage).toFuture().get(config.getMaxWaitSeconds(), TimeUnit.SECONDS);
+
+            return transResult;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

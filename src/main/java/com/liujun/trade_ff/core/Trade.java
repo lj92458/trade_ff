@@ -4,6 +4,7 @@ import com.liujun.trade_ff.core.modle.AccountInfo;
 import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
 import com.liujun.trade_ff.core.util.HttpUtil;
+import com.liujun.trade_ff.core.util.TransTokenUtil;
 import lombok.Getter;
 import lombok.Setter;
 import org.slf4j.Logger;
@@ -44,7 +45,7 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
      * 为了在差价长期不出现翻转的平台之间搬运， 对查到的市场挂单，减去该价格，对要发送出的订单，加上该价格。
      */
     private double changePrice = 0.0;
-    public double[] pToken = new double[2];//pgoods和pmoney. pgoods每个平台的goods占总goods的比例
+    public double[] pToken = new double[2];//pgoods和pmoney. pgoods每个平台的goods占总goods的比例。 0表示该平台被忽略，0.001是最小值
     /**
      * 模式锁定：0无锁，1只能跨平台搬运 ， 2只能在自己平台内部btc/ltc/cny之间转换。因为平台内和跨平台是冲突的
      */
@@ -157,7 +158,9 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
             for (MarketOrder o : marketDepth[i]) {
                 double needToken = (i == 0 ? o.getPrice() : 1) * o.getVolume();//0表示市场卖单，我需要出钱买下来.
                 MarketOrder order = o.clone();
-                if (freeToken >= needToken) {
+                if (fixFee == 0 && engine.tokenAllInDex) {// 如果要求资金都存到dex，那么cex的市场挂单就全部备份。
+                    backupDepth[i].add(order);
+                } else if (freeToken >= needToken) {
                     backupDepth[i].add(order);
                     freeToken -= needToken;
                 } else if (0 < freeToken) {
@@ -168,6 +171,7 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
                     freeToken = 0.00;
                 } else break;
             }
+
         }
     }
 
@@ -337,4 +341,42 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
      * @throws Exception
      */
     public abstract double depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception;
+
+    public void setCurrentPrice(double currentPrice) throws Exception {
+        if (currentPrice <= 0) {
+            throw new Exception("currentPrice必须大于0， 当前值是" + currentPrice);
+        }
+        this.currentPrice = currentPrice;
+    }
+
+    /**
+     * 备注：本方法需要在cex的tradeOrder方法调用。把币从dex转移到cex然后交易。因为cex平时不存储币，只有需要交易时才会临时调拨。
+     * 本方法改进了程序：即然价格涨跌，都是okx引领的，然后uniswap只负责跟进，那么可以把goods和money都放在uniswap，因为总是会等uniswap成交后才会在okx成交。
+     * 等交易成功了，卖eth得到usdc了，再把得到的usdc转入okx.这样就能防止uniswap乌龙。坏处是浪费了4秒时间。整个过程如下：
+     * 1.不在乎okx余额，就假设它有无限。比价后，发现了差价，就在uniswap成交。
+     * 2.成交后，新一轮循环会查询余额并且checkTotalGoods, 发现goods不足，就让virtual参与三方比价。如果部分订单被派到okx.addOrder函数，就在该函数检查实际余额。
+     * 3.如果没有余额，就在addOrder发起转账，等转账完成(视作addOrder被调用成功了)，新一轮循环又会checkTotalGoods并发现goods不足。如果有余额，才执行挂单。
+     * 问题1：两次循环间隔，会把已经转到okx的币再转回dex吗？ 答案：不会，因为checkTotalGoods一旦执行生效，balanceTokens就不会被执行。
+     *
+     * @param order 要提交的订单
+     * @return true需要传输且已经传输了。false不用传输
+     * @throws Exception
+     */
+    public boolean tokenTransferDex2Cex(UserOrder order) throws Exception {
+        if (engine.tokenAllInDex) {
+            Trade dex = engine.platList.stream().filter(t -> t.fixFee > 0).findFirst().get();
+            if (order.getType().equals("buy") && accInfo.freeToken[1] < order.getVolume() * order.getPrice()) {
+                double receiveAmount = TransTokenUtil.trans(engine, dex, this, 1,
+                        Double.parseDouble(prop.transTokenFromat.format(order.getVolume() * order.getPrice()))
+                );
+                log.info(getPlatName() + "最终收到money:" + receiveAmount);
+                return true;
+            } else if (order.getType().equals("sell") && accInfo.freeToken[0] < order.getVolume()) {
+                double receiveAmount = TransTokenUtil.trans(engine, dex, this, 0, order.getVolume());
+                log.info(getPlatName() + "最终收到goods:" + receiveAmount);
+                return true;
+            }
+        }
+        return false;
+    }
 }

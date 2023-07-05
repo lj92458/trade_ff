@@ -111,7 +111,7 @@ public class Trade_uniswap extends Trade {
         // 初始化,清空
         ArrayList<MarketOrder>[] depth = getMarketDepth();
         try {
-            Book book = productAPIService.bookProductsByProductId(coinPair, prop.marketOrderSize + "", "" + (feeRate + 0.0005), getPoolFee());
+            Book book = productAPIService.bookProductsByProductId(coinPair, prop.marketOrderSize + "", "" + (feeRate + 0.0002), getPoolFee());
 
             // 处理卖方、卖方挂单
             List<String[]>[] listArr = new List[]{book.getAsks(), book.getBids()};
@@ -128,7 +128,9 @@ public class Trade_uniswap extends Trade {
             setCurrentPrice((depth[0].get(0).getPrice() + depth[1].get(0).getPrice()) / 2.0);
             //
         } catch (Exception e) {
-            // log.error(getPlatName()+"" + e.getMessage());
+            log.error(getPlatName() + e.getMessage());
+            depth[0].clear();
+            depth[1].clear();
             throw e;
         }
     }
@@ -200,16 +202,15 @@ public class Trade_uniswap extends Trade {
         for (; orderCount < userOrderList.size(); orderCount++) {
             UserOrder order = userOrderList.get(orderCount);
             // 为了确保能成交，可以将卖单价格降低。买单不能动。因为可能导致money不够。
-            double addPrice = (order.getType().equals("sell") ? -1 * prop.huaDian2 : 0);
             TransResult result = this.orderAPIService.addOrder(
                     coinPair,
                     order.getType(),
-                    Prop.fmt_money.get().format(order.getPrice() * (1 + addPrice)),
+                    Prop.fmt_money.get().format(order.getPrice()),
                     Prop.fmt_goods.get().format(order.getVolume()),
                     this.gasPriceGwei + "",
                     //(this.profitRate + prop.atLeastRate) * 0.5,//todo profitRate是大于prop.atLeastRate的，允许更大的滑点，会导致更容易成交，但这也是亏损的根源。
                     //prop.atLeastRate * 1.0,// todo 如果在激烈的竞争下，竞争不赢别人，就不要用大滑点。小滑点导致不容易成交，会白白浪费矿工费，但在矿工费便宜的链上就没关系
-                    this.profitRate,
+                    this.profitRate * 0.5,
                     getPoolFee()
             );
             // 设置orderId
