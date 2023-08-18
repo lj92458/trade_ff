@@ -370,11 +370,13 @@ public class Trade_okcoin extends Trade {
         if (ccyList.size() == 0) {
             throw new Exception(productName + " 不存在于指定网络:" + tokenNetWork[0] + "_" + tokenNetWork[1] + ", 可选的网络是：" + jsonArr.toJSONString());
         }
-        if (StringUtils.isNotEmpty(moneyNetWorkContain)) {
-            ccyList = ccyList.stream().filter(o -> o.getString("chain").toUpperCase().contains(moneyNetWorkContain.toUpperCase())).collect(Collectors.toList());
-        }
-        if (StringUtils.isNotEmpty(moneyNetWorkNotContain)) {
-            ccyList = ccyList.stream().filter(o -> !o.getString("chain").toUpperCase().contains(moneyNetWorkNotContain.toUpperCase())).collect(Collectors.toList());
+        if (productName.equals(token[1])) {
+            if (StringUtils.isNotEmpty(moneyNetWorkContain)) {
+                ccyList = ccyList.stream().filter(o -> o.getString("chain").toUpperCase().contains(moneyNetWorkContain.toUpperCase())).collect(Collectors.toList());
+            }
+            if (StringUtils.isNotEmpty(moneyNetWorkNotContain)) {
+                ccyList = ccyList.stream().filter(o -> !o.getString("chain").toUpperCase().contains(moneyNetWorkNotContain.toUpperCase())).collect(Collectors.toList());
+            }
         }
         ccy = ccyList.get(0);
 

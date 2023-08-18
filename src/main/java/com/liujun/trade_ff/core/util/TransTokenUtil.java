@@ -56,6 +56,9 @@ public class TransTokenUtil {
         for (TransRoute route : routes) {
             receiveAmount = transOneRoute(route, tokenIndex, receiveAmount);
         }
+        //刷新账户余额
+        engine.flushAccount(true);
+
         return receiveAmount;
     }
 

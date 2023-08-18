@@ -389,7 +389,7 @@ public class Engine {
      * @param isSync 是否需要同步查询
      * @throws Exception
      */
-    private void flushAccount(boolean isSync) throws Exception {
+    public void flushAccount(boolean isSync) throws Exception {
         List<CompletableFuture<?>> flushAccountFutureList = new ArrayList<>();
         for (Trade trade : platList) {
             flushAccountFutureList.add(CompletableFuture.runAsync(() -> {
@@ -1154,6 +1154,7 @@ public class Engine {
      * @throws Exception 异常
      */
     public boolean checkTotalGoods() throws Exception {
+        this.currentBalance = getCurrentBalance();//这一行千万不能删除
         Balance initBal = new Balance(prop, firstBalanceStr);
         double diffAmount = currentBalance.totalToken[0] - initBal.totalToken[0];
         // 如果变多,就卖.币安规定交易额最少是10美元。信息来源：CELOBUSD交易对的NOTIONAL过滤器 https://www.binance.com/api/v3/exchangeInfo
@@ -1208,12 +1209,14 @@ public class Engine {
         MarketOrder marketOrder = new MarketOrder();
         marketOrder.setPlatId(virtualTrade.platId);
         marketOrder.setVolume(diffAmount);
+        depth[0].clear();
+        depth[1].clear();
         if (isSell) {// 增加一个虚拟的低价市场卖单，诱使程序在其他平台卖
             marketOrder.setPrice(currentBalance.getPrice() * (1 - prop.huaDian));//价格设置不不光是在这里，还要在下一轮比价时
-            if (depth[0].size() == 0) depth[0].add(marketOrder);
+            depth[0].add(marketOrder);
         } else {// 增加一个虚拟的高价市场买单，诱使程序在其他平台买
             marketOrder.setPrice(currentBalance.getPrice() * (1 + prop.huaDian));//价格设置不不光是在这里，还要在下一轮比价时
-            if (depth[1].size() == 0) depth[1].add(marketOrder);
+            depth[1].add(marketOrder);
         }
     }
 
