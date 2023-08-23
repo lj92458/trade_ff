@@ -1435,10 +1435,13 @@ public class Engine {
      * 如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与
      */
     private boolean needSkipDexWhenAdjustGoods(Trade trade) {
-        //return !dexSync && virtualTrade.isActive() && trade.getFixFee() > 0;
-        // bug修复：如果不从dex调节goods,系统就会卡住：因为币都在okx了，但是币还是不够，那么就要买。但是这时usdc都在dex了，不从dex买，还能在哪里买？
-        //goods总量对不上，就不会触发goods跨平台搬运
-        return false;
+        if (tokenAllInDex) {//2023-08-23 bug修复，如果是现在的策略(cex什么也不持有，eth和usdc都在dex放着),就返回true.如果是以前的策略(让dex和cex都时刻持有eth和usdc)就应该返回false。
+            return !dexSync && virtualTrade.isActive() && trade.getFixFee() > 0;
+        } else {
+            // 2023-06-29 bug修复：如果不从dex调节goods,系统就会卡住：价格下跌，导致dex卖币，cex买币。因为币都在cex了，但是币还是不够，那么就要买。但这时usdc都在dex了，不从dex买，还能在哪里买？
+            // 备注：goods总量对不上，就不会触发goods跨平台搬运，因此系统会卡住。
+            return false;
+        }
     }
 
     /**
