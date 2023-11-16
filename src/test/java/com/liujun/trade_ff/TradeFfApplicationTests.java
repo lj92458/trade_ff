@@ -1,6 +1,7 @@
 package com.liujun.trade_ff;
 
 import com.liujun.trade_ff.core.Engine;
+import com.liujun.trade_ff.core.Trade;
 import com.liujun.trade_ff.core.binance.api.config.APIConfiguration;
 import com.liujun.trade_ff.core.binance.api.service.wallet.WalletAPIService;
 import com.liujun.trade_ff.core.binance.api.service.wallet.impl.WalletAPIServiceImpl;
@@ -39,10 +40,16 @@ class TradeFfApplicationTests {
     void testCreateRoutes() throws Exception {
         List<TransTokenUtil.TransRoute> routes1 = TransTokenUtil.createRoutes(engine, engine.actualPlats().get(0), engine.actualPlats().get(2), 1);
         log.info("route1数量：" + routes1.size() + ", 内容：" + routes1);
-         routes1 = TransTokenUtil.createRoutes(engine, engine.actualPlats().get(2), engine.actualPlats().get(0), 1);
+        routes1 = TransTokenUtil.createRoutes(engine, engine.actualPlats().get(2), engine.actualPlats().get(0), 1);
         log.info("route1数量：" + routes1.size() + ", 内容：" + routes1);
         routes1 = TransTokenUtil.createRoutes(engine, engine.actualPlats().get(0), engine.actualPlats().get(2), 0);
         log.info("route1数量：" + routes1.size() + ", 内容：" + routes1);
+    }
+
+    @Test
+    void testOkxDeposit() throws Exception {
+        Trade trade_okcoin = engine.platList.stream().filter(t -> t.getPlatName().equals("okcoin")).findFirst().get();
+        trade_okcoin.depositToken(null, "0x2d62f2a31372b45b1ef8d2f4d3c035660211b810233d3a1de4ac783bdd8acd52", 0, false);
     }
 
 }

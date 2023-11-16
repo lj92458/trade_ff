@@ -72,7 +72,7 @@ trade:
   #    1.冒进型，跟别人激烈争抢，尽量设大滑点，然后两个平台同时提交(这个亏起来很厉害的)。
   #    2.保守型，设置很小的滑点，让dex先成交，如果成交失败，cex就不用执行了，也就没什么损失。这个不容易亏，但是也不容易抓住机会。
   dexSync: false
-  whenBalance: 0.1 #百分数的小数形式。任意平台的coin数量比目标值偏移了多少，就触发转账
+  whenBalance: 0.1 #百分数的小数形式。任意平台的coin数量比平均值偏移了多少，就触发转账
   canBalance: true #多个平台之间，能互相转账吗？双方的money和goods用的是同一条链的同一种货币？ cusd和usdc不在同一个链上，因此无法调拨.即使双方都是usdc,只要币安平台不支持该链的转账，也不行。
   needCheckTotalAmount: true #是否维持资金总量不变？如果账户被其它程序自动操控，资金量会不断变化。这时如果不想调节。
   tokenAllInDex: true #资金全部放在dex平台吗？等dex交易成功了，卖eth得到usdc了，再把得到的usdc转入cex,这样就不用在cex存放资金，资金利用率翻倍。
@@ -95,12 +95,12 @@ okcoin:
   # usdc支持7个网络：ERC20, Arbitrum one, OKTC, Polygon, Optimism, TRC20, Avalanche C-Chain
   #各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串(okex的Avalanche和币安的avaxc,共同点是ava; okex的polygon和币安的matic共同点是:币安的network字段或name字段包含polygon)。
   goodsNetWork: arbitrum,optimism,oktc,zksync #空着表示不参与转账。各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串
-  goodsNetWorkContain:  #goodsNetWork还应该包含什么?例如ETH-Arbitrum one和ETH-Arbitrum one (bridge) 的区分
-  goodsNetWorkNotContain:  #goodsNetWork不包含什么
+  goodsNetWorkContain: #goodsNetWork还应该包含什么?例如ETH-Arbitrum one和ETH-Arbitrum one (bridge) 的区分
+  goodsNetWorkNotContain: #goodsNetWork不包含什么
   money: usdc #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
   moneyAddress: "0x0e7a26909abecd20de80f849b41d692d40abe773"
   moneyNetWork: arbitrum,optimism,polygon,ava,zkSync,oktc,trc20 #提币时，提到哪个网络？空着表示不参与转账。
-  moneyNetWorkContain:  bridged #moneyNetWork还应该包含什么?例如ETH-Arbitrum one和ETH-Arbitrum one (bridge) 的区分
+  moneyNetWorkContain: bridged #moneyNetWork还应该包含什么?例如ETH-Arbitrum one和ETH-Arbitrum one (bridge) 的区分
   moneyNetWorkNotContain: #moneyNetWork不包含什么
   apiKey: 72794b7e-bdd4-4c21-b96a-b95b55c23f13
   secretKey: FDD6E6055E550125A528918DABB0FC72
@@ -173,7 +173,7 @@ uniswap:
   gasPercent: 1.0 #强制调高gas价格，对矿工费进行悲观的估算.
   gasLimit: 4500000
 
-oneInch: # 在下列限制区，不可用 https://help.1inch.io/en/articles/5778756-restricted-territory
+oneInch:
   netWork: arbitrum #网络名称叫什么？ 各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串
   naitveToken: eth #链的原生币，大小写都行。也是gas消耗的币的名称。因为uniswap能用在多个区块链
   goods: weth #交易哪种商品。大小写随意，由各平台对应的trade类负责转换

@@ -480,16 +480,22 @@ public class Trade_okcoin extends Trade {
         int sleepSecond = 1;//每三秒查询一次
         for (int i = 0; i < 10 * 60 / sleepSecond; i++) {
             Thread.sleep(1000 * sleepSecond);
+            JSONObject respObj = null;
             try {
-                JSONObject queryResult = fundingAPIService.getDepositHistory(null, null, null, null, null, txId).getJSONArray("data").getJSONObject(0);
-                if (queryResult != null && queryResult.getString("state").equals("2")) {
-                    log.info("okx充值已到账" + ", 确认次数actualDepBlkConfirm=" + queryResult.getString("actualDepBlkConfirm"));
-                    return Double.parseDouble(queryResult.getString("amt"));
+                respObj = fundingAPIService.getDepositHistory(null, null, null, null, null, txId);
+                if (respObj.getJSONArray("data") == null || respObj.getJSONArray("data").size() == 0) {
+                    log.info("data是空数组：" + respObj.toJSONString());
                 } else {
-                    if (queryResult != null) {
-                        log.info("等待okx充值到账，stat3=" + queryResult.getString("state") + ", 确认次数actualDepBlkConfirm=" + queryResult.getString("actualDepBlkConfirm"));
+                    JSONObject queryResult = respObj.getJSONArray("data").getJSONObject(0);
+                    if (queryResult != null && queryResult.getString("state").equals("2")) {
+                        log.info("okx充值已到账" + ", 确认次数actualDepBlkConfirm=" + queryResult.getString("actualDepBlkConfirm"));
+                        return Double.parseDouble(queryResult.getString("amt"));
                     } else {
-                        log.info("等待okx充值到账，queryResult=null");
+                        if (queryResult != null) {
+                            log.info("等待okx充值到账，stat3=" + queryResult.getString("state") + ", 确认次数actualDepBlkConfirm=" + queryResult.getString("actualDepBlkConfirm"));
+                        } else {
+                            log.info("等待okx充值到账，queryResult=null");
+                        }
                     }
                 }
             } catch (Exception e) {
