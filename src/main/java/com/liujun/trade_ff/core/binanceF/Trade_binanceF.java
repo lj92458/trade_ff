@@ -435,6 +435,14 @@ public class Trade_binanceF extends Trade {
     }
 
     /**
+     *
+     */
+    @Override
+    public void cleanResource() {
+
+    }
+
+    /**
      * 获取合约属性
      *
      * @param contractType 合约类型：本季：CURRENT_QUARTER， 下季：NEXT_QUARTER， 永续合约：PERPETUAL

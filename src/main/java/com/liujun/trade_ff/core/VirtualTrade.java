@@ -102,4 +102,12 @@ public class VirtualTrade extends Trade {
         throw new Exception("不支持充值");
     }
 
+    /**
+     *
+     */
+    @Override
+    public void cleanResource() {
+
+    }
+
 }

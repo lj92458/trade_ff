@@ -329,6 +329,14 @@ public class Trade_oneInch extends Trade {
         return this.walletAPIService.receiveToken(asset, txId, amount, needWrap, gasPriceGwei);
     }
 
+    /**
+     *
+     */
+    @Override
+    public void cleanResource() {
+
+    }
+
     @Value("${oneInch.goods}")
     public void setGoods(String goods) {
         token[0] = goods;

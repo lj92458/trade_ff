@@ -3,16 +3,21 @@ package com.liujun.trade_ff.core.okcoin;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.binance.connector.client.utils.WebSocketConnection;
+import com.binance.connector.client.utils.httpclient.WebSocketStreamHttpClientSingleton;
 import com.liujun.trade_ff.core.Engine;
 import com.liujun.trade_ff.core.Prop;
 import com.liujun.trade_ff.core.Trade;
 import com.liujun.trade_ff.core.modle.AccountInfo;
 import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
+import com.liujun.trade_ff.core.modle.WebSocketState;
+import com.liujun.trade_ff.core.okcoin.ws.WebSocketConnection_okx;
 import com.liujun.trade_ff.core.util.HttpUtil;
-import com.liujun.trade_ff.core.util.TransTokenUtil;
 import com.okex.open.api.bean.funding.param.FundsTransfer;
 import com.okex.open.api.bean.funding.param.Withdrawal;
+import com.okex.open.api.bean.other.SpotOrderBook;
+import com.okex.open.api.bean.other.SpotOrderBookItem;
 import com.okex.open.api.bean.trade.param.CancelOrder;
 import com.okex.open.api.bean.trade.param.PlaceOrder;
 import com.okex.open.api.config.APIConfiguration;
@@ -25,6 +30,8 @@ import com.okex.open.api.service.marketData.MarketDataAPIService;
 import com.okex.open.api.service.marketData.impl.MarketDataAPIServiceImpl;
 import com.okex.open.api.service.trade.TradeAPIService;
 import com.okex.open.api.service.trade.impl.TradeAPIServiceImpl;
+import okhttp3.Request;
+import okhttp3.WebSocket;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,14 +40,12 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 第五版api https://github.com/CollmeYH/okex-java-sdk-api-v5
- * api在线体验(swagger) https://www.okx.com/cn/demo-trading-explorer/v5/zh
+ * <a href="https://github.com/CollmeYH/okex-java-sdk-api-v5">第五版api</a>
+ * <a href="https://www.okx.com/cn/demo-trading-explorer/v5/zh">api在线体验(swagger)</a>
  */
 @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
 @Component
@@ -79,6 +84,9 @@ public class Trade_okcoin extends Trade {
     public String moneyNetWorkContain;
     @Value("${okcoin.moneyNetWorkNotContain}")
     public String moneyNetWorkNotContain;
+    @Value("${okcoin.websocket.url}")
+    private String websocketUrl;
+    private SpotOrderBook orderBook;
     //------------------------
 
 
@@ -110,10 +118,57 @@ public class Trade_okcoin extends Trade {
             flushMarketDeeps();
         } catch (Exception e) {
             log.error(getPlatName() + " : " + e.getMessage(), e);
-
         }
 
+        //连接websocket.
+        WebSocketState webSocketState = new WebSocketState();
+        WebSocketConnection_okx connection = new WebSocketConnection_okx(null, null, null, null, null,
+                new Request.Builder().url(websocketUrl).build(), WebSocketStreamHttpClientSingleton.getHttpClient()) {
+            public void onMessage(final WebSocket webSocket, final String bytes) {
+                super.onMessage(webSocket, bytes);//大部分工作，都被super干了
+                if (bookMap.get(coinPair) != null && bookMap.get(coinPair).orElse(null) != null) {
+                    try {
+                        webSocketState.setLastUpdateTime(System.currentTimeMillis());
+                        orderBook = bookMap.get(coinPair).orElse(null);
+                        webSocketState.setLastUpdateId((long) orderBook.getSeqId());
+                        engine.processMarketDepth();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        }; //end 匿名内部类
+        connection.connect();
+        webSocketState.setConnectionId(connection.getConnectionId());
+        webSocketState.setWebSocketConnection(connection);
+        webSocketStateMap.put(WebSocketState.StreamType.depth, webSocketState);
+
+        //开始订阅数据流
+        ArrayList<Map<String, String>> channelList = new ArrayList<>();
+        Map<String, String> argMap = new HashMap<>();
+        argMap.put("channel", "books");
+        argMap.put("instId", coinPair);
+        channelList.add(argMap);
+        try {
+            while (connection.webSocket == null) {
+                log.info("等待webSocket建立");
+                Thread.sleep(500);
+            }
+            connection.subscribe(channelList);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        //end
         this.initSuccess = true;
+    }
+
+    public void cleanResource() {
+        Iterator<Map.Entry<WebSocketState.StreamType, WebSocketState>> iter = webSocketStateMap.entrySet().iterator();
+        while (iter.hasNext()) {
+            WebSocketConnection connection = iter.next().getValue().getWebSocketConnection();
+            connection.close();
+            iter.remove();
+        }
     }
 
     /**
@@ -123,33 +178,35 @@ public class Trade_okcoin extends Trade {
      */
     public void flushMarketDeeps() throws Exception {
         // 初始化,清空
-        ArrayList<MarketOrder>[] depth = getMarketDepth();
+        ArrayList<MarketOrder>[] marketOrderList = getMarketDepth();
         try {
-            JSONObject bookJson = marketDataAPIService.getOrderBook(coinPair, prop.marketOrderSize + "").getJSONArray("data").getJSONObject(0);
+            //如果orderBook是null，表明这不是websocket主动推送，因此要主动发起http查询
+            if (orderBook == null) {
+                JSONObject bookJson = marketDataAPIService.getOrderBook(coinPair, prop.marketOrderSize + "").getJSONArray("data").getJSONObject(0);
+                orderBook = WebSocketConnection_okx.parse(bookJson.toString()).get();
+            }
+            List<SpotOrderBookItem>[] orderListArr = new List[]{
+                    orderBook.getAsks().subList(0, prop.marketOrderSize), //orderBook有400条数据，这里只要一小部分
+                    orderBook.getBids().subList(0, prop.marketOrderSize)
+            };
             for (int i = 0; i < 2; i++) {
-                depth[i].clear();
-                JSONArray[] arrArr = new JSONArray[]{bookJson.getJSONArray("asks"), bookJson.getJSONArray("bids")};
-                JSONArray orderArr = arrArr[i];
-                for (Object obj : orderArr) {
-                    depth[i].add(new MarketOrder(
-                            platId,
-                            Double.parseDouble(((JSONArray) obj).getString(0)),
-                            Double.parseDouble(((JSONArray) obj).getString(1))
-                    ));
+                marketOrderList[i].clear();
+                for (SpotOrderBookItem item : orderListArr[i]) {
+                    marketOrderList[i].add(new MarketOrder(platId, Double.parseDouble(item.getPrice()), Double.parseDouble(item.getSize())));
                 }
             }
-            sort(depth);// 排序
+            //sort(marketOrderList);// 排序
             changeMarketPrice(1 - feeRate, 1 + feeRate);
             backupUsefulOrder();
             // 设置当前价格
-            double askPrice = depth[0].get(0).getPrice();
-            double bidPrice = depth[1].get(0).getPrice();
+            double askPrice = marketOrderList[0].get(0).getPrice();
+            double bidPrice = marketOrderList[1].get(0).getPrice();
             setCurrentPrice((bidPrice + askPrice) / 2.0);
-            //
+            orderBook = null;
         } catch (Exception e) {
             log.error(getPlatName() + e.getMessage());
-            depth[0].clear();
-            depth[1].clear();
+            marketOrderList[0].clear();
+            marketOrderList[1].clear();
             throw e;
         }
     }
@@ -161,17 +218,13 @@ public class Trade_okcoin extends Trade {
         try {
             AccountInfo accountInfo = new AccountInfo();
             //查询账户信息  https://www.okx.com/docs-v5/zh/#rest-api-account-get-balance
-            JSONArray arr = accountAPIService.getBalance(token[0] + "," + token[1]).getJSONArray("data").getJSONObject(0).getJSONArray("details");
-            JSONObject[] accArr = new JSONObject[]{arr.getJSONObject(0), arr.getJSONObject(1)};
-            if (accArr[0].getString("ccy").equals(token[1])) {//两个对象可能要交换
-                JSONObject tmp = accArr[0];
-                accArr[0] = accArr[1];
-                accArr[1] = tmp;
-            }
+            JSONArray arr0 = accountAPIService.getBalance(token[0]).getJSONArray("data").getJSONObject(0).getJSONArray("details");
+            JSONArray arr1 = accountAPIService.getBalance(token[1]).getJSONArray("data").getJSONObject(0).getJSONArray("details");
+            JSONArray[] arrArr = new JSONArray[]{arr0, arr1};
             for (int i = 0; i < 2; i++) {
                 //cashBal(币种余额)= availBal(可用余额) + frozenBal(被占用金额)　？　ordFrozen(挂单冻结数量)又是什么？
-                accountInfo.freeToken[i] = Double.parseDouble(accArr[i].getString("availBal"));
-                accountInfo.freezedToken[i] = Double.parseDouble(accArr[i].getString("frozenBal"));
+                accountInfo.freeToken[i] = arrArr[i].size() == 0 ? 0 : Double.parseDouble(arrArr[i].getJSONObject(0).getString("availBal"));
+                accountInfo.freezedToken[i] = arrArr[i].size() == 0 ? 0 : Double.parseDouble(arrArr[i].getJSONObject(0).getString("frozenBal"));
                 accountInfo.totalToken[i] = accountInfo.freeToken[i] + accountInfo.freezedToken[i];
             }
             //

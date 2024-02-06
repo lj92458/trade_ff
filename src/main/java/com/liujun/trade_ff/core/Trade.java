@@ -3,6 +3,7 @@ package com.liujun.trade_ff.core;
 import com.liujun.trade_ff.core.modle.AccountInfo;
 import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
+import com.liujun.trade_ff.core.modle.WebSocketState;
 import com.liujun.trade_ff.core.util.HttpUtil;
 import com.liujun.trade_ff.core.util.TransTokenUtil;
 import lombok.Getter;
@@ -11,9 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Getter
@@ -80,6 +79,11 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
      * token数量比平均值差了多少
      */
     public double[] diffToken = new double[2];
+    /**
+     * 根据WebSocketState.StreamType查询数据流的状态
+     */
+
+    public Map<WebSocketState.StreamType, WebSocketState> webSocketStateMap = new HashMap<>();
 
 
     // ==========================================================
@@ -379,4 +383,6 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
         }
         return false;
     }
+
+    public abstract void cleanResource();
 }

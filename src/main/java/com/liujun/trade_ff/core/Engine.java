@@ -65,6 +65,7 @@ public class Engine {
     @Autowired
     Prop prop;
     public boolean initSuccess = false;//初始化是否成功
+    public boolean isOnProcessing = false;//如果系统正在处理websocket传来的数据，那么紧接着又传来的数据就被忽略，必须等旧数据处理完毕才能处理新的数据。
     public boolean stop = false;//是否结束
     public String firstBalanceStr;
     public Document xmlDoc;// 可修改可存储的配置参数,xml文件。在jar文件外面
@@ -171,6 +172,7 @@ public class Engine {
      * 资金调平，是否已完成、已到账？
      */
     public boolean isBalanceFinished = true;
+    public long i = 0;
 
     // --------- end 对象属性 -------------------------------------------------
     static {
@@ -299,32 +301,33 @@ public class Engine {
         stop = false;
         log.info("开始搬运......");
         try {
+            outer:
+            for (; !stop && i < 86400 / time_queryOrder; i++) {// 每隔24小时(),自动退出
+                TimeUnit.MILLISECONDS.sleep(time_queryOrder * 1000L);
+                //连接各平台的websocket并不断监视状态
+                for (Trade trade : platList) {
+                    if (trade.getFixFee() == 0) {//只处理cex平台
+                        //如果数据流最近没更新，那就是异常
+                        WebSocketState state = trade.webSocketStateMap.get(WebSocketState.StreamType.depth);
+                        if (state != null && state.getLastUpdateTime() < System.currentTimeMillis() - 20000) {
+                            log.error("websocket没有从服务端收到新数据，请排查。");
+                            //break outer;
+                        }
 
-            for (long i = 0; !stop && i < 86400 / time_queryOrder; i++) {// 每隔24小时(),自动退出
-                long beginTime = System.currentTimeMillis();
-                queryMarketDepth(i);//查询市场挂单，以及账户余额
-                matchMarketDepth();//匹配/撮合市场挂单。
-                balanceAccount(i);//检测是否平衡，如果发现不平，就调平
-                if (isBalanceFinished) {
-                    matchBackupDepth();//匹配/撮合备份的市场挂单,并完成交易(已确保我方有相应的资金，能吃掉这些挂单)。这两种匹配是独立的，没有关系。
-                    saveBalance();// 盘点当前余额,计算盈亏------------------------
-                    checkStatus(beginTime);//检查系统健康状况
+                    }
                 }
-                // 睡眠一段时间,保证两次搬运间隔time_queryOrder秒
-                long useTime = System.currentTimeMillis() - beginTime;// 用时
-                TimeUnit.MILLISECONDS.sleep(time_queryOrder * 1000L - useTime);
 
             }// end for
             log.info("跳出for,   startEngine()结束");
-
             return 1;
         } catch (Exception e) {
             log.error(e.getMessage(), e);
             return -1;
         } finally {
-
             try {
                 httpUtil.getHttpClient().close();
+                //断开各个websocket
+                platList.forEach(Trade::cleanResource);
             } catch (IOException e) {
                 log.error("HttpClient关闭时出现异常", e);
             }
@@ -332,12 +335,35 @@ public class Engine {
     }
 
     /**
+     * 任何平台的websocket的listener，都会调用本方法来完成一轮工作
+     */
+    public void processMarketDepth() throws Exception {
+        if (initSuccess && !isOnProcessing) {
+            try {
+                isOnProcessing = true;
+                long beginTime = System.currentTimeMillis();
+                queryMarketDepth();//查询市场挂单，以及账户余额
+                matchMarketDepth();//匹配/撮合市场挂单。
+                balanceAccount();//检测是否平衡，如果发现不平，就调平
+                if (isBalanceFinished) {
+                    matchBackupDepth();//匹配/撮合备份的市场挂单,并完成交易(已确保我方有相应的资金，能吃掉这些挂单)。这两种匹配是独立的，没有关系。
+                    saveBalance();// 盘点当前余额,计算盈亏------------------------
+                    checkStatus(beginTime);//检查系统健康状况
+                }
+            } finally {
+                isOnProcessing = false;
+            }
+        }else{
+            log.info("isOnProcessing="+isOnProcessing+",跳过执行");
+        }
+    }
+
+    /**
      * 每隔一定时间，检测并调整goods总量、平衡两种token、查询余额
      *
-     * @param i
      * @throws Exception
      */
-    private void balanceAccount(long i) throws Exception {
+    private void balanceAccount() throws Exception {
         if (isBalanceFinished) {//如果资金调平已完成(已到账)，才让引擎正常工作。如果没完成就只能等待
             //查询资金情况 -----------间隔小于6秒时，每隔6秒，查一次账户。否则每次都查.
             if (i != 0 && (time_queryOrder > 6 || (i * time_queryOrder) % 6 == 0)) {
@@ -410,23 +436,22 @@ public class Engine {
      *
      * @throws Exception 异常
      */
-    private void queryMarketDepth(long i) throws Exception {
+    private void queryMarketDepth() throws Exception {
         // ===== 【多线程】对各平台查询市场挂单=======================
         List<CompletableFuture<?>> flushMarketFutureList = new ArrayList<>();
 
         // 为每个平台启动一个查询线程
         for (Trade trade : platList) {
-            // 设置“用户挂单”
-            if (trade.getUserOrderList() == null || trade.getUserOrderList().size() > 0) {
-                trade.setUserOrderList(new ArrayList<>());
-            }
-            //如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与。因为这个过程需要花费好几秒钟，为什么不节省掉呢。【这时还是应该清空dex的userOrderList】
+
+            //如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与。因为这个过程需要花费好几秒钟，为什么不节省掉呢。
             if (needSkipDexWhenAdjustGoods(trade)) {
                 continue;
             }
             flushMarketFutureList.add(CompletableFuture.runAsync(() -> {
                 try {
+                    //long beginTime = System.currentTimeMillis();
                     trade.flushMarketDeeps();
+                    //log.info(trade.getPlatName()+"flushMarketDeeps耗时" + (System.currentTimeMillis() - beginTime));
                 } catch (Exception e) {
                     log.error(trade.getPlatName() + "查询市场深度异常:" + e.getMessage(), e);
                 }
@@ -489,6 +514,10 @@ public class Engine {
         ArrayList<MarketOrder>[] totalDepth = new ArrayList[]{new ArrayList<MarketOrder>(), new ArrayList<MarketOrder>()};
 
         for (Trade trade : platList) {
+            // 设置“用户挂单”
+            if (trade.getUserOrderList() == null || trade.getUserOrderList().size() > 0) {
+                trade.setUserOrderList(new ArrayList<>());
+            }
             //如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与
             if (needSkipDexWhenAdjustGoods(trade)) {
                 continue;
@@ -578,7 +607,7 @@ public class Engine {
                         // end 【多线程】对各平台执行挂单、查订单状态、撤销没完全成交的订单、刷新账户信息============
                     }
                 } else {//end 如果正式生成的订单数量>0
-                    log.info("正式订单最多赚" + maxEarnCost.earn + prop.money + ",利润率" + (maxEarnCost.earn > 0 ? prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) : 0) + "%," + maxEarnCost.orderPair + "对订单(不值得/看不上)----------------------");
+                    log.debug("正式订单最多赚" + maxEarnCost.earn + prop.money + ",利润率" + (maxEarnCost.earn > 0 ? prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) : 0) + "%," + maxEarnCost.orderPair + "对订单(不值得/看不上)----------------------");
 
                 }
             }
@@ -1039,7 +1068,7 @@ public class Engine {
                 Trade t2 = receiveTokenList.get(0);
                 double mindiff = Math.min(t1.diffToken[tokenIndex], t2.diffToken[tokenIndex]);
                 double amount = Double.parseDouble(prop.transTokenFromat.format(mindiff));
-                log.info("mindiff=" + mindiff + ", 格式化后amount=" + amount);
+                log.debug("mindiff=" + mindiff + ", 格式化后amount=" + amount);
                 //检测amount价值多少美元。如果大于10美元，才处理
                 double amountValue = tokenIndex == 0 ? amount * t1.getCurrentPrice() : amount * prop.moneyPrice;
                 t1.diffToken[tokenIndex] -= amount;
@@ -1055,7 +1084,7 @@ public class Engine {
                         }
                     }, threadPoolExecutor));
                 } else {
-                    log.info("要转移的金额小于10美元，不用启动线程。amountValue=" + amountValue);
+                    log.debug("要转移的金额小于10美元，不用启动线程。amountValue=" + amountValue);
                 }
             }//end while
 

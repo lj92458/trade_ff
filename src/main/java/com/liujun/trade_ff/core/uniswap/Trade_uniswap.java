@@ -308,6 +308,9 @@ public class Trade_uniswap extends Trade {
         return this.walletAPIService.receiveToken(asset, txId, amount, needWrap, gasPriceGwei);
     }
 
+    public void cleanResource() {
+    }
+
     @Value("${uniswap.goods}")
     public void setGoods(String goods) {
         token[0] = goods;

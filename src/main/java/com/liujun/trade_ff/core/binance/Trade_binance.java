@@ -1,6 +1,8 @@
 package com.liujun.trade_ff.core.binance;
 
-import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson2.JSON;
+import com.binance.connector.client.WebSocketStreamClient;
+import com.binance.connector.client.impl.WebSocketStreamClientImpl;
 import com.liujun.trade_ff.core.Engine;
 import com.liujun.trade_ff.core.Prop;
 import com.liujun.trade_ff.core.Trade;
@@ -28,6 +30,7 @@ import com.liujun.trade_ff.core.binance.api.utils.DateUtils;
 import com.liujun.trade_ff.core.modle.AccountInfo;
 import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
+import com.liujun.trade_ff.core.modle.WebSocketState;
 import com.liujun.trade_ff.core.util.HttpUtil;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -90,8 +93,16 @@ public class Trade_binance extends Trade {
     private String secretKey;
     @Value("${binance.feeRate}")
     private double feeRate;
+    @Value("${binance.websocket.url}")
+    private String websocketUrl;
+    @Value("${binance.websocket.level}")
+    private int websocketLevel;
+    @Value("${binance.websocket.speed}")
+    private int websocketSpeed;
     private String coinPair;
     private List<CoinInfo> coinInfoList;
+    private WebSocketStreamClient webSocketStreamClient;
+    private Depth depth;
     //------------------------
 
 
@@ -127,7 +138,30 @@ public class Trade_binance extends Trade {
         String json = IOUtils.toString(Trade_binance.class.getResourceAsStream("allCoin.json"), StandardCharsets.UTF_8);
         coinInfoList = JSON.parseArray(json, CoinInfo.class);
 
+        //连接websocket
+        webSocketStreamClient = new WebSocketStreamClientImpl(websocketUrl);
+        WebSocketState webSocketState = new WebSocketState();
+        int depthConnectionId = webSocketStreamClient.partialDepthStream(coinPair, websocketLevel, websocketSpeed, dataStr -> {
+            try {
+                webSocketState.setLastUpdateTime(System.currentTimeMillis());
+                depth = JSON.parseObject(dataStr, Depth.class);
+                webSocketState.setLastUpdateId(depth.getLastUpdateId());
+                engine.processMarketDepth();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        webSocketState.setConnectionId(depthConnectionId);
+        webSocketStateMap.put(WebSocketState.StreamType.depth, webSocketState);
+
+        //end
         this.initSuccess = true;
+    }
+
+    public void cleanResource() {
+        if (webSocketStreamClient != null) {
+            webSocketStreamClient.closeAllConnections();
+        }
     }
 
     /**
@@ -136,30 +170,36 @@ public class Trade_binance extends Trade {
      * @throws Exception
      */
     public void flushMarketDeeps() throws Exception {
+        //如果depth是null，表明这不是websocket主动推送，因此要主动发起http查询
+        if (depth == null) {
+            depth = spotProductAPIService.marketDepth(coinPair, prop.marketOrderSize);
+        }
+
         // 初始化,清空
-        ArrayList<MarketOrder>[] depth = getMarketDepth();
+        ArrayList<MarketOrder>[] marketOrderList = getMarketDepth();
         try {
-            Depth depthResult = spotProductAPIService.marketDepth(coinPair, prop.marketOrderSize);
-            List<String[]>[] listArr = new List[]{depthResult.getAsks(), depthResult.getBids()};
+            List<String[]>[] listArr = new List[]{depth.getAsks(), depth.getBids()};
             for (int i = 0; i < 2; i++) {
-                depth[i].clear();
+                marketOrderList[i].clear();
                 for (String[] strings : listArr[i])
-                    depth[i].add(new MarketOrder(platId, Double.parseDouble(strings[0]), Double.parseDouble(strings[1])));
+                    marketOrderList[i].add(new MarketOrder(platId, Double.parseDouble(strings[0]), Double.parseDouble(strings[1])));
             }
 
-            sort(depth);// 排序
+            //sort(marketOrderList);// 排序
             changeMarketPrice(1 - feeRate, 1 + feeRate);
             backupUsefulOrder();
             // 设置当前价格
-            setCurrentPrice((depth[0].get(0).getPrice() + depth[1].get(0).getPrice()) / 2.0);
-            //
+            setCurrentPrice((marketOrderList[0].get(0).getPrice() + marketOrderList[1].get(0).getPrice()) / 2.0);
+            depth = null;
         } catch (Exception e) {
             log.error(getPlatName() + e.getMessage());
-            depth[0].clear();
-            depth[1].clear();
+            marketOrderList[0].clear();
+            marketOrderList[1].clear();
             throw e;
         }
+
     }
+
 
     /**
      * 查询账户资产信息 .Post 初始化时,需要查询账户信息。今后只有交易后,才需要重新查询。

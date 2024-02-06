@@ -60,7 +60,7 @@ trade:
   earnMoney: true #赚取什么？钱还是货?如果赚钱，那么系统会保证货物数量保持不变
   minTradeValue: 11 #买卖币时，最小交易金额【美元】.币安规定不得小于10
   moneyPrice: 1 #计价货币值多少美元
-  marketOrderSize: 100 #获取市场深度时，买单、卖单分别获取多少个？【对okcoin有效,chbtc固定是50】
+  marketOrderSize: 20 #获取市场深度时，买单、卖单分别获取多少个？【对okcoin有效,chbtc固定是50】
   #交易一次(不包含"调节商品数量"等特殊交易)，最少要赚多少【美元】？如果扣除了各种成本，那么一毛钱也值得赚。亏损频率越高，atLeastEarn就应该越高。
   # 请不要考虑矿工费，因为maxEarnCost.earn已经减去了矿工费。这里应该拍脑袋决定
   atLeastEarn: 0.0145 #美元
@@ -95,18 +95,20 @@ okcoin:
   # usdc支持7个网络：ERC20, Arbitrum one, OKTC, Polygon, Optimism, TRC20, Avalanche C-Chain
   #各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串(okex的Avalanche和币安的avaxc,共同点是ava; okex的polygon和币安的matic共同点是:币安的network字段或name字段包含polygon)。
   goodsNetWork: arbitrum,optimism,oktc,zksync #空着表示不参与转账。各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串
-  goodsNetWorkContain: #goodsNetWork还应该包含什么?例如ETH-Arbitrum one和ETH-Arbitrum one (bridge) 的区分
-  goodsNetWorkNotContain: #goodsNetWork不包含什么
+  goodsNetWorkContain:  #goodsNetWork还应该包含什么?例如ETH-Arbitrum one和ETH-Arbitrum one (bridge) 的区分
+  goodsNetWorkNotContain:  #goodsNetWork不包含什么
   money: usdc #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
   moneyAddress: "0x0e7a26909abecd20de80f849b41d692d40abe773"
   moneyNetWork: arbitrum,optimism,polygon,ava,zkSync,oktc,trc20 #提币时，提到哪个网络？空着表示不参与转账。
-  moneyNetWorkContain: bridged #moneyNetWork还应该包含什么?例如ETH-Arbitrum one和ETH-Arbitrum one (bridge) 的区分
+  moneyNetWorkContain: #moneyNetWork还应该包含什么?例如ETH-Arbitrum one和ETH-Arbitrum one (bridge) 的区分
   moneyNetWorkNotContain: #moneyNetWork不包含什么
-  apiKey: 72794b7e-bdd4-4c21-b96a-b95b55c23f13
-  secretKey: FDD6E6055E550125A528918DABB0FC72
+  apiKey: 7df12b34-954b-4692-9da1-e85309fcbaf9
+  secretKey: 1ECA10614A2F1D968C889B877AEC9F26
   url: https://www.okx.com
   passphrase: ${okx.passphrase} #放在启动参数里，启动参数会自动覆盖它 https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.external-config
   feeRate: 0.001
+  websocket:
+    url: wss://ws.okx.com:8443/ws/v5/public
 
 okcoinF: #期货标的
   goods:  #交易哪种商品。大小写随意，由各平台对应的trade类负责转换
@@ -146,6 +148,10 @@ binance:
   secretKey: m8BFeXKETjPuDgf6LY7wlJmAZDlnQcKiW3vfm6x1b5TcjEX4eIulvMrzu1vgqvVN #她
   feeRate: 0.001
   url: https://api.binance.com
+  websocket:
+    url: wss://stream.binance.com:9443
+    level: 20 #市场深度包含几条数据：可选值5，10，20
+    speed: 100 #数据推送间隔为：1000毫秒或100毫秒
 #合约交易，币本位
 binanceF:
   goods:  #交易哪种商品。大小写随意，由各平台对应的trade类负责转换
@@ -173,7 +179,7 @@ uniswap:
   gasPercent: 1.0 #强制调高gas价格，对矿工费进行悲观的估算.
   gasLimit: 4500000
 
-oneInch:
+oneInch: # 在下列限制区，不可用 https://help.1inch.io/en/articles/5778756-restricted-territory
   netWork: arbitrum #网络名称叫什么？ 各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串
   naitveToken: eth #链的原生币，大小写都行。也是gas消耗的币的名称。因为uniswap能用在多个区块链
   goods: weth #交易哪种商品。大小写随意，由各平台对应的trade类负责转换

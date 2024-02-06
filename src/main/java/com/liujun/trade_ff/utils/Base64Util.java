@@ -1,9 +1,7 @@
 package com.liujun.trade_ff.utils;
 
-import sun.misc.BASE64Decoder;
-import sun.misc.BASE64Encoder;
-
 import java.io.UnsupportedEncodingException;
+import java.util.Base64;
 
 /**
  * Base64 工具类
@@ -20,7 +18,7 @@ public class Base64Util {
             e.printStackTrace();
         }
         if (b != null) {
-            s = new BASE64Encoder().encode(b);
+            s = new String(Base64.getEncoder().encode(b));
         }
         return s;
     }
@@ -28,7 +26,7 @@ public class Base64Util {
     public static String getBase64(byte[] b) {
         String s = null;
         if (b != null) {
-            s = new BASE64Encoder().encode(b);
+            s = new String(Base64.getEncoder().encode(b));
         }
         return s;
     }
@@ -38,9 +36,8 @@ public class Base64Util {
         byte[] b = null;
         String result = null;
         if (s != null) {
-            BASE64Decoder decoder = new BASE64Decoder();
             try {
-                b = decoder.decodeBuffer(s);
+                b = Base64.getDecoder().decode(s);
             } catch (Exception e) {
                 e.printStackTrace();
             }
