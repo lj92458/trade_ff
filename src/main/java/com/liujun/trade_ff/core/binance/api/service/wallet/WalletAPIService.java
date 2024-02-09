@@ -15,6 +15,7 @@ public interface WalletAPIService {
 
     /**
      * 查询提币状态
+     *
      * @param param
      * @return
      * @throws Exception
@@ -25,9 +26,12 @@ public interface WalletAPIService {
 
     /**
      * 查询充值到账情况
+     *
      * @param param
      * @return
      * @throws Exception
      */
     DepositQueryResult depositQuery(DepositQueryParam param) throws Exception;
+
+    long queryTime();
 }

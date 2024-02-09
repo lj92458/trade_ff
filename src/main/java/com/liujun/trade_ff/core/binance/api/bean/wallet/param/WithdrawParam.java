@@ -24,10 +24,12 @@ public class WithdrawParam {
     private Long recvWindow;//no
     private Long timestamp = DateUtils.getUnixTimeMilli();//yes
 
-    public WithdrawParam(String coin, String address, Double amount) {
+    public WithdrawParam(String coin, String address, Double amount, long recvWindow, long timestampAdd) {
         this.coin = coin;
         this.address = address;
         this.amount = amount;
+        this.recvWindow = recvWindow;
+        this.timestamp += timestampAdd;
     }
 
 }

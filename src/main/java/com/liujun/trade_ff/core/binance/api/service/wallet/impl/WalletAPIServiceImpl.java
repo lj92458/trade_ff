@@ -1,5 +1,6 @@
 package com.liujun.trade_ff.core.binance.api.service.wallet.impl;
 
+import com.alibaba.fastjson2.JSON;
 import com.liujun.trade_ff.core.binance.api.bean.wallet.param.DepositQueryParam;
 import com.liujun.trade_ff.core.binance.api.bean.wallet.param.WithdrawParam;
 import com.liujun.trade_ff.core.binance.api.bean.wallet.param.WithdrawQueryParam;
@@ -43,6 +44,17 @@ public class WalletAPIServiceImpl implements WalletAPIService {
 
     @Override
     public DepositQueryResult depositQuery(DepositQueryParam param) throws Exception {
-        return this.client.executeSync(this.api.depositQuery(MapUtil.toMapWithoutNullField(param)));
+        DepositQueryResult[] arr = this.client.executeSync(this.api.depositQuery(MapUtil.toMapWithoutNullField(param)));
+        if (arr.length > 0) {
+            return arr[0];
+        } else {
+            return null;
+        }
+
+    }
+
+    public long queryTime() {
+        return JSON.parseObject(this.client.executeSync(this.api.queryTime())).getLong("serverTime");
+
     }
 }

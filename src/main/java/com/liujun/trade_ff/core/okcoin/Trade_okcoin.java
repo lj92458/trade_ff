@@ -128,12 +128,15 @@ public class Trade_okcoin extends Trade {
                 super.onMessage(webSocket, bytes);//大部分工作，都被super干了
                 if (bookMap.get(coinPair) != null && bookMap.get(coinPair).orElse(null) != null) {
                     try {
+                        if (engine.stop) {
+                            webSocketStateMap.get(WebSocketState.StreamType.depth).getWebSocketConnection().close();
+                        }
                         webSocketState.setLastUpdateTime(System.currentTimeMillis());
                         orderBook = bookMap.get(coinPair).orElse(null);
                         webSocketState.setLastUpdateId((long) orderBook.getSeqId());
                         engine.processMarketDepth();
                     } catch (Exception e) {
-                        throw new RuntimeException(e);
+                        log.error("", e);
                     }
                 }
             }
@@ -271,15 +274,16 @@ public class Trade_okcoin extends Trade {
             }
 
             // 为了确保能成交，可以将卖单价格降低。买单不能动。因为可能导致money不够。
-            double addPrice = (order.getType().equals("sell") ? -1 * prop.huaDian2 : 0);
+            double addPrice = (order.getType().equals("sell") ? -1 * prop.huaDian2 : prop.huaDian2);
 
             PlaceOrder orderParam = new PlaceOrder();
             orderParam.setInstId(coinPair);
             orderParam.setTdMode("cash");
             orderParam.setPx(Prop.fmt_money.get().format(order.getPrice() * (1 + addPrice)));//即然决定用市价成交，那么price是无效的
-            orderParam.setOrdType("limit");//todo market limit哪个更好？
+            orderParam.setOrdType("market");//todo market limit哪个更好？
             orderParam.setSide(order.getType());
             orderParam.setSz(Prop.fmt_goods.get().format(order.getVolume() - 0.00));
+            orderParam.setTgtCcy("base_ccy");//市价单委托数量sz的单位。买单默认quote_ccy(计价货币)， 卖单默认base_ccy(交易货币)
             batch.add(orderParam);
 
         }// end for

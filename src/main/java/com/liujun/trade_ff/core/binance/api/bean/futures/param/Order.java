@@ -12,19 +12,24 @@ public class Order {
     private PositionSide positionSide;//	ENUM	NO	持仓方向,单向持仓模式下非必填,默认且仅可填BOTH;在双向持仓模式下必填,且仅可选择 LONG 或 SHORT
     private OrderType type;//	ENUM	YES	订单类型 LIMIT, MARKET, STOP, TAKE_PROFIT, STOP_MARKET, TAKE_PROFIT_MARKET, TRAILING_STOP_MARKET
     private String reduceOnly;//	STRING	NO	true, false; 非双开模式下默认false；双开模式下不接受此参数； 使用closePosition不支持此参数。
-    private int quantity;//	DECIMAL	NO	下单数量,使用closePosition不支持此参数。
-    private double price;//	DECIMAL	NO	委托价格
+    private Integer quantity;//	DECIMAL	NO	下单数量,使用closePosition不支持此参数。
+    private Double price;//	DECIMAL	NO	委托价格
     private String newClientOrderId;//	STRING	NO	用户自定义的订单号,不可以重复出现在挂单中。如空缺系统会自动赋值。必须满足正则规则 ^[\.A-Z\:/a-z0-9_-]{1,36}$
-    private double stopPrice;//	DECIMAL	NO	触发价, 仅 STOP, STOP_MARKET, TAKE_PROFIT, TAKE_PROFIT_MARKET 需要此参数
+    private Double stopPrice;//	DECIMAL	NO	触发价, 仅 STOP, STOP_MARKET, TAKE_PROFIT, TAKE_PROFIT_MARKET 需要此参数
     private String closePosition;//	STRING	NO	true, false；触发后全部平仓,仅支持STOP_MARKET和TAKE_PROFIT_MARKET；不与quantity合用；自带只平仓效果,不与reduceOnly 合用
-    private double activationPrice;//	DECIMAL	NO	追踪止损激活价格,仅TRAILING_STOP_MARKET 需要此参数, 默认为下单当前市场价格(支持不同workingType)
-    private double callbackRate;//	DECIMAL	NO	追踪止损回调比例,可取值范围[0.1, 4],其中 1代表1% ,仅TRAILING_STOP_MARKET 需要此参数
+    private Double activationPrice;//	DECIMAL	NO	追踪止损激活价格,仅TRAILING_STOP_MARKET 需要此参数, 默认为下单当前市场价格(支持不同workingType)
+    private Double callbackRate;//	DECIMAL	NO	追踪止损回调比例,可取值范围[0.1, 4],其中 1代表1% ,仅TRAILING_STOP_MARKET 需要此参数
     private TimeInForce timeInForce;//	ENUM	NO	有效方法
     private WorkingType workingType;//	ENUM	NO	stopPrice 触发类型: MARK_PRICE(标记价格), CONTRACT_PRICE(合约最新价). 默认 CONTRACT_PRICE
     private String priceProtect;//	STRING	NO	条件单触发保护："TRUE","FALSE", 默认"FALSE". 仅 STOP, STOP_MARKET, TAKE_PROFIT, TAKE_PROFIT_MARKET 需要此参数
     private NewOrderRespType newOrderRespType;//	ENUM	NO	"ACK", "RESULT", 默认 "ACK"
-    private long recvWindow;//	LONG	NO
-    private long timestamp = DateUtils.getUnixTimeMilli();//	LONG	YES
+    private Long recvWindow;//	LONG	NO
+    private Long timestamp = DateUtils.getUnixTimeMilli();//	LONG	YES
+
+    public Order(long recvWindow, long timestampAdd) {
+        this.recvWindow = recvWindow;
+        this.timestamp += timestampAdd;
+    }
 
     public String getSymbol() {
         return symbol;

@@ -12,15 +12,19 @@ public class PlaceOrderParam {
     OrderType type;
     TimeInForce timeInForce;
     Double quantity;
-    Double quoteOrderQty;
+    Double quoteOrderQty;//quoteOrderQty=100:下买单的时候, 订单会尽可能的买进价值100USDT的BTC.下卖单的时候, 订单会尽可能的卖出价值100USDT的BTC.
     Double price;
     String newClientOrderId;
     Double stopPrice;
     Double icebergQty;
     NewOrderRespType newOrderRespType;
-    Long recvWindow;
+    long recvWindow;
     Long timestamp = DateUtils.getUnixTimeMilli();
 
+    public PlaceOrderParam(long recvWindow, long timestampAdd) {
+        this.recvWindow = recvWindow;
+        this.timestamp += timestampAdd;
+    }
 
     public String getSymbol() {
         return symbol;

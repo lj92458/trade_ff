@@ -2,7 +2,7 @@
 
 <conf>
     <!-- 启用的平台 -->
-    <enablePlat>uniswap,binance</enablePlat>
+    <enablePlat>uniswap,okcoin,binance</enablePlat>
     <!-- 开仓时，两个平台之间的差价。跟配置文件中平台出现的先后顺序有关：用前一个平台减后一个 -->
     <openPriceGap>0</openPriceGap>
     <lastChange>2016-01-02 10:01:01</lastChange>
@@ -49,7 +49,7 @@
         <binance>0.0</binance>
         <uniswap>0.0</uniswap>
     </binanceF>
-    <uniswap changePrice="0" pgoods="0.999" pmoney="0.999">
+    <uniswap changePrice="0" pgoods="0.998" pmoney="0.998">
         <okcoinF>0.0</okcoinF>
         <huobi>0.0</huobi>
         <okcoin>6.85</okcoin>
@@ -66,5 +66,5 @@
         <uniswap>0.0</uniswap>
     </oneInch>
     <!-- 第一条余额记录。格式：时间,总收入,本次收入,当前money,当前btc,okcoinMoney,okcoinGoods,chbtcMoney,chbtcGoods,当前价格, -->
-    <firstBalance>dateTime:2023-06-12 00:00:00,totalEarn:0.0,thisEarn:0.0,totalMoney:0,totalGoods:0,{uniswapMoney:0,uniswapGoods:0,binanceMoney:0,binanceGoods:0},price:28024.0,</firstBalance>
+    <firstBalance>dateTime:2024-02-06 00:00:00,totalEarn:0.0,thisEarn:0.0,totalMoney:4816.65,totalGoods:2.02797,{uniswapMoney:7094.5,uniswapGoods:3.5,okcoinMoney:0,binanceGoods:8.47260449},price:28024.0,</firstBalance>
 </conf>

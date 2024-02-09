@@ -73,10 +73,10 @@ public class Engine {
     public int maxOrderNum = 75;//最多处理多少市场挂单
 
     /**
-     * 间隔多久查询一次挂单.单位：秒
+     * 间隔多久查询一次挂单.单位：秒，可以是小数
      */
     @Value("${engine.time_queryOrder}")
-    public int time_queryOrder;
+    public double time_queryOrder;
     /**
      * 每循环一次,最大允许占用的时间.单位：秒
      */
@@ -113,11 +113,6 @@ public class Engine {
     @Value("${trade.core.package}")
     public String corePackage;
     /**
-     * #dex和cex同步挂单吗？true同步，false不同步。如果dex失败率高，就不要同步挂单。而是先让dex执行，执行成功后会发现资金失衡，然后通过调平资金的方式去执行cex
-     */
-    @Value("${trade.dexSync}")
-    public boolean dexSync;
-    /**
      * 任意平台的token比例降到多少，就触发转账
      */
     @Value("${trade.whenBalance}")
@@ -126,8 +121,6 @@ public class Engine {
     public boolean canBalance;
     @Value("${trade.needCheckTotalAmount}")
     public boolean needCheckTotalAmount;
-    @Value("${trade.tokenAllInDex}")
-    public boolean tokenAllInDex;
     // ====重要属性=============
     /**
      * 存放各个平台的交易对象
@@ -173,6 +166,8 @@ public class Engine {
      */
     public boolean isBalanceFinished = true;
     public long i = 0;
+    public Trade firstDexTrade = null;
+    public Trade firstCexTrade = null;
 
     // --------- end 对象属性 -------------------------------------------------
     static {
@@ -222,17 +217,27 @@ public class Engine {
 
                 platList.add(trade);
             }
+            //查找dex、第一个cex
+            for (Trade trade : platList) {
+                if (trade.fixFee > 0) {
+                    if (firstDexTrade == null) firstDexTrade = trade;
+                } else {
+                    if (firstCexTrade == null) firstCexTrade = trade;
+                }
+            }
+
             //检查合法性
             double sumPrice = platList.stream().mapToDouble(Trade::getChangePrice).sum();
             double sumPgoods = platList.stream().mapToDouble(o -> o.pToken[0]).sum();
             double sumPmoney = platList.stream().mapToDouble(o -> o.pToken[1]).sum();
             if (sumPrice != 0 || sumPgoods != 1 || sumPmoney != 1) {
-                throw new Exception("price或pgoods或pmoney总和不合法！");
+                throw new Exception("price或pgoods或pmoney总和不合法！sumPrice=" + sumPrice + ",sumPgoods=" + sumPgoods + ",sumPmoney=" + sumPmoney);
             }
 
             //添加虚拟平台
             virtualTrade = SpringContextUtil.getBean(VirtualTrade.class, httpUtil, platList.size(), usdRate, prop, this);
             platList.add(virtualTrade);
+
 
             //创建threadPoolExecutor
             threadPoolExecutor = new ThreadPoolExecutor(
@@ -303,17 +308,18 @@ public class Engine {
         try {
             outer:
             for (; !stop && i < 86400 / time_queryOrder; i++) {// 每隔24小时(),自动退出
-                TimeUnit.MILLISECONDS.sleep(time_queryOrder * 1000L);
-                //连接各平台的websocket并不断监视状态
-                for (Trade trade : platList) {
-                    if (trade.getFixFee() == 0) {//只处理cex平台
-                        //如果数据流最近没更新，那就是异常
-                        WebSocketState state = trade.webSocketStateMap.get(WebSocketState.StreamType.depth);
-                        if (state != null && state.getLastUpdateTime() < System.currentTimeMillis() - 20000) {
-                            log.error("websocket没有从服务端收到新数据，请排查。");
-                            //break outer;
-                        }
+                TimeUnit.MILLISECONDS.sleep((long) (time_queryOrder * 1000));
+                //每隔3秒，监视websocket状态：如果数据流最近没更新，那就是异常
+                if ((i * time_queryOrder) % 3 == 0) {
+                    for (Trade trade : platList) {
+                        if (trade.getFixFee() == 0) {//只处理cex平台
+                            WebSocketState state = trade.webSocketStateMap.get(WebSocketState.StreamType.depth);
+                            if (state != null && state.getLastUpdateTime() != 0 && state.getLastUpdateTime() < System.currentTimeMillis() - 60000) {
+                                log.error("websocket没有从服务端收到新数据，请排查。");
+                                break outer;
+                            }
 
+                        }
                     }
                 }
 
@@ -338,7 +344,7 @@ public class Engine {
      * 任何平台的websocket的listener，都会调用本方法来完成一轮工作
      */
     public void processMarketDepth() throws Exception {
-        if (initSuccess && !isOnProcessing) {
+        if (initSuccess && !isOnProcessing) {//如果正在执行，就跳过本次执行
             try {
                 isOnProcessing = true;
                 long beginTime = System.currentTimeMillis();
@@ -353,8 +359,6 @@ public class Engine {
             } finally {
                 isOnProcessing = false;
             }
-        }else{
-            log.info("isOnProcessing="+isOnProcessing+",跳过执行");
         }
     }
 
@@ -370,7 +374,7 @@ public class Engine {
                 this.currentBalance = getCurrentBalance();
                 if (needCheckTotalAmount) {
                     if ((i * time_queryOrder) % 12 == 0) {
-                        flushAccount(true);
+                        flushAccount(false);
                     }
                     // 检查goods总数量,如果不跟初始值相等,就立即买卖调整。为什么要设置在这里，而不能在挂单函数里？因为挂单后，可能导致超时。然后就抛出异常、跳出for循环，没机会检查goods
                     //只有当资金分布均匀，才能处理资金总量的变动。因为前者会误导后者
@@ -394,16 +398,18 @@ public class Engine {
                 }
             }
         } else {//等待资金到账。balanceTokens能确保资金已到账呢
-            flushAccount(true);
-            //资金调拨，还没到账，这时总资金必然减少。通过监控资金总额，如果减少了，就让整个引擎空转，直到资金回归正常
-            Balance bal = getCurrentBalance();
-            log.info(bal.getPlatInfo());
-            isBalanceFinished = bal.totalToken[0] / currentBalance.totalToken[0] > 0.99
-                    && bal.totalToken[1] / currentBalance.totalToken[1] > 0.99;
-            if (!isBalanceFinished) {
-                log.info("资金没有平衡，系统正在等它平衡......");
-            } else {
-                log.info("资金已经平衡");
+            if ((i * time_queryOrder) % 1 == 0) {
+                flushAccount(true);
+                //资金调拨，还没到账，这时总资金必然减少。通过监控资金总额，如果减少了，就让整个引擎空转，直到资金回归正常
+                Balance bal = getCurrentBalance();
+                log.info(bal.getPlatInfo());
+                isBalanceFinished = bal.totalToken[0] / currentBalance.totalToken[0] > 0.99
+                        && bal.totalToken[1] / currentBalance.totalToken[1] > 0.99;
+                if (!isBalanceFinished) {
+                    log.info("资金没有平衡，系统正在等它平衡......");
+                } else {
+                    log.info("资金已经平衡");
+                }
             }
         }
 
@@ -442,16 +448,9 @@ public class Engine {
 
         // 为每个平台启动一个查询线程
         for (Trade trade : platList) {
-
-            //如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与。因为这个过程需要花费好几秒钟，为什么不节省掉呢。
-            if (needSkipDexWhenAdjustGoods(trade)) {
-                continue;
-            }
             flushMarketFutureList.add(CompletableFuture.runAsync(() -> {
                 try {
-                    //long beginTime = System.currentTimeMillis();
                     trade.flushMarketDeeps();
-                    //log.info(trade.getPlatName()+"flushMarketDeeps耗时" + (System.currentTimeMillis() - beginTime));
                 } catch (Exception e) {
                     log.error(trade.getPlatName() + "查询市场深度异常:" + e.getMessage(), e);
                 }
@@ -472,8 +471,7 @@ public class Engine {
         // 设置综合深度
         ArrayList<MarketOrder>[] totalDepth = new ArrayList[]{new ArrayList<MarketOrder>(), new ArrayList<MarketOrder>()};
         for (Trade trade : platList) {
-            //如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与
-            if (needSkipDexWhenAdjustGoods(trade)) {
+            if (trade.equals(virtualTrade)) {
                 continue;
             }
             totalDepth[0].addAll(trade.getMarketDepth()[0]);
@@ -482,7 +480,7 @@ public class Engine {
         }
 
         totalSort(totalDepth);// 对汇总的市场挂单进行排序：买方从大到小排序,卖方从小到大排序
-        log.debug(totalDepth[1] + "");/////////////////
+        //log.debug(totalDepth[1] + "");/////////////////
         //调节限价
         EarnCost maxEarnCost = null;
         if (tradeModel.equals("simple")) {
@@ -506,21 +504,26 @@ public class Engine {
         }
     }
 
+
     /**
      * 撮合备份的市场挂单。（根据我方的资金量情况，只把跟资金量匹配的挂单保存起来。确保我方有能力吃掉这些挂单
      */
     private void matchBackupDepth() throws Exception {
         // 将各平台备份的市场挂单导入汇总挂单(因为调节限价时，会把挂单的goods量改为0)
         ArrayList<MarketOrder>[] totalDepth = new ArrayList[]{new ArrayList<MarketOrder>(), new ArrayList<MarketOrder>()};
-
         for (Trade trade : platList) {
             // 设置“用户挂单”
-            if (trade.getUserOrderList() == null || trade.getUserOrderList().size() > 0) {
-                trade.setUserOrderList(new ArrayList<>());
-            }
-            //如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与
-            if (needSkipDexWhenAdjustGoods(trade)) {
-                continue;
+            trade.getUserOrderList().clear();
+            //如果有dex和cex参与，
+            if (firstDexTrade != null && firstCexTrade != null) {
+                //调节goods时，跳过dex;只剩下cex和virtualTrade
+                if (virtualTrade.isActive() && trade.getFixFee() > 0) {
+                    continue;
+                }
+                //跳过多余的cex，只剩下dex和首个cex
+                if (!trade.equals(firstCexTrade) && trade.getFixFee() == 0 && !trade.equals(virtualTrade)) {
+                    continue;
+                }
             }
             //如果允许跨平台搬运
             if (trade.getModeLock() == 0) {
@@ -530,23 +533,21 @@ public class Engine {
             }
         }
         totalSort(totalDepth);// 对汇总的市场挂单进行排序：买方从大到小排序,卖方从小到大排序
-        log.debug(totalDepth[1] + "");/////////////////
+        //log.debug(totalDepth[1] + "");/////////////////
         //如果平台备份的有。
         if (totalDepth[1].size() > 0 && totalDepth[0].size() > 0) {
 
             if (totalDepth[1].get(0).getPrice() <= 0 || totalDepth[0].get(0).getPrice() <= 0) {
                 throw new Exception("价格不能为负数：市场买单" + totalDepth[1].get(0).getPrice() + ", 市场卖单" + totalDepth[0].get(0).getPrice());
             }
-            double diffPrice = totalDepth[1].get(0).getPrice()
-                    - totalDepth[0].get(0).getPrice();
+            double diffPrice = totalDepth[1].get(0).getPrice() - totalDepth[0].get(0).getPrice();
             if (diffPrice > 0) {
 
-                log.debug("市场买单：" + totalDepth[1].toString());
-                log.debug("市场卖单：" + totalDepth[0].toString());
+                //log.debug("市场买单：" + totalDepth[1].toString());
+                //log.debug("市场卖单：" + totalDepth[0].toString());
 
                 //begin: 根据备份的市场深度求当前市场价格，然后设置给虚拟平台
-                double avgPrice = (totalDepth[1].get(0).getPrice() + totalDepth[0].get(0)
-                        .getPrice()) / 2.0;
+                double avgPrice = (totalDepth[1].get(0).getPrice() + totalDepth[0].get(0).getPrice()) / 2.0;
                 List<MarketOrder> virtualAskList = virtualTrade.getBackupDepth()[0];
                 if (virtualAskList.size() > 0) {//降低市场卖单价格，确保真实平台能卖出
                     virtualAskList.get(0).setPrice(avgPrice * (1 - prop.huaDian));
@@ -557,10 +558,8 @@ public class Engine {
                 }
                 // end : 根据备份的市场深度求当前市场价格，然后设置给虚拟平台
 
-                int keyIndex = totalDepth[1].get(0).getPlatId() * 10
-                        + totalDepth[0].get(0).getPlatId();
-                log.info("可搬运最大差价【" + diffPrice + "】" + keyArray[keyIndex] + " " + totalDepth[1].get(0)
-                        + "," + totalDepth[0].get(0)); //
+                int keyIndex = totalDepth[1].get(0).getPlatId() * 10 + totalDepth[0].get(0).getPlatId();
+                log.info("可搬运最大差价【" + diffPrice + "】" + keyArray[keyIndex] + " " + totalDepth[1].get(0) + "," + totalDepth[0].get(0)); //
 
 
                 EarnCost maxEarnCost = null;
@@ -607,7 +606,7 @@ public class Engine {
                         // end 【多线程】对各平台执行挂单、查订单状态、撤销没完全成交的订单、刷新账户信息============
                     }
                 } else {//end 如果正式生成的订单数量>0
-                    log.debug("正式订单最多赚" + maxEarnCost.earn + prop.money + ",利润率" + (maxEarnCost.earn > 0 ? prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) : 0) + "%," + maxEarnCost.orderPair + "对订单(不值得/看不上)----------------------");
+                    log.info("(不值得/看不上)正式订单最多赚" + maxEarnCost.earn + prop.money + ",利润率" + (maxEarnCost.cost != 0 ? prop.formatGoods(maxEarnCost.earn / maxEarnCost.cost * 100) : 0) + "%," + maxEarnCost.orderPair + "对订单----------------------");
 
                 }
             }
@@ -666,7 +665,7 @@ public class Engine {
             /*如果有dex平台存在，跳过cex平台，只执行dex，如果dex执行成功，在下个循环通过调节goods数量，间接执行了cex。
              这样作的好处是：dex踏空率太高了，一旦dex踏空，cex也就没必要执行了，多省事啊。
              */
-                if (!dexSync && totalFixFee > 0 && trade.getFixFee() == 0) {
+                if (totalFixFee > 0 && trade.getFixFee() == 0) {
                     continue;
                 }
 
@@ -699,7 +698,7 @@ public class Engine {
 
             }// end for
             // 等待各个线程结束,最多等time_oneCycle秒-------
-            CompletableFuture.allOf(tradeFutureList.toArray(new CompletableFuture<?>[0])).get(time_oneCycle, TimeUnit.SECONDS);
+            CompletableFuture.allOf(tradeFutureList.toArray(new CompletableFuture<?>[0])).get(30 * 60, TimeUnit.SECONDS);//币安arb网充值后需要等30分钟
         } finally {
             flushAccount(true);
             checkTotalGoods();
@@ -1415,7 +1414,7 @@ public class Engine {
                     }
                 }//end for
             } else {
-                throw new Exception("各项值总和不合法: price总和应该是0， pgoods和pmoney总和应该是1");
+                throw new Exception("sum=" + sum + ",各项值总和不合法: price总和应该是0， pgoods和pmoney总和应该是1");
             }
 
         }//synchronized
@@ -1460,18 +1459,6 @@ public class Engine {
         }
     }
 
-    /**
-     * 如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与
-     */
-    private boolean needSkipDexWhenAdjustGoods(Trade trade) {
-        if (tokenAllInDex) {//2023-08-23 bug修复，如果是现在的策略(cex什么也不持有，eth和usdc都在dex放着),就返回true.如果是以前的策略(让dex和cex都时刻持有eth和usdc)就应该返回false。
-            return !dexSync && virtualTrade.isActive() && trade.getFixFee() > 0;
-        } else {
-            // 2023-06-29 bug修复：如果不从dex调节goods,系统就会卡住：价格下跌，导致dex卖币，cex买币。因为币都在cex了，但是币还是不够，那么就要买。但这时usdc都在dex了，不从dex买，还能在哪里买？
-            // 备注：goods总量对不上，就不会触发goods跨平台搬运，因此系统会卡住。
-            return false;
-        }
-    }
 
     /**
      * 返回全部真实的平台。不要虚拟的

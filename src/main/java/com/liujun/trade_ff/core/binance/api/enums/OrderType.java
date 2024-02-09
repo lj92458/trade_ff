@@ -8,6 +8,8 @@ public enum OrderType {
     TAKE_PROFIT,// 止盈单
     TAKE_PROFIT_LIMIT,// 限价止盈单
     LIMIT_MAKER,// 限价卖单
+
+
     //以下是合约专有的
     STOP,// 止损限价单
     STOP_MARKET,// 止损市价单

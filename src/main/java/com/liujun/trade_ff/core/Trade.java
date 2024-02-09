@@ -73,7 +73,7 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
      * 程序将要挂的单。包括买单、卖单。买单按照价格从低往高排列，卖单从高往低。
      * 这是由于helpCreateOrders()方法的机制导致的，因为这里的买单，是为了吃掉市场的卖单，而卖单价格是从低到高
      */
-    private List<UserOrder> userOrderList;
+    private List<UserOrder> userOrderList = new ArrayList<>();
 
     /**
      * token数量比平均值差了多少
@@ -158,13 +158,18 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
     public void backupUsefulOrder() {
         for (int i = 0; i < 2; i++) {// 处理市场ask和bid. 0代表ask, 1代表bid
             backupDepth[i].clear();
-            double freeToken = accInfo.freeToken[1 - i];//处理市场卖单时，这里的freeToken指我拥有的money；反之处理市场买单，我需要出goods. 所以0和1要交换
+            double freeToken = 0;
+            if (fixFee == 0 && engine.firstDexTrade != null && !this.equals(engine.virtualTrade)) {//如果有dex，那么cex的资金等于dex的另一种资金
+                //处理币安的卖单时，需要把dex的money变成币安money
+                freeToken = engine.firstDexTrade.accInfo.freeToken[1 - i];
+                freeToken *= 0.995;
+            }
+            freeToken += accInfo.freeToken[1 - i];//处理市场卖单时，这里的freeToken指我拥有的money；反之处理市场买单，我需要出goods. 所以0和1要交换
+
             for (MarketOrder o : marketDepth[i]) {
                 double needToken = (i == 0 ? o.getPrice() : 1) * o.getVolume();//0表示市场卖单，我需要出钱买下来.
                 MarketOrder order = o.clone();
-                if (fixFee == 0 && engine.tokenAllInDex) {// 如果要求资金都存到dex，那么cex的市场挂单就全部备份。
-                    backupDepth[i].add(order);
-                } else if (freeToken >= needToken) {
+                if (freeToken >= needToken) {
                     backupDepth[i].add(order);
                     freeToken -= needToken;
                 } else if (0 < freeToken) {
@@ -200,9 +205,9 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
      */
     public void changeMyOrderPrice(double buyRate, double sellRate) {
         for (UserOrder o : userOrderList) {
-            if (o.getType().equals("buy")) {//如果是买单，说明跟市场卖单相对应
+            if (o.getType().equals("buy")) {//如果是我的买单，说明跟市场卖单相对应
                 o.setPrice((o.getPrice() + getChangePrice()) / sellRate);
-            } else {//如果是卖单，说明跟市场买单相对应
+            } else {//如果是我的卖单，说明跟市场买单相对应
                 o.setPrice((o.getPrice() + getChangePrice()) / buyRate);
             }
             //对将要发送的挂单，调整精度
@@ -216,7 +221,7 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
      * 卖 goods
      */
     public void sellGoods(double amount) throws Exception {
-        setUserOrderList(new ArrayList<UserOrder>());
+        setUserOrderList(new ArrayList<>());
         UserOrder order = new UserOrder();
         double price = getCurrentPrice() - 0.43 / prop.moneyPrice;
         order.setType("sell");
@@ -235,7 +240,7 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
      * 买 goods
      */
     public void buyGoods(double amount) throws Exception {
-        setUserOrderList(new ArrayList<UserOrder>());
+        setUserOrderList(new ArrayList<>());
         UserOrder order = new UserOrder();
         double price = getCurrentPrice() + 0.43 / prop.moneyPrice;
         order.setType("buy");
@@ -367,7 +372,7 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
      * @throws Exception
      */
     public boolean tokenTransferDex2Cex(UserOrder order) throws Exception {
-        if (engine.tokenAllInDex) {
+        if (engine.firstDexTrade != null && engine.firstCexTrade != null) {
             Trade dex = engine.platList.stream().filter(t -> t.fixFee > 0).findFirst().get();
             if (order.getType().equals("buy") && accInfo.freeToken[1] < order.getVolume() * order.getPrice()) {
                 double receiveAmount = TransTokenUtil.trans(engine, dex, this, 1,

@@ -22,6 +22,7 @@ import com.liujun.trade_ff.core.binance.api.service.future.impl.FutureOrderAPISe
 import com.liujun.trade_ff.core.binance.api.service.future.impl.FutureProductAPIServiceImpl;
 import com.liujun.trade_ff.core.binance.api.service.wallet.WalletAPIService;
 import com.liujun.trade_ff.core.binance.api.service.wallet.impl.WalletAPIServiceImpl;
+import com.liujun.trade_ff.core.binance.api.utils.DateUtils;
 import com.liujun.trade_ff.core.modle.AccountInfo;
 import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
@@ -94,6 +95,7 @@ public class Trade_binanceF extends Trade {
     @Value("${binanceF.contractType}")
     private String contractType;
     private String coinPair;
+    private long timeAdd = 0;//本机时间与币安时间的差距: 用币安时间减去本机时间
     //------------------------
 
 
@@ -122,6 +124,8 @@ public class Trade_binanceF extends Trade {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
             flushMarketDeeps();
+            timeAdd = walletAPIService.queryTime() - DateUtils.getUnixTimeMilli();
+            log.warn("本机系统时间慢了" + timeAdd);
         } catch (Exception e) {
             log.error(getPlatName() + " : " + e.getMessage(), e);
 
@@ -185,7 +189,7 @@ public class Trade_binanceF extends Trade {
         try {
             this.instrument = getInstrument(contractType, coinPair);
             double contractVal = instrument.getContractSize();
-            account = futureAccountAPIService.accountInfo(recvWindow);
+            account = futureAccountAPIService.accountInfo(recvWindow, getBinanceTime());
             //寻找仓位。系统只开启了单向持仓模式。所以只需要提取positionSide=BOTH的仓位
             //如果是双向持仓模式，同一个合约会显示BOTH/LONG/SHORT三种仓位
             for (int i = 0; i < account.getPositions().size(); i++) {
@@ -310,7 +314,7 @@ public class Trade_binanceF extends Trade {
 
             // 为了确保能成交，可以将卖单价格降低。买单不能动。因为可能导致money不够。
             double addPrice = 0;// (order.getType().equals("sell") ? -1 * prop.huaDian2 : prop.huaDian2);
-            Order o = new Order();
+            Order o = new Order(recvWindow, timeAdd);
             o.setPrice(order.getPrice() * (1 + addPrice));
             o.setSymbol(instrument.getSymbol());
             //如果无仓，说明要开仓
@@ -335,7 +339,7 @@ public class Trade_binanceF extends Trade {
                         if (upQty > 0) {//如果有必要做多
                             o.setClosePosition("true");
                             log.info("空仓不够用，需要做多");
-                            Order oUp = new Order();
+                            Order oUp = new Order(recvWindow, timeAdd);
                             oUp.setPrice(Double.parseDouble(Prop.fmt_money.get().format(order.getPrice() * (1 + addPrice))));
                             oUp.setSymbol(instrument.getSymbol());
                             oUp.setSide(OrderSide.BUY);
@@ -357,7 +361,7 @@ public class Trade_binanceF extends Trade {
                         if (downQty > 0) {//如果有必要做空
                             o.setClosePosition("true");
                             log.info("多仓不够用，需要做空");
-                            Order oDown = new Order();
+                            Order oDown = new Order(recvWindow, timeAdd);
                             oDown.setPrice(order.getPrice() * (1 + addPrice));
                             oDown.setSymbol(instrument.getSymbol());
                             oDown.setSide(OrderSide.SELL);
@@ -423,7 +427,7 @@ public class Trade_binanceF extends Trade {
     public String withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
 
         String myOrderId = System.currentTimeMillis() + "";
-        WithdrawParam param = new WithdrawParam(productName, address, amount);
+        WithdrawParam param = new WithdrawParam(productName, address, amount, recvWindow, timeAdd);
 
         WithdrawResult result = this.walletAPIService.withdraw(param);
         log.info(getPlatName() + "提币成功：" + result.getId() + "，请求参数" + param);
@@ -457,6 +461,10 @@ public class Trade_binanceF extends Trade {
             }
         }
         return null;
+    }
+
+    private long getBinanceTime() {
+        return DateUtils.getUnixTimeMilli() + timeAdd;
     }
 
     @Override

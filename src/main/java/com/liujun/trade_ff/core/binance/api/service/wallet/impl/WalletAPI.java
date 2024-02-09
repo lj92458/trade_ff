@@ -31,5 +31,12 @@ public interface WalletAPI {
 
     @GET("/sapi/v1/capital/deposit/hisrec")
     @Headers("SECURITY_TYPE:USER_DATA")
-    Call<DepositQueryResult> depositQuery(@QueryMap Map<String, Object> map);
+    Call<DepositQueryResult[]> depositQuery(@QueryMap Map<String, Object> map);
+
+    @GET("/sapi/v1/capital/deposit/hisrec")
+    @Headers("SECURITY_TYPE:USER_DATA")
+    Call<String> depositQueryRaw(@QueryMap Map<String, Object> map);
+
+    @GET("/api/v3/time")
+    Call<String> queryTime();
 }

@@ -61,6 +61,8 @@ public class Trade_uniswap extends Trade {
     private double gasPriceGwei;
     @Value("${uniswap.gasLimit}")
     double gasLimit;
+    @Value("${uniswap.slipPage}")
+    double slipPage;
     //------------------------
 
     /**
@@ -122,7 +124,7 @@ public class Trade_uniswap extends Trade {
             }
 
             sort(depth);// 排序
-            changeMarketPrice(1 - 0, 1 + 0);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了
+            changeMarketPrice(1, 1);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了
             backupUsefulOrder();
             // 设置当前价格
             setCurrentPrice((depth[0].get(0).getPrice() + depth[1].get(0).getPrice()) / 2.0);
@@ -177,7 +179,6 @@ public class Trade_uniswap extends Trade {
 
     private double adjustGasPrice(double gasPrice) {
         double percent;
-
         percent = gasPercent;
         return Double.parseDouble(new DecimalFormat("0.0000").format(gasPrice * percent));
 
@@ -198,7 +199,7 @@ public class Trade_uniswap extends Trade {
             }
         }// end for
         merge();//对订单进行合并
-        changeMyOrderPrice(1 - 0, 1 + 0);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了
+        changeMyOrderPrice(1, 1);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了
         for (; orderCount < userOrderList.size(); orderCount++) {
             UserOrder order = userOrderList.get(orderCount);
             // 为了确保能成交，可以将卖单价格降低。买单不能动。因为可能导致money不够。
@@ -208,9 +209,7 @@ public class Trade_uniswap extends Trade {
                     Prop.fmt_money.get().format(order.getPrice()),
                     Prop.fmt_goods.get().format(order.getVolume()),
                     this.gasPriceGwei + "",
-                    //(this.profitRate + prop.atLeastRate) * 0.5,//todo profitRate是大于prop.atLeastRate的，允许更大的滑点，会导致更容易成交，但这也是亏损的根源。
-                    //prop.atLeastRate * 1.0,// todo 如果在激烈的竞争下，竞争不赢别人，就不要用大滑点。小滑点导致不容易成交，会白白浪费矿工费，但在矿工费便宜的链上就没关系
-                    this.profitRate * 0.9,
+                    getSlipPage(),
                     getPoolFee()
             );
             // 设置orderId
@@ -219,6 +218,12 @@ public class Trade_uniswap extends Trade {
         return userOrderList.size();
     }
 
+    private double getSlipPage() {
+        //retrun (this.profitRate + prop.atLeastRate) * 0.5;//todo profitRate是大于prop.atLeastRate的，允许更大的滑点，会导致更容易成交，但这也是亏损的根源。
+        //return prop.atLeastRate * 2.0; // todo 如果在激烈的竞争下，竞争不赢别人，就不要用大滑点。小滑点导致不容易成交，会白白浪费矿工费，但在矿工费便宜的链上就没关系
+        //return this.profitRate * 0.9;
+        return slipPage;
+    }
 
     /**
      * 查出完全成交的订单，并且标记。那么，没被标记的，就是不成功的
