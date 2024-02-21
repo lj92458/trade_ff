@@ -129,12 +129,13 @@ public class Trade_binance extends Trade {
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
-            flushMarketDeeps();
+            //flushMarketDeeps();
         } catch (Exception e) {
             log.error(getPlatName() + " : " + e.getMessage(), e);
 
         }
-        String json = IOUtils.toString(Trade_binance.class.getResourceAsStream("allCoin.json"), StandardCharsets.UTF_8);
+        //String json = IOUtils.toString(Trade_binance.class.getResourceAsStream("allCoin.json"), StandardCharsets.UTF_8);
+        String json = walletAPIService.queryAllCoin(DateUtils.getUnixTimeMilli());
         coinInfoList = JSON.parseArray(json, CoinInfo.class);
 
         //连接websocket
@@ -143,7 +144,7 @@ public class Trade_binance extends Trade {
         int depthConnectionId = webSocketStreamClient.partialDepthStream(coinPair, websocketLevel, websocketSpeed, dataStr -> {
             try {
                 if (engine.stop) {
-                    webSocketStreamClient.closeAllConnections();
+                    cleanResource();
                 }
                 //每30秒查询币安系统时间
                 if ((engine.i * engine.time_queryOrder) % 30 == 0) {
@@ -153,7 +154,14 @@ public class Trade_binance extends Trade {
                 webSocketState.setLastUpdateTime(System.currentTimeMillis());
                 depth = JSON.parseObject(dataStr, Depth.class);
                 webSocketState.setLastUpdateId(depth.getLastUpdateId());
-                engine.processMarketDepth();
+                new Thread(() -> {
+                    try {
+                        this.createMarketDepth();
+                        engine.processMarketDepth(this);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }, "wss_" + platName).start();
             } catch (Exception e) {
                 log.error("", e);
             }
@@ -167,7 +175,7 @@ public class Trade_binance extends Trade {
 
     public void cleanResource() {
         if (webSocketStreamClient != null) {
-            webSocketStreamClient.closeAllConnections();
+            webSocketStreamClient.closeConnection(webSocketStateMap.get(WebSocketState.StreamType.depth).getConnectionId());
         }
     }
 
@@ -177,34 +185,41 @@ public class Trade_binance extends Trade {
      * @throws Exception
      */
     public void flushMarketDeeps() throws Exception {
-        //如果depth是null，表明这不是websocket主动推送，因此要主动发起http查询
-        if (depth == null) {
-            depth = spotProductAPIService.marketDepth(coinPair, prop.marketOrderSize);
-        }
-
-        // 初始化,清空
-        ArrayList<MarketOrder>[] marketOrderList = getMarketDepth();
-        try {
-            List<String[]>[] listArr = new List[]{depth.getAsks(), depth.getBids()};
-            for (int i = 0; i < 2; i++) {
-                marketOrderList[i].clear();
-                for (String[] strings : listArr[i])
-                    marketOrderList[i].add(new MarketOrder(platId, Double.parseDouble(strings[0]), Double.parseDouble(strings[1])));
+        //depth = spotProductAPIService.marketDepth(coinPair, prop.marketOrderSize);
+        //如果marketOrderList数据被取走了，就等待websocket主动填充
+        synchronized (getMarketDepth()) {
+            while (getMarketDepth()[0].isEmpty()) {
+                getMarketDepth().wait();
             }
-
-            //sort(marketOrderList);// 排序
-            changeMarketPrice(1 - feeRate, 1 + feeRate);
-            backupUsefulOrder();
-            // 设置当前价格
-            setCurrentPrice((marketOrderList[0].get(0).getPrice() + marketOrderList[1].get(0).getPrice()) / 2.0);
-            depth = null;
-        } catch (Exception e) {
-            log.error(getPlatName() + e.getMessage());
-            marketOrderList[0].clear();
-            marketOrderList[1].clear();
-            throw e;
         }
 
+    }
+
+    private void createMarketDepth() throws Exception {
+        synchronized (getMarketDepth()) {
+            ArrayList<MarketOrder>[] marketOrderList = getMarketDepth();
+            try {
+                List<String[]>[] listArr = new List[]{depth.getAsks(), depth.getBids()};
+                for (int i = 0; i < 2; i++) {
+                    marketOrderList[i].clear();
+                    for (String[] strings : listArr[i])
+                        marketOrderList[i].add(new MarketOrder(platId, Double.parseDouble(strings[0]), Double.parseDouble(strings[1])));
+                }
+
+                sort(marketOrderList);// 排序
+                changeMarketPrice(1 - feeRate, 1 + feeRate);
+                //backupUsefulOrder();//这行代码放到了engine.queryMarketDepth，因为wss线程调用flushMarketDeeps时不应该改动backupDepth
+                // 设置当前价格
+                setCurrentPrice((marketOrderList[0].get(0).getPrice() + marketOrderList[1].get(0).getPrice()) / 2.0);
+            } catch (Exception e) {
+                log.error(getPlatName() + e.getMessage());
+                marketOrderList[0].clear();
+                marketOrderList[1].clear();
+                throw e;
+            } finally {
+                getMarketDepth().notifyAll();
+            }
+        }
     }
 
 
@@ -263,7 +278,6 @@ public class Trade_binance extends Trade {
             }
         }// end for
         merge();//对订单进行合并
-        changeMyOrderPrice(1 - feeRate, 1 + feeRate);
         for (; orderCount < userOrderList.size(); orderCount++) {
             UserOrder order = userOrderList.get(orderCount);
 
@@ -271,20 +285,32 @@ public class Trade_binance extends Trade {
             if (tokenTransferDex2Cex(order))
                 return 0;
 
+            changeMyOrderPrice(1 - feeRate, 1 + feeRate);//这一行一定要在tokenTransferDex2Cex之后，否则，传过去的币不够用
             // 为了确保能成交，可以将卖单价格降低。买单不能动。因为可能导致money不够。
             double addPrice = (order.getType().equals("sell") ? -1 * prop.huaDian2 : prop.huaDian2);
             PlaceOrderParam param = new PlaceOrderParam(recvWindow, timeAdd);
             param.setSymbol(coinPair);//symbol
             param.setSide(Enum.valueOf(OrderSide.class, order.getType().toUpperCase()));// orderSide
             param.setType(OrderType.MARKET);//todo LIMIT还是MARKET
-            param.setTimeInForce(TimeInForce.GTC);//timeInForce
-            param.setQuantity(Double.parseDouble(Prop.fmt_goods.get().format(order.getVolume() - 0.00)));// quantity
-            param.setPrice(Double.parseDouble(Prop.fmt_money.get().format(order.getPrice() * (1 + addPrice))));// price
-
-            AddOrderResultACK result = this.spotOrderAPIService.addOrderACK(param);
-            // 设置orderId
-
-            order.setOrderId("" + result.getOrderId());
+            if (param.getType().equals(OrderType.LIMIT) || param.getType().equals(OrderType.STOP_LOSS_LIMIT) || param.getType().equals(OrderType.TAKE_PROFIT_LIMIT)) {
+                param.setTimeInForce(TimeInForce.GTC);//timeInForce
+                param.setPrice(Double.parseDouble(Prop.fmt_money.get().format(order.getPrice() * (1 + addPrice))));// price
+                param.setQuantity(Double.parseDouble(Prop.fmt_goods.get().format(order.getVolume())));// quantity
+            } else {//MARKET，那么可以设置quantity或quoteOrderQty，二选一。
+                if (order.getType().equals("buy")) {
+                    param.setQuoteOrderQty(Double.parseDouble(Prop.fmt_money.get().format(Math.min(accInfo.freeToken[1], order.getPrice() * order.getVolume()))));
+                } else {//sell
+                    param.setQuantity(Double.parseDouble(Prop.fmt_goods.get().format(Math.min(accInfo.freeToken[0], order.getVolume()))));
+                }
+            }
+            try {
+                this.onTrading = true;
+                AddOrderResultACK result = this.spotOrderAPIService.addOrderACK(param);
+                // 设置orderId
+                order.setOrderId("" + result.getOrderId());
+            } finally {
+                this.onTrading = false;
+            }
 
 
         }// end for
@@ -342,8 +368,9 @@ public class Trade_binance extends Trade {
             }
         }// end for
         log.info("-----binance已删掉" + finishedList.size() + "个已成交的,还剩" + userOrderList.size() + "个未成交");
-        log_haveTrade.info("binance++++++++++++++至少赚了" + prop.formatMoney(haveEarn) + ". 完全成交" + finishedList.size() + "个订单：" + finishedList.toString());
-
+        if (haveEarn > 0) {
+            log_haveTrade.info("binance++++++++++++++至少赚了" + prop.formatMoney(haveEarn) + ". 完全成交" + finishedList.size() + "个订单：" + finishedList.toString());
+        }
         // userOrderList里面剩下的是没完全成交的,全部撤单。一次最多撤10个
 
         for (UserOrder o : userOrderList) {
@@ -424,7 +451,7 @@ public class Trade_binance extends Trade {
                 DepositQueryParam param = new DepositQueryParam(recvWindow, timeAdd);
                 param.setTxId(txId);
                 DepositQueryResult queryResult = this.walletAPIService.depositQuery(param);
-                if (queryResult != null && queryResult.getStatus() == 1) {
+                if (queryResult != null && queryResult.getStatus() == 6) {//1表示成功，但需要25分钟才能成功。因此用6表示“以上账但不能提取”
                     log.info("binance充值已到账" + ", 确认次数confirmTimes=" + queryResult.getConfirmTimes());
                     return Double.parseDouble(queryResult.getAmount());
                 } else {

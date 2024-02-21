@@ -16,6 +16,7 @@ import com.liujun.trade_ff.core.uniswap.api.service.impl.OrderApiServiceImpl;
 import com.liujun.trade_ff.core.uniswap.api.service.impl.ProductAPIServiceImpl;
 import com.liujun.trade_ff.core.uniswap.api.service.impl.WalletAPIServiceImpl;
 import com.liujun.trade_ff.core.util.HttpUtil;
+import org.apache.catalina.User;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +44,7 @@ public class Trade_uniswap extends Trade {
     private AccountAPIService accountAPIService;
     private OrderAPIService orderAPIService;
     private WalletAPIService walletAPIService;
+    private AccountInfo backupAccInfo;//提交订单前，先备份账户信息
     /**
      * 网址前缀
      */
@@ -85,7 +87,7 @@ public class Trade_uniswap extends Trade {
         this.config = new APIConfiguration();
         config.setUri(url_prex);
         config.setAddress(ethAddress);
-        config.setMaxWaitSeconds(engine.time_oneCycle);
+        config.setMaxWaitSeconds(engine.time_oneCycle);//
 
         this.productAPIService = new ProductAPIServiceImpl(this.config);
         this.orderAPIService = new OrderApiServiceImpl(this.config);
@@ -110,30 +112,32 @@ public class Trade_uniswap extends Trade {
      * @throws Exception aa
      */
     public void flushMarketDeeps() throws Exception {
-        // 初始化,清空
-        ArrayList<MarketOrder>[] depth = getMarketDepth();
-        try {
-            Book book = productAPIService.bookProductsByProductId(coinPair, prop.marketOrderSize + "", "" + (feeRate + 0.0002), getPoolFee());
 
-            // 处理卖方、卖方挂单
-            List<String[]>[] listArr = new List[]{book.getAsks(), book.getBids()};
-            for (int i = 0; i < 2; i++) {
-                depth[i].clear();
-                for (String[] strings : listArr[i])
-                    depth[i].add(new MarketOrder(platId, Double.parseDouble(strings[0]), Double.parseDouble(strings[1])));
+        synchronized (getMarketDepth()) {
+            ArrayList<MarketOrder>[] depth = getMarketDepth();
+            try {
+                Book book = productAPIService.bookProductsByProductId(coinPair, prop.marketOrderSize + "", "" + (feeRate + 0.0002), getPoolFee());
+
+                // 处理卖方、卖方挂单
+                List<String[]>[] listArr = new List[]{book.getAsks(), book.getBids()};
+                for (int i = 0; i < 2; i++) {
+                    depth[i].clear();
+                    for (String[] strings : listArr[i])
+                        depth[i].add(new MarketOrder(platId, Double.parseDouble(strings[0]), Double.parseDouble(strings[1])));
+                }
+
+                sort(depth);// 排序
+                changeMarketPrice(1, 1);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了
+                //backupUsefulOrder();//这行代码放到了engine.queryMarketDepth，因为wss线程调用flushMarketDeeps时不应该改动backupDepth
+                // 设置当前价格
+                setCurrentPrice((depth[0].get(0).getPrice() + depth[1].get(0).getPrice()) / 2.0);
+                //
+            } catch (Exception e) {
+                log.error(getPlatName() + e.getMessage());
+                depth[0].clear();
+                depth[1].clear();
+                throw e;
             }
-
-            sort(depth);// 排序
-            changeMarketPrice(1, 1);//为什么是1而不是1-feeRate，因为返回的市场挂单价格，已经把手续费考虑进去了
-            backupUsefulOrder();
-            // 设置当前价格
-            setCurrentPrice((depth[0].get(0).getPrice() + depth[1].get(0).getPrice()) / 2.0);
-            //
-        } catch (Exception e) {
-            log.error(getPlatName() + e.getMessage());
-            depth[0].clear();
-            depth[1].clear();
-            throw e;
         }
     }
 
@@ -190,6 +194,7 @@ public class Trade_uniswap extends Trade {
      */
     public int tradeOrder() throws Exception {
         log.info(getPlatName() + "开始下单");
+        backupAccInfo = accInfo;//先备份账户余额，等订单提交后，再和最新的余额比较。以此推断订单是否成功
         List<UserOrder> userOrderList = getUserOrderList();
         int orderCount = 0;// 有效订单的数量
         // 删掉无效订单
@@ -203,17 +208,23 @@ public class Trade_uniswap extends Trade {
         for (; orderCount < userOrderList.size(); orderCount++) {
             UserOrder order = userOrderList.get(orderCount);
             // 为了确保能成交，可以将卖单价格降低。买单不能动。因为可能导致money不够。
-            TransResult result = this.orderAPIService.addOrder(
-                    coinPair,
-                    order.getType(),
-                    Prop.fmt_money.get().format(order.getPrice()),
-                    Prop.fmt_goods.get().format(order.getVolume()),
-                    this.gasPriceGwei + "",
-                    getSlipPage(),
-                    getPoolFee()
-            );
-            // 设置orderId
-            order.setOrderId("" + result.getOrderId());
+            try {
+                this.onTrading = true;
+                TransResult result = this.orderAPIService.addOrder(
+                        coinPair,
+                        order.getType(),
+                        Prop.fmt_money.get().format(order.getPrice()),
+                        Prop.fmt_goods.get().format(order.getVolume()),
+                        String.valueOf(this.gasPriceGwei),
+                        getSlipPage(),
+                        getPoolFee()
+                );
+                // 设置orderId
+                order.setOrderId(result.getOrderId());
+                order.setNonce(result.getNonce());
+            } finally {
+                this.onTrading = false;
+            }
         }// end for
         return userOrderList.size();
     }
@@ -222,7 +233,12 @@ public class Trade_uniswap extends Trade {
         //retrun (this.profitRate + prop.atLeastRate) * 0.5;//todo profitRate是大于prop.atLeastRate的，允许更大的滑点，会导致更容易成交，但这也是亏损的根源。
         //return prop.atLeastRate * 2.0; // todo 如果在激烈的竞争下，竞争不赢别人，就不要用大滑点。小滑点导致不容易成交，会白白浪费矿工费，但在矿工费便宜的链上就没关系
         //return this.profitRate * 0.9;
-        return slipPage;
+        //return slipPage;
+        if (this.profitRate < slipPage) {
+            return slipPage;
+        } else {
+            return this.profitRate * 1;
+        }
     }
 
     /**
@@ -231,23 +247,37 @@ public class Trade_uniswap extends Trade {
     @Override
     public int queryOrderState() throws Exception {
         List<UserOrder> userOrderList = getUserOrderList();
-
+        /* 注释掉旧方法。等找到办法判断成败，再放开这段代码
         // 查询完全成交的
         for (UserOrder o : userOrderList) {
             String status = orderAPIService.queryOrder(coinPair, o.getOrderId());
             if (status.equals("success")) {
                 o.setFinished(true);
             }
-        }
+        } */
 
-        int unFinishedNum = 0;//统计没成交的订单
-        for (int i = userOrderList.size() - 1; i >= 0; i--) {
-            UserOrder order = userOrderList.get(i);
-            if (!order.isFinished()) {
-                unFinishedNum++;
-            }
-        }// end for
-        return unFinishedNum;
+        // 新方法：根据提交订单前后的余额变化，来确定订单是否执行成功。如果余额变超过矿工费，就认为成功。细微的变化是矿工费引起的。
+        flushAccountInfo();
+        UserOrder o = userOrderList.get(0);
+        if (o.getType().equals("sell")) {
+            double diffMoney = accInfo.totalToken[1] - backupAccInfo.totalToken[1];//money增加
+            double actualslipPage = 100 * (1.0 - diffMoney / (o.getVolume() * o.getPrice()));
+            double actualProfit = 100 * o.getDiffPrice() / o.getPrice() - actualslipPage;
+            if (diffMoney > 0)
+                log_haveTrade.info("uniswap-------提交sell单导致money增加了：" + diffMoney + ",价格下滑" + actualslipPage + "%，利润还剩" + actualProfit + "%");
+        } else {
+            double diffGoods = accInfo.totalToken[0] - backupAccInfo.totalToken[0];//goods增加
+            double actualslipPage = 100 * (1.0 - diffGoods / o.getVolume());
+            double actualProfit = 100 * o.getDiffPrice() / o.getPrice() - actualslipPage;
+            if (diffGoods > 0)
+                log_haveTrade.info("uniswap-------提交buy单导致goods增加了：" + diffGoods + ",价格上滑" + actualslipPage + "%，利润还剩" + actualProfit + "%");
+        }
+        /*
+        if (Math.abs(backupAccInfo.totalToken[1] - accInfo.totalToken[1]) > fixFee * 2) {
+            userOrderList.forEach(o1 -> o.setFinished(true));
+        } */
+        userOrderList.forEach(o1 -> o.setFinished(true));
+        return 0;//uniswap的transaction必然执行成功。就算有revert，但表面上也是成功的。这里返回0，能防止“继续等待执行”。
     }
 
     /**
@@ -257,7 +287,7 @@ public class Trade_uniswap extends Trade {
      */
     @Override
     public void cancelOrder() throws Exception {
-
+        onTrading = false;
         List<UserOrder> userOrderList = getUserOrderList();
         List<UserOrder> finishedList = new ArrayList<>();
         double haveEarn = 0;// 至少赚了这么多
@@ -271,15 +301,14 @@ public class Trade_uniswap extends Trade {
                 haveEarn += order.getDiffPrice() * order.getVolume();
             }
         }// end for
-        log.info("-----uniswap已删掉" + finishedList.size() + "个已成交的,还剩" + userOrderList.size() + "个未成交");
-        log_haveTrade.info("uniswap++++++++++++++至少赚了" + prop.formatMoney(haveEarn) + ". 完全成交" + finishedList.size() + "个订单：" + finishedList.toString());
-
-        // userOrderList里面剩下的是没完全成交的,全部撤单。一次最多撤10个
+        /*
+        log_haveTrade.info("-----uniswap已删掉" + finishedList.size() + "个已成交的,还剩" + userOrderList.size() + "个未成交");
+        if (haveEarn > 0) {
+            log_haveTrade.info("uniswap++++++++++++++至少赚了" + prop.formatMoney(haveEarn) + ". 完全成交" + finishedList.size() + "个订单：" + finishedList);
+        }*/
 
         for (UserOrder o : userOrderList) {
-            orderAPIService.cancelOrder(coinPair, o.getOrderId());
-
-
+            orderAPIService.cancelOrder(String.valueOf(this.gasPriceGwei), o.getNonce());
         }
 
     }

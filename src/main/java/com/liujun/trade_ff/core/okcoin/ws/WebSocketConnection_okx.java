@@ -34,6 +34,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+/**
+ * 不要直接使用这个类，而是创建其子类。这样才能给onMessage添加更多功能
+ */
 @Slf4j
 @Getter
 @Setter

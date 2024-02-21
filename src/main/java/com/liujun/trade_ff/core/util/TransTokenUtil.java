@@ -46,6 +46,7 @@ public class TransTokenUtil {
      * @throws Exception
      */
     public static double trans(Engine engine, Trade fromTrade, Trade toTrade, int tokenIndex, double amount) throws Exception {
+        engine.isBalanceFinished = false;
         List<TransRoute> routes = createRoutes(engine, fromTrade, toTrade, tokenIndex);
         log.info("route数量：" + routes.size() + ", 内容：" + routes);
         if (routes.size() == 0) {

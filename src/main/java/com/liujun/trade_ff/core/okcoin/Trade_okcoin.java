@@ -115,13 +115,14 @@ public class Trade_okcoin extends Trade {
         try {
             // 初始查询账户信息。今后只有交易后,才需要重新查询。
             flushAccountInfo();
-            flushMarketDeeps();
+            //flushMarketDeeps();
         } catch (Exception e) {
             log.error(getPlatName() + " : " + e.getMessage(), e);
         }
 
         //连接websocket.
         WebSocketState webSocketState = new WebSocketState();
+        Trade_okcoin thisTrade = this;
         WebSocketConnection_okx connection = new WebSocketConnection_okx(null, null, null, null, null,
                 new Request.Builder().url(websocketUrl).build(), WebSocketStreamHttpClientSingleton.getHttpClient()) {
             public void onMessage(final WebSocket webSocket, final String bytes) {
@@ -129,12 +130,19 @@ public class Trade_okcoin extends Trade {
                 if (bookMap.get(coinPair) != null && bookMap.get(coinPair).orElse(null) != null) {
                     try {
                         if (engine.stop) {
-                            webSocketStateMap.get(WebSocketState.StreamType.depth).getWebSocketConnection().close();
+                            cleanResource();
                         }
                         webSocketState.setLastUpdateTime(System.currentTimeMillis());
                         orderBook = bookMap.get(coinPair).orElse(null);
                         webSocketState.setLastUpdateId((long) orderBook.getSeqId());
-                        engine.processMarketDepth();
+                        new Thread(() -> {
+                            try {
+                                thisTrade.createMarketDepth();
+                                engine.processMarketDepth(thisTrade);
+                            } catch (Exception e) {
+                                throw new RuntimeException(e);
+                            }
+                        }, "wss_" + platName).start();
                     } catch (Exception e) {
                         log.error("", e);
                     }
@@ -166,11 +174,9 @@ public class Trade_okcoin extends Trade {
     }
 
     public void cleanResource() {
-        Iterator<Map.Entry<WebSocketState.StreamType, WebSocketState>> iter = webSocketStateMap.entrySet().iterator();
-        while (iter.hasNext()) {
-            WebSocketConnection connection = iter.next().getValue().getWebSocketConnection();
-            connection.close();
-            iter.remove();
+        WebSocketConnection con = webSocketStateMap.get(WebSocketState.StreamType.depth).getWebSocketConnection();
+        if (con != null) {
+            con.close();
         }
     }
 
@@ -180,37 +186,46 @@ public class Trade_okcoin extends Trade {
      * @throws Exception
      */
     public void flushMarketDeeps() throws Exception {
-        // 初始化,清空
-        ArrayList<MarketOrder>[] marketOrderList = getMarketDepth();
-        try {
-            //如果orderBook是null，表明这不是websocket主动推送，因此要主动发起http查询
-            if (orderBook == null) {
-                JSONObject bookJson = marketDataAPIService.getOrderBook(coinPair, prop.marketOrderSize + "").getJSONArray("data").getJSONObject(0);
-                orderBook = WebSocketConnection_okx.parse(bookJson.toString()).get();
+        //JSONObject bookJson = marketDataAPIService.getOrderBook(coinPair, prop.marketOrderSize + "").getJSONArray("data").getJSONObject(0);
+        //orderBook = WebSocketConnection_okx.parse(bookJson.toString()).get();
+        //如果marketOrderList数据被取走了，就等待websocket主动填充
+        synchronized (getMarketDepth()) {
+            while (getMarketDepth()[0].isEmpty()) {
+                getMarketDepth().wait();
             }
-            List<SpotOrderBookItem>[] orderListArr = new List[]{
-                    orderBook.getAsks().subList(0, prop.marketOrderSize), //orderBook有400条数据，这里只要一小部分
-                    orderBook.getBids().subList(0, prop.marketOrderSize)
-            };
-            for (int i = 0; i < 2; i++) {
-                marketOrderList[i].clear();
-                for (SpotOrderBookItem item : orderListArr[i]) {
-                    marketOrderList[i].add(new MarketOrder(platId, Double.parseDouble(item.getPrice()), Double.parseDouble(item.getSize())));
+        }
+
+    }
+
+    private void createMarketDepth() throws Exception {
+        synchronized (getMarketDepth()) {
+            ArrayList<MarketOrder>[] marketOrderList = getMarketDepth();
+            try {
+                List<SpotOrderBookItem>[] orderListArr = new List[]{
+                        orderBook.getAsks().subList(0, prop.marketOrderSize), //orderBook有400条数据，这里只要一小部分
+                        orderBook.getBids().subList(0, prop.marketOrderSize)
+                };
+                for (int i = 0; i < 2; i++) {
+                    marketOrderList[i].clear();
+                    for (SpotOrderBookItem item : orderListArr[i]) {
+                        marketOrderList[i].add(new MarketOrder(platId, Double.parseDouble(item.getPrice()), Double.parseDouble(item.getSize())));
+                    }
                 }
+                sort(marketOrderList);// 排序
+                changeMarketPrice(1 - feeRate, 1 + feeRate);
+                //backupUsefulOrder();//这行代码放到了engine.queryMarketDepth，因为wss线程调用flushMarketDeeps时不应该改动backupDepth
+                // 设置当前价格
+                double askPrice = marketOrderList[0].get(0).getPrice();
+                double bidPrice = marketOrderList[1].get(0).getPrice();
+                setCurrentPrice((bidPrice + askPrice) / 2.0);
+            } catch (Exception e) {
+                log.error(getPlatName() + e.getMessage());
+                marketOrderList[0].clear();
+                marketOrderList[1].clear();
+                throw e;
+            } finally {
+                getMarketDepth().notifyAll();
             }
-            //sort(marketOrderList);// 排序
-            changeMarketPrice(1 - feeRate, 1 + feeRate);
-            backupUsefulOrder();
-            // 设置当前价格
-            double askPrice = marketOrderList[0].get(0).getPrice();
-            double bidPrice = marketOrderList[1].get(0).getPrice();
-            setCurrentPrice((bidPrice + askPrice) / 2.0);
-            orderBook = null;
-        } catch (Exception e) {
-            log.error(getPlatName() + e.getMessage());
-            marketOrderList[0].clear();
-            marketOrderList[1].clear();
-            throw e;
         }
     }
 
@@ -256,7 +271,6 @@ public class Trade_okcoin extends Trade {
             }
         }// end for
         merge();//对订单进行合并
-        changeMyOrderPrice(1 - feeRate, 1 + feeRate);
         for (; orderCount < userOrderList.size(); orderCount++) {
             UserOrder order = userOrderList.get(orderCount);
             order.setFinished(true);//默认都成交了。只因okex平台只能查出没成交的，所以我们必须默认成交了。
@@ -265,6 +279,7 @@ public class Trade_okcoin extends Trade {
             if (tokenTransferDex2Cex(order))
                 return 0;
 
+            changeMyOrderPrice(1 - feeRate, 1 + feeRate);//这一行一定要在tokenTransferDex2Cex之后，否则，传过去的币不够用
             // 如果新的批次开始,就结束前面批次
             if (0 == orderCount % max_batch_amount_trad) {
                 if (orderCount != 0) {// 如果前面有批次
@@ -282,8 +297,16 @@ public class Trade_okcoin extends Trade {
             orderParam.setPx(Prop.fmt_money.get().format(order.getPrice() * (1 + addPrice)));//即然决定用市价成交，那么price是无效的
             orderParam.setOrdType("market");//todo market limit哪个更好？
             orderParam.setSide(order.getType());
-            orderParam.setSz(Prop.fmt_goods.get().format(order.getVolume() - 0.00));
-            orderParam.setTgtCcy("base_ccy");//市价单委托数量sz的单位。买单默认quote_ccy(计价货币)， 卖单默认base_ccy(交易货币)
+            if (orderParam.getOrdType().equals("market")) {
+                //orderParam.setTgtCcy("???");//市价单委托数量sz的单位。买单默认quote_ccy(money)， 卖单默认base_ccy(goods)
+                if (orderParam.getSide().equals("buy")) {
+                    orderParam.setSz(Prop.fmt_money.get().format(Math.min(accInfo.freeToken[1], order.getPrice() * order.getVolume())));
+                } else {//sell
+                    orderParam.setSz(Prop.fmt_goods.get().format(Math.min(accInfo.freeToken[0], order.getVolume())));
+                }
+            } else {
+                orderParam.setSz(Prop.fmt_goods.get().format(order.getVolume() - 0.00));
+            }
             batch.add(orderParam);
 
         }// end for
@@ -296,9 +319,14 @@ public class Trade_okcoin extends Trade {
 
         // 对每个批次的orders_data进行挂单
         for (int i = 0; i < batchList.size(); i++) {
-
             log.info(getPlatName() + "当前是第" + i + "批：" + batchList.get(i));
-            JSONObject orderResult = this.tradeAPIService.placeMultipleOrders(batchList.get(i));
+            JSONObject orderResult;
+            try {
+                this.onTrading = true;
+                orderResult = this.tradeAPIService.placeMultipleOrders(batchList.get(i));
+            } finally {
+                this.onTrading = false;
+            }
             JSONArray orderResultArr = orderResult.getJSONArray("data");
             if (orderResultArr == null || orderResultArr.size() == 0) {
                 throw new Exception("下单返回结果为空： " + JSON.toJSONString(orderResult));
@@ -381,8 +409,9 @@ public class Trade_okcoin extends Trade {
             }
         }// end for
         log.info("-----okcoin已删掉" + finishedList.size() + "个已成交的,还剩" + userOrderList.size() + "个未成交");
-        log_haveTrade.info("okcion++++++++++++++至少赚了" + prop.formatMoney(haveEarn) + ". 完全成交" + finishedList.size() + "个订单：" + finishedList);
-
+        if (haveEarn > 0) {
+            log_haveTrade.info("okcion++++++++++++++至少赚了" + prop.formatMoney(haveEarn) + ". 完全成交" + finishedList.size() + "个订单：" + finishedList);
+        }
         // userOrderList里面剩下的是没完全成交的,全部撤单。一次最多撤10个
         List<CancelOrder> cancleOrders = new ArrayList<>();
 

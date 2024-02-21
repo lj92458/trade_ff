@@ -37,7 +37,7 @@ public class VirtualTrade extends Trade {
      */
     public void flushMarketDeeps() throws Exception {
         changeMarketPrice(1 - feeRate, 1 + feeRate);
-        backupUsefulOrder();
+        //backupUsefulOrder();
     }
 
     /**

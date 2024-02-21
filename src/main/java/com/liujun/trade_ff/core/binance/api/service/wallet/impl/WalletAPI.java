@@ -23,7 +23,7 @@ public interface WalletAPI {
 
     @GET("/sapi/v1/capital/withdraw/history")
     @Headers("SECURITY_TYPE:USER_DATA")
-    Call<WithdrawQueryResult> withdrawQuery(@QueryMap Map<String, Object> map);
+    Call<WithdrawQueryResult[]> withdrawQuery(@QueryMap Map<String, Object> map);
 
     @GET("/sapi/v1/capital/config/getall")
     @Headers("SECURITY_TYPE:USER_DATA")

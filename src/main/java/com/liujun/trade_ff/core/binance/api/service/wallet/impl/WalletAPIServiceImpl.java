@@ -30,7 +30,12 @@ public class WalletAPIServiceImpl implements WalletAPIService {
 
     @Override
     public WithdrawQueryResult withdrawQuery(WithdrawQueryParam param) throws Exception {
-        return this.client.executeSync(this.api.withdrawQuery(MapUtil.toMapWithoutNullField(param)));
+        WithdrawQueryResult[] arr = this.client.executeSync(this.api.withdrawQuery(MapUtil.toMapWithoutNullField(param)));
+        if (arr.length > 0) {
+            return arr[0];
+        } else {
+            return null;
+        }
     }
 
     /**

@@ -6,6 +6,7 @@ import com.liujun.trade_ff.core.binance.api.config.APIConfiguration;
 import com.liujun.trade_ff.core.binance.api.service.wallet.WalletAPIService;
 import com.liujun.trade_ff.core.binance.api.service.wallet.impl.WalletAPIServiceImpl;
 import com.liujun.trade_ff.core.binance.api.utils.DateUtils;
+import com.liujun.trade_ff.core.modle.UserOrder;
 import com.liujun.trade_ff.core.util.TransTokenUtil;
 import com.liujun.trade_ff.utils.SpringContextUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +49,7 @@ class TradeFfApplicationTests {
 
     @Test
     void testCreateRoutes() throws Exception {
+        engine.isOnProcessing = true;
         List<TransTokenUtil.TransRoute> routes1 = TransTokenUtil.createRoutes(engine, engine.actualPlats().get(0), engine.actualPlats().get(2), 1);
         log.info("route1数量：" + routes1.size() + ", 内容：" + routes1);
         routes1 = TransTokenUtil.createRoutes(engine, engine.actualPlats().get(2), engine.actualPlats().get(0), 1);
@@ -58,17 +60,29 @@ class TradeFfApplicationTests {
 
     @Test
     void testOkxDeposit() throws Exception {
+        engine.isOnProcessing = true;
         Trade trade_okcoin = engine.platList.stream().filter(t -> t.getPlatName().equals("okcoin")).findFirst().get();
         trade_okcoin.depositToken(null, "0x2d62f2a31372b45b1ef8d2f4d3c035660211b810233d3a1de4ac783bdd8acd52", 0, false);
     }
 
     @Test
     void testBinanceDeposit() throws Exception {
+        engine.isOnProcessing = true;
         log.info("platList.size=" + engine.platList.size());
         Trade trade_Binance = engine.platList.stream().filter(t ->
                 t.getPlatName().equals("binance")
         ).findFirst().get();
         trade_Binance.depositToken(null, "0x6377b8bdb2898c3576f87a5eb2764d2a535b27c234fe28c3a82de6140a1af754", 0, false);
+    }
+
+    @Test
+    void testUniswapCancelOrder() throws Exception {
+        engine.isOnProcessing = true;
+        log.info("platList.size=" + engine.platList.size());
+        UserOrder o=new UserOrder();
+        o.setNonce(1215);
+        engine.firstDexTrade.getUserOrderList().add(o);
+        engine.firstDexTrade.cancelOrder();
     }
 
 }

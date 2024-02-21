@@ -40,7 +40,8 @@ public class OrderApiServiceImpl implements OrderAPIService {
             synchronized (RpcClient.getInstance(config.getUri())) {
                 log.info("开始调用orderRpc.addOrder");
                 //failed to meet quorum 不一定代表失败呢
-                TransResult transResult = orderRpc.addOrder(coinPair, orderType, price, volume, config.getMaxWaitSeconds(), gasPriceGwei, slippage, poolFee).toFuture().get(config.getMaxWaitSeconds(), TimeUnit.SECONDS);
+                TransResult transResult = orderRpc.addOrder(coinPair, orderType, price, volume, config.getMaxWaitSeconds(), gasPriceGwei, slippage, poolFee)
+                        .toFuture().get(config.getMaxWaitSeconds(), TimeUnit.SECONDS);
 
                 return transResult;
             }
@@ -56,7 +57,14 @@ public class OrderApiServiceImpl implements OrderAPIService {
     }
 
     @Override
-    public void cancelOrder(String coinPair, String orderId) {
-
+    public void cancelOrder(String gasPriceGwei, int nonce) {
+        try {
+            log.info("开始调用orderRpc.cancleOrder");
+            TransResult transResult = orderRpc.cancelOrder(gasPriceGwei, config.getMaxWaitSeconds(), nonce)
+                    .toFuture().get(config.getMaxWaitSeconds(), TimeUnit.SECONDS);
+            log.info(transResult.toString());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

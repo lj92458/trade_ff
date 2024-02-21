@@ -113,6 +113,11 @@ public class Engine {
     @Value("${trade.core.package}")
     public String corePackage;
     /**
+     * #dex和cex同步挂单吗？true同步，false不同步。如果dex失败率高，就不要同步挂单。而是先让dex执行，执行成功后会发现资金失衡，然后通过调平资金的方式去执行cex
+     */
+    @Value("${trade.dexSync}")
+    public boolean dexSync;
+    /**
      * 任意平台的token比例降到多少，就触发转账
      */
     @Value("${trade.whenBalance}")
@@ -121,6 +126,8 @@ public class Engine {
     public boolean canBalance;
     @Value("${trade.needCheckTotalAmount}")
     public boolean needCheckTotalAmount;
+    @Value("${trade.tokenAllInDex}")
+    public boolean tokenAllInDex;
     // ====重要属性=============
     /**
      * 存放各个平台的交易对象
@@ -281,7 +288,8 @@ public class Engine {
                 FileUtils.writeStringToFile(balanceFile, firstBalanceStr, charset);
                 lastBalance = new Balance(prop, firstBalanceStr);
             }
-            currentBalance = getCurrentBalance();
+
+            saveCurrentBalance();
             // end 设置余额记录---------------------------
 
             //启动差价记录线程. 把AvgpriceThread看作runnable
@@ -295,6 +303,11 @@ public class Engine {
         } catch (Exception e) {
             log.error("初始化 enging出现异常", e);
         }
+    }
+
+    private void saveCurrentBalance() throws Exception {
+        currentBalance = getCurrentBalance();
+        saveBalance();
     }
 
     /**
@@ -312,14 +325,12 @@ public class Engine {
                 //每隔3秒，监视websocket状态：如果数据流最近没更新，那就是异常
                 if ((i * time_queryOrder) % 3 == 0) {
                     for (Trade trade : platList) {
-                        if (trade.getFixFee() == 0) {//只处理cex平台
-                            WebSocketState state = trade.webSocketStateMap.get(WebSocketState.StreamType.depth);
-                            if (state != null && state.getLastUpdateTime() != 0 && state.getLastUpdateTime() < System.currentTimeMillis() - 60000) {
-                                log.error("websocket没有从服务端收到新数据，请排查。");
-                                break outer;
-                            }
-
+                        WebSocketState state = trade.webSocketStateMap.get(WebSocketState.StreamType.depth);
+                        if (state != null && state.getLastUpdateTime() != 0 && state.getLastUpdateTime() < System.currentTimeMillis() - 60000) {
+                            log.error("websocket没有从服务端收到新数据，请排查。");
+                            break outer;
                         }
+
                     }
                 }
 
@@ -342,8 +353,10 @@ public class Engine {
 
     /**
      * 任何平台的websocket的listener，都会调用本方法来完成一轮工作
+     *
+     * @param fromPlat websocket消息来自哪个平台
      */
-    public void processMarketDepth() throws Exception {
+    public void processMarketDepth(Trade fromPlat) throws Exception {
         if (initSuccess && !isOnProcessing) {//如果正在执行，就跳过本次执行
             try {
                 isOnProcessing = true;
@@ -353,13 +366,33 @@ public class Engine {
                 balanceAccount();//检测是否平衡，如果发现不平，就调平
                 if (isBalanceFinished) {
                     matchBackupDepth();//匹配/撮合备份的市场挂单,并完成交易(已确保我方有相应的资金，能吃掉这些挂单)。这两种匹配是独立的，没有关系。
-                    saveBalance();// 盘点当前余额,计算盈亏------------------------
                     checkStatus(beginTime);//检查系统健康状况
                 }
             } finally {
                 isOnProcessing = false;
             }
+            //如果有dex正在交易，那么当cex的价格波动导致利润丧失，就取消dex的交易
+        } else if (firstDexTrade != null && firstCexTrade != null && firstDexTrade.onTrading) {
+            synchronized (firstCexTrade.getMarketDepth()) {
+                log.info("有dex正在交易，开始监控cex价格。当cex的价格波动导致利润丧失，就取消dex的交易");
+                if (firstCexTrade.getUserOrderList().size() > 0 && firstCexTrade.getMarketDepth()[0].size() > 0) {
+                    UserOrder cexOrder = firstCexTrade.getUserOrderList().get(0);
+                    //最多只允许cex市场卖单涨价0.1%，或者更小。因为dex平台肯定有滑点，这已经让利润所剩无几了，经不起cex这边再产生滑点
+                    double marketPriceDiff = 0;
+                    if (cexOrder.getType().equals("buy")) {//我的买单，对应的市场卖单价格上浮不得超过0.1%
+                        marketPriceDiff = firstCexTrade.getMarketDepth()[0].get(0).getPrice() / (cexOrder.getPrice() + cexOrder.getDiffPrice()) - 1;
+                    } else if (cexOrder.getType().equals("sell")) {//我的卖单，对应的市场买单价格下降不得超过0.1%
+                        marketPriceDiff = 1 - firstCexTrade.getMarketDepth()[1].get(0).getPrice() / (cexOrder.getPrice() - cexOrder.getDiffPrice());
+                    }
+                    if (marketPriceDiff > 0.001) {
+                        log_haveTrade.info("cex市场价格比最坏情况更坏了" + (marketPriceDiff * 100) + "%,取消dex订单(最多容忍0.1%)");
+                        firstDexTrade.cancelOrder();
+                    }
+
+                }
+            }
         }
+
     }
 
     /**
@@ -370,8 +403,8 @@ public class Engine {
     private void balanceAccount() throws Exception {
         if (isBalanceFinished) {//如果资金调平已完成(已到账)，才让引擎正常工作。如果没完成就只能等待
             //查询资金情况 -----------间隔小于6秒时，每隔6秒，查一次账户。否则每次都查.
-            if (i != 0 && (time_queryOrder > 6 || (i * time_queryOrder) % 6 == 0)) {
-                this.currentBalance = getCurrentBalance();
+            if (i != 0 && (time_queryOrder > 2 || (i * time_queryOrder) % 2 == 0)) {
+                saveCurrentBalance();
                 if (needCheckTotalAmount) {
                     if ((i * time_queryOrder) % 12 == 0) {
                         flushAccount(false);
@@ -379,19 +412,16 @@ public class Engine {
                     // 检查goods总数量,如果不跟初始值相等,就立即买卖调整。为什么要设置在这里，而不能在挂单函数里？因为挂单后，可能导致超时。然后就抛出异常、跳出for循环，没机会检查goods
                     //只有当资金分布均匀，才能处理资金总量的变动。因为前者会误导后者
                     if (prop.earnMoney) {
-                        if (!checkTotalGoods()) {//如果没有调节goods总量，才应该调节goods分布
-                            if (balanceTokens()) {// 如果调节了goods的分布，才需要查询账户
-                                isBalanceFinished = false;
-                            } else {//调节总goods占总财富比例，优先级是最低的。别的事情都没发生，才会调节总goods占总财富比例
-                                checkGoodsRate();
+                        if (!checkTotalGoods()) {//如果没有调节goods总量，才应该调节goods在各平台的分布
+                            if (!balanceTokens()) {//只有当以上二者都没调节，才会调节总goods占总财富的比例
+                                checkGoodsRate();//优先级最低
                             }
                         }
                     } else {
-                        if (!checkTotalMoney()) {//如果没有调节goods总量，才应该调节goods分布
-                            if (balanceTokens()) {// 如果调节了goods的分布，才需要查询账户
-                                isBalanceFinished = false;
-                            } else {//调节总goods占总财富比例，优先级是最低的。别的事情都没发生，才会调节总goods占总财富比例
-                                checkGoodsRate();
+                        if (!checkTotalMoney()) {//如果没有调节goods总量，才应该调节goods在各平台的分布
+                            if (!balanceTokens()) {//只有当以上二者都没调节，才会调节总goods占总财富的比例
+                                checkGoodsRate();//优先级最低
+
                             }
                         }
                     }
@@ -471,12 +501,18 @@ public class Engine {
         // 设置综合深度
         ArrayList<MarketOrder>[] totalDepth = new ArrayList[]{new ArrayList<MarketOrder>(), new ArrayList<MarketOrder>()};
         for (Trade trade : platList) {
-            if (trade.equals(virtualTrade)) {
-                continue;
-            }
-            totalDepth[0].addAll(trade.getMarketDepth()[0]);
-            totalDepth[1].addAll(trade.getMarketDepth()[1]);
+            synchronized (trade.getMarketDepth()) {
+                trade.backupUsefulOrder();//在市场挂单被篡改之前，先把有用的保存起来
 
+                if (trade.equals(virtualTrade)) {
+                    continue;
+                }
+
+                totalDepth[0].addAll(trade.getMarketDepth()[0]);
+                totalDepth[1].addAll(trade.getMarketDepth()[1]);
+                trade.getMarketDepth()[0].clear();
+                trade.getMarketDepth()[1].clear();
+            }
         }
 
         totalSort(totalDepth);// 对汇总的市场挂单进行排序：买方从大到小排序,卖方从小到大排序
@@ -517,7 +553,7 @@ public class Engine {
             //如果有dex和cex参与，
             if (firstDexTrade != null && firstCexTrade != null) {
                 //调节goods时，跳过dex;只剩下cex和virtualTrade
-                if (virtualTrade.isActive() && trade.getFixFee() > 0) {
+                if (needSkipDexWhenAdjustGoods(trade)) {
                     continue;
                 }
                 //跳过多余的cex，只剩下dex和首个cex
@@ -606,8 +642,10 @@ public class Engine {
                         // end 【多线程】对各平台执行挂单、查订单状态、撤销没完全成交的订单、刷新账户信息============
                     }
                 } else {//end 如果正式生成的订单数量>0
-                    log.info("(不值得/看不上)正式订单最多赚" + maxEarnCost.earn + prop.money + ",利润率" + (maxEarnCost.cost != 0 ? prop.formatGoods(maxEarnCost.earn / maxEarnCost.cost * 100) : 0) + "%," + maxEarnCost.orderPair + "对订单----------------------");
-
+                    double profitRate = maxEarnCost.cost != 0 ? prop.formatGoods(maxEarnCost.earn / maxEarnCost.cost * 100) : 0;
+                    if (profitRate >= 0.05) {
+                        log_needTrade.info("(不值得/看不上)正式订单最多赚" + maxEarnCost.earn + prop.money + ",利润率" + profitRate + "%," + maxEarnCost.orderPair + "对订单----------------------");
+                    }
                 }
             }
         } else {//如果平台没有备份挂单,说明平台上没有资金
@@ -656,8 +694,6 @@ public class Engine {
     private void executeTrade() throws Exception {
         List<CompletableFuture<?>> tradeFutureList = new ArrayList<>();
         // 为每个平台启动一个线程--------
-        //计算总的固定费用，如果>0,说明有dex平台参与，那么由dexSync参数决定是否执行cex
-        double totalFixFee = platList.stream().filter(trade -> trade.getUserOrderList().size() > 0).mapToDouble(Trade::getFixFee).sum();
         try {
             for (Trade trade : platList) {
                 if (trade.getUserOrderList().size() == 0)
@@ -665,7 +701,7 @@ public class Engine {
             /*如果有dex平台存在，跳过cex平台，只执行dex，如果dex执行成功，在下个循环通过调节goods数量，间接执行了cex。
              这样作的好处是：dex踏空率太高了，一旦dex踏空，cex也就没必要执行了，多省事啊。
              */
-                if (totalFixFee > 0 && trade.getFixFee() == 0) {
+                if (!dexSync && firstDexTrade != null && trade.getFixFee() == 0 && !virtualTrade.isActive()) {
                     continue;
                 }
 
@@ -684,7 +720,7 @@ public class Engine {
                                     break;
                                 }
                             }//end for
-                            trade.cancelOrder();// 撤销没完全成交的订单
+                            if (trade.fixFee > 0) trade.cancelOrder();// 撤销没完全成交的订单
                         } else {
                             log_haveTrade.info(trade.getPlatName() + "--------  0 个挂单---------------------------------------");
                         }
@@ -1038,21 +1074,18 @@ public class Engine {
         for (int platIndex = 0; platIndex < actualPlats().size(); platIndex++) {
             Trade trade = actualPlats().get(platIndex);
             double targetAmount = currentBalance.totalToken[tokenIndex] * trade.pToken[tokenIndex];
-            if (trade.pToken[tokenIndex] >= 0.001) {//只对有效的pToken进行处理
+            if (trade.pToken[tokenIndex] >= 0) {//只对有效的pToken进行处理.
                 //当该平台的配置参数tokenNetWork不为空，才表示开启划转
                 if (trade.getTokenNetWork()[tokenIndex].length > 0) {
-                    if (trade.accInfo.freeToken[tokenIndex] / targetAmount > 1) {//粗略的把每个平台划分成多方、少方
+                    if (trade.accInfo.freeToken[tokenIndex] > targetAmount) {//粗略的把每个平台划分成多方、少方
                         trade.diffToken[tokenIndex] = trade.accInfo.freeToken[tokenIndex] - targetAmount;
                         sendTokenList.add(trade);
-                        if (trade.accInfo.freeToken[tokenIndex] / targetAmount > 1 + whenBalance)
-                            needBalance = true;
-
-                    } else if (trade.accInfo.freeToken[tokenIndex] / targetAmount < 1) {
+                    } else if (trade.accInfo.freeToken[tokenIndex] < targetAmount) {
                         trade.diffToken[tokenIndex] = targetAmount - trade.accInfo.freeToken[tokenIndex];
                         receiveTokenList.add(trade);
-                        if (trade.accInfo.freeToken[tokenIndex] / targetAmount < 1 - whenBalance)
-                            needBalance = true;
                     }
+                    if (Math.abs(trade.accInfo.freeToken[tokenIndex] / targetAmount - 1) > whenBalance)
+                        needBalance = true;
                 }
             }
         }//end for
@@ -1069,7 +1102,7 @@ public class Engine {
                 double amount = Double.parseDouble(prop.transTokenFromat.format(mindiff));
                 log.debug("mindiff=" + mindiff + ", 格式化后amount=" + amount);
                 //检测amount价值多少美元。如果大于10美元，才处理
-                double amountValue = tokenIndex == 0 ? amount * t1.getCurrentPrice() : amount * prop.moneyPrice;
+                double amountValue = tokenIndex == 0 ? (amount * t1.getCurrentPrice() * prop.moneyPrice) : amount * prop.moneyPrice;
                 t1.diffToken[tokenIndex] -= amount;
                 t2.diffToken[tokenIndex] -= amount;
                 if (amountValue > 10) {
@@ -1141,6 +1174,7 @@ public class Engine {
         for (Trade trade : actualPlats()) {
             log.debug(trade.getPlatName() + "当前价格" + trade.getCurrentPrice());
             AccountInfo inf = trade.getAccInfo();
+            trade.flushMarketDeeps();
             if (trade.getCurrentPrice() <= 0) {
                 throw new Exception(trade.getPlatName() + ": trade.getCurrentPrice() <=0,代表异常:" + trade.getCurrentPrice());
             }
@@ -1182,7 +1216,7 @@ public class Engine {
      * @throws Exception 异常
      */
     public boolean checkTotalGoods() throws Exception {
-        this.currentBalance = getCurrentBalance();//这一行千万不能删除
+        saveCurrentBalance();//这一行千万不能删除
         Balance initBal = new Balance(prop, firstBalanceStr);
         double diffAmount = currentBalance.totalToken[0] - initBal.totalToken[0];
         // 如果变多,就卖.币安规定交易额最少是10美元。信息来源：CELOBUSD交易对的NOTIONAL过滤器 https://www.binance.com/api/v3/exchangeInfo
@@ -1210,15 +1244,11 @@ public class Engine {
         double targetAmount = (currentBalance.totalToken[0] + currentBalance.totalToken[1] / currentBalance.getPrice()) * goodsRate;
         double diffAmount = currentBalance.totalToken[0] - targetAmount;
         // 如果变多了whenBalance,就卖.币安规定交易额最少是10美元。信息来源：CELOBUSD交易对的NOTIONAL过滤器 https://www.binance.com/api/v3/exchangeInfo
-        if (currentBalance.totalToken[0] / targetAmount > 1 + whenBalance / 2.0 && diffAmount > prop.minTradeMoney / currentBalance.getPrice()) {// 如果变多,就卖.
+        if (Math.abs(currentBalance.totalToken[0] / targetAmount - 1) > whenBalance / 2.0
+                && Math.abs(diffAmount) > prop.minTradeMoney / currentBalance.getPrice()) {// 如果变多,就卖.
             log.info("总goods比targetAmount多" + diffAmount);
             initBal.totalToken[0] = targetAmount;
             initBal.totalToken[1] += diffAmount * currentBalance.getPrice();
-        } else if (currentBalance.totalToken[0] / targetAmount < 1 - whenBalance / 2.0 && diffAmount < -prop.minTradeMoney / currentBalance.getPrice()) {// 如果变少就买
-            diffAmount = 0 - diffAmount;
-            log.info("总goods比targetAmount少" + diffAmount);
-            initBal.totalToken[0] = targetAmount;
-            initBal.totalToken[1] -= diffAmount * currentBalance.getPrice();
         } else {
             return false;
         }
@@ -1459,6 +1489,18 @@ public class Engine {
         }
     }
 
+    /**
+     * 因为dex的滑点问题导致dex不划算，所以如果能不让dex参与，就尽量不让dex参与。所以如果非同时挂单，就不打算从dex调节goods，那么调节goods时就没必要让dex参与
+     */
+    private boolean needSkipDexWhenAdjustGoods(Trade trade) {
+        if (tokenAllInDex) {//2023-08-23 bug修复，如果是现在的策略(cex什么也不持有，eth和usdc都在dex放着),就返回true.如果是以前的策略(让dex和cex都时刻持有eth和usdc)就应该返回false。
+            return virtualTrade.isActive() && trade.getFixFee() > 0;
+        } else {
+            // 2023-06-29 bug修复：如果不从dex调节goods,系统就会卡住：cex的goods跌价，导致dex卖goods，cex买goods。因为goods都在cex了但量还是不够，那么就要买。但这时money都在dex了，不从dex买还能在哪里买？
+            // 备注：goods总量对不上，就不会触发goods和money跨平台搬运，因此cex永远无money,也就是系统会永远卡住。
+            return false;
+        }
+    }
 
     /**
      * 返回全部真实的平台。不要虚拟的

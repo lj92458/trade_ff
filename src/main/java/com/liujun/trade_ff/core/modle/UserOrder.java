@@ -48,6 +48,8 @@ public class UserOrder {
      */
     private boolean finished = false;
 
+    private Integer nonce;//dex平台特有的，用来取消正在排队的交易
+
 
     public UserOrder() {
 
@@ -74,7 +76,7 @@ public class UserOrder {
 
     @Override
     public String toString() {
-        return "{price:" + price + ",amount:" + volume + ",type:'" + type + "'}";
+        return "{price:" + price + ",amount:" + volume + ",type:'" + type + ",orderId:'" + orderId + "'}";
     }
 
 

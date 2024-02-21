@@ -49,6 +49,7 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
      * 模式锁定：0无锁，1只能跨平台搬运 ， 2只能在自己平台内部btc/ltc/cny之间转换。因为平台内和跨平台是冲突的
      */
     private int modeLock = 0;
+    public boolean onTrading = false;
 
     /**
      * 市场深度,分别存储ask和bid
@@ -159,7 +160,7 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
         for (int i = 0; i < 2; i++) {// 处理市场ask和bid. 0代表ask, 1代表bid
             backupDepth[i].clear();
             double freeToken = 0;
-            if (fixFee == 0 && engine.firstDexTrade != null && !this.equals(engine.virtualTrade)) {//如果有dex，那么cex的资金等于dex的另一种资金
+            if (engine.tokenAllInDex && fixFee == 0 && engine.firstDexTrade != null && !this.equals(engine.virtualTrade)) {//如果有dex，那么cex的资金等于dex的资金
                 //处理币安的卖单时，需要把dex的money变成币安money
                 freeToken = engine.firstDexTrade.accInfo.freeToken[1 - i];
                 freeToken *= 0.995;
@@ -372,16 +373,15 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
      * @throws Exception
      */
     public boolean tokenTransferDex2Cex(UserOrder order) throws Exception {
-        if (engine.firstDexTrade != null && engine.firstCexTrade != null) {
-            Trade dex = engine.platList.stream().filter(t -> t.fixFee > 0).findFirst().get();
-            if (order.getType().equals("buy") && accInfo.freeToken[1] < order.getVolume() * order.getPrice()) {
-                double receiveAmount = TransTokenUtil.trans(engine, dex, this, 1,
-                        Double.parseDouble(prop.transTokenFromat.format(order.getVolume() * order.getPrice()))
+        if (engine.tokenAllInDex && engine.firstDexTrade != null && engine.firstCexTrade != null) {
+            if (order.getType().equals("buy") && accInfo.freeToken[1] / (order.getVolume() * order.getPrice()) < 0.90) {
+                double receiveAmount = TransTokenUtil.trans(engine, engine.firstDexTrade, this, 1,
+                        Double.parseDouble(prop.transTokenFromat.format(order.getVolume() * order.getPrice() - accInfo.freeToken[1]))
                 );
                 log.info(getPlatName() + "最终收到money:" + receiveAmount);
                 return true;
-            } else if (order.getType().equals("sell") && accInfo.freeToken[0] < order.getVolume()) {
-                double receiveAmount = TransTokenUtil.trans(engine, dex, this, 0, order.getVolume());
+            } else if (order.getType().equals("sell") && accInfo.freeToken[0] / order.getVolume() < 0.90) {
+                double receiveAmount = TransTokenUtil.trans(engine, engine.firstDexTrade, this, 0, order.getVolume() - accInfo.freeToken[0]);
                 log.info(getPlatName() + "最终收到goods:" + receiveAmount);
                 return true;
             }
