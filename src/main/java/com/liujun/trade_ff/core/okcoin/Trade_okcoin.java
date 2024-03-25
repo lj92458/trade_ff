@@ -290,22 +290,24 @@ public class Trade_okcoin extends Trade {
 
             // 为了确保能成交，可以将卖单价格降低。买单不能动。因为可能导致money不够。
             double addPrice = (order.getType().equals("sell") ? -1 * prop.huaDian2 : prop.huaDian2);
-
             PlaceOrder orderParam = new PlaceOrder();
             orderParam.setInstId(coinPair);
             orderParam.setTdMode("cash");
-            orderParam.setPx(Prop.fmt_money.get().format(order.getPrice() * (1 + addPrice)));//即然决定用市价成交，那么price是无效的
-            orderParam.setOrdType("market");//todo market limit哪个更好？
+            orderParam.setOrdType("limit");//todo market limit哪个更好？
             orderParam.setSide(order.getType());
-            if (orderParam.getOrdType().equals("market")) {
-                //orderParam.setTgtCcy("???");//市价单委托数量sz的单位。买单默认quote_ccy(money)， 卖单默认base_ccy(goods)
-                if (orderParam.getSide().equals("buy")) {
-                    orderParam.setSz(Prop.fmt_money.get().format(Math.min(accInfo.freeToken[1], order.getPrice() * order.getVolume())));
-                } else {//sell
-                    orderParam.setSz(Prop.fmt_goods.get().format(Math.min(accInfo.freeToken[0], order.getVolume())));
-                }
-            } else {
-                orderParam.setSz(Prop.fmt_goods.get().format(order.getVolume() - 0.00));
+            if (orderParam.getOrdType().equals("market")) {//市价单
+                orderParam.setTgtCcy("base_ccy");//市价单委托数量sz的单位。买单默认quote_ccy(money)， 卖单默认base_ccy(goods)
+            } else {//limit限价单
+                orderParam.setPx(Prop.fmt_money.get().format(order.getPrice() * (1 + addPrice)));
+            }
+            if (orderParam.getSide().equals("buy")) {
+                /*
+                //市价单，当买单默认TgtCcy是quote_ccy(money)时，应该这样设置：
+                //orderParam.setSz(Prop.fmt_money.get().format(Math.min(accInfo.freeToken[1], order.getPrice() * order.getVolume())));
+                */
+                orderParam.setSz(Prop.fmt_goods.get().format(Math.min(accInfo.freeToken[1] / Double.parseDouble(orderParam.getPx()), order.getVolume())));
+            } else {//sell
+                orderParam.setSz(Prop.fmt_goods.get().format(Math.min(accInfo.freeToken[0], order.getVolume())));
             }
             batch.add(orderParam);
 

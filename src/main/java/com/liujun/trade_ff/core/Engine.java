@@ -175,6 +175,7 @@ public class Engine {
     public long i = 0;
     public Trade firstDexTrade = null;
     public Trade firstCexTrade = null;
+    public double profitRate;//最近一次利润率
 
     // --------- end 对象属性 -------------------------------------------------
     static {
@@ -229,7 +230,10 @@ public class Engine {
                 if (trade.fixFee > 0) {
                     if (firstDexTrade == null) firstDexTrade = trade;
                 } else {
-                    if (firstCexTrade == null) firstCexTrade = trade;
+                    if (firstCexTrade == null && (//如果资金都在dex，那么就选第一个出现的cex；否则就选第一个有资金的cex。
+                            tokenAllInDex || (trade.accInfo.freeToken[0] > 0.01 && trade.accInfo.freeToken[1] > 0.01))
+                    )
+                        firstCexTrade = trade;
                 }
             }
 
@@ -372,7 +376,7 @@ public class Engine {
                 isOnProcessing = false;
             }
             //如果有dex正在交易，那么当cex的价格波动导致利润丧失，就取消dex的交易
-        } else if (firstDexTrade != null && firstCexTrade != null && firstDexTrade.onTrading) {
+        } else if (isDexOn() && !dexSync && firstCexTrade != null && firstDexTrade.onTrading) {
             synchronized (firstCexTrade.getMarketDepth()) {
                 log.info("有dex正在交易，开始监控cex价格。当cex的价格波动导致利润丧失，就取消dex的交易");
                 if (firstCexTrade.getUserOrderList().size() > 0 && firstCexTrade.getMarketDepth()[0].size() > 0) {
@@ -551,16 +555,21 @@ public class Engine {
             // 设置“用户挂单”
             trade.getUserOrderList().clear();
             //如果有dex和cex参与，
-            if (firstDexTrade != null && firstCexTrade != null) {
-                //调节goods时，跳过dex;只剩下cex和virtualTrade
-                if (needSkipDexWhenAdjustGoods(trade)) {
-                    continue;
-                }
-                //跳过多余的cex，只剩下dex和首个cex
-                if (!trade.equals(firstCexTrade) && trade.getFixFee() == 0 && !trade.equals(virtualTrade)) {
+            if (firstCexTrade != null) {
+                if (isDexOn()) {
+                    //调节goods时，跳过dex;只剩下cex和virtualTrade
+                    if (needSkipDexWhenAdjustGoods(trade)) {
+                        continue;
+                    }
+                    //跳过多余的cex，只剩下dex和首个cex
+                    if (!trade.equals(firstCexTrade) && trade.getFixFee() == 0 && !trade.equals(virtualTrade)) {
+                        continue;
+                    }
+                } else if (trade.getFixFee() > 0) {
                     continue;
                 }
             }
+
             //如果允许跨平台搬运
             if (trade.getModeLock() == 0) {
                 trade.setModeLock(1);//加锁
@@ -607,11 +616,12 @@ public class Engine {
 
                 //收益率要大于0.4%
                 assert maxEarnCost != null;
+                profitRate = maxEarnCost.earn / maxEarnCost.cost;
                 if (maxEarnCost.orderPair > 0 && (//maxEarnCost.earn已经考虑到了矿工费
-                        (maxEarnCost.earn >= prop.minMoney && maxEarnCost.earn / maxEarnCost.cost >= prop.atLeastRate)
+                        (maxEarnCost.earn >= prop.minMoney && profitRate >= prop.atLeastRate)
                                 || virtualTrade.isActive())
                 ) {// (正式生成的订单数量)
-                    log_needTrade.info("实际能赚" + maxEarnCost.earn + prop.money + "，利润率" + prop.formatMoney(maxEarnCost.earn / maxEarnCost.cost * 100) + "%，实际订单有" + maxEarnCost.orderPair + "对");
+                    log_needTrade.info("实际能赚" + maxEarnCost.earn + prop.money + "，利润率" + prop.formatMoney(profitRate * 100) + "%，实际订单有" + maxEarnCost.orderPair + "对");
 
                     //检查各平台的收益率是否合规，如果全部合规，才能启动交易
                     boolean profitRateMatch = true;
@@ -701,7 +711,7 @@ public class Engine {
             /*如果有dex平台存在，跳过cex平台，只执行dex，如果dex执行成功，在下个循环通过调节goods数量，间接执行了cex。
              这样作的好处是：dex踏空率太高了，一旦dex踏空，cex也就没必要执行了，多省事啊。
              */
-                if (!dexSync && firstDexTrade != null && trade.getFixFee() == 0 && !virtualTrade.isActive()) {
+                if (isDexOn() && !dexSync && trade.getFixFee() == 0 && !virtualTrade.isActive()) {
                     continue;
                 }
 
@@ -713,14 +723,14 @@ public class Engine {
                         if (orderNum > 0) {// 如果挂单数量不为0
                             log_haveTrade.info(trade.getPlatName() + "已挂单" + orderNum + "个：" + trade.getUserOrderList().toString());
                             // 查询订单状态，最多4秒
-                            for (int i = 0; i < 4000 / prop.time_sleep; i++) {
+                            for (int i = 0; i < 1000 / prop.time_sleep; i++) {
                                 TimeUnit.MILLISECONDS.sleep(prop.time_sleep);// 睡眠
                                 int unFinishedNum = trade.queryOrderState();
                                 if (unFinishedNum == 0) {
                                     break;
                                 }
                             }//end for
-                            if (trade.fixFee > 0) trade.cancelOrder();// 撤销没完全成交的订单
+                            trade.cancelOrder();// 撤销没完全成交的订单
                         } else {
                             log_haveTrade.info(trade.getPlatName() + "--------  0 个挂单---------------------------------------");
                         }
@@ -867,7 +877,7 @@ public class Engine {
 
         List<MarketOrder> askList = totalDepth[0];
         List<MarketOrder> bidList = totalDepth[1];
-
+        String orderSizeStr = "askSize=" + askList.size() + "，bidSize=" + bidList.size();
         boolean[] passArr = new boolean[(platList.size() - 1) * 11 + 1];// 是否需要搬运
         Set<Integer> platIdSet = new HashSet<>();
         while (askList.size() > 0 && bidList.size() > 0) {
@@ -893,7 +903,7 @@ public class Engine {
 
         //如果市场订单被全部用掉，说明获取的订单太少
         if (askList.size() == 0 || bidList.size() == 0) {
-            log.warn("市场深度不足（获取的挂单太少）");
+            log.warn("市场深度不足（获取的挂单太少）" + orderSizeStr);
         }
         //maxEarnCost.earn需要减去平台固定费用(矿工费)
         platList.stream().filter(trade -> platIdSet.contains(trade.platId)).forEach(trade -> maxEarnCost.earn -= trade.getFixFee());
@@ -1494,12 +1504,16 @@ public class Engine {
      */
     private boolean needSkipDexWhenAdjustGoods(Trade trade) {
         if (tokenAllInDex) {//2023-08-23 bug修复，如果是现在的策略(cex什么也不持有，eth和usdc都在dex放着),就返回true.如果是以前的策略(让dex和cex都时刻持有eth和usdc)就应该返回false。
-            return virtualTrade.isActive() && trade.getFixFee() > 0;
+            return !dexSync && virtualTrade.isActive() && trade.getFixFee() > 0;
         } else {
             // 2023-06-29 bug修复：如果不从dex调节goods,系统就会卡住：cex的goods跌价，导致dex卖goods，cex买goods。因为goods都在cex了但量还是不够，那么就要买。但这时money都在dex了，不从dex买还能在哪里买？
             // 备注：goods总量对不上，就不会触发goods和money跨平台搬运，因此cex永远无money,也就是系统会永远卡住。
             return false;
         }
+    }
+
+    public boolean isDexOn() {
+        return firstDexTrade != null && firstDexTrade.accInfo.freeToken[0] > 0.0001 && firstDexTrade.accInfo.freeToken[1] > 0.0001;
     }
 
     /**

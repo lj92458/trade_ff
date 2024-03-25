@@ -63,9 +63,9 @@ trade:
   marketOrderSize: 20 #获取市场深度时，买单、卖单分别获取多少个？【对okcoin有效,chbtc固定是50】 币安webSocket是20
   #交易一次(不包含"调节商品数量"等特殊交易)，最少要赚多少【美元】？如果扣除了各种成本，那么一毛钱也值得赚。亏损频率越高，atLeastEarn就应该越高。
   # 请不要考虑矿工费，因为maxEarnCost.earn已经减去了矿工费。这里应该拍脑袋决定
-  atLeastEarn: 3 #美元。这个值应该大于两个平台的提现费用之和，因为每交易一次，要从钱包提到okx，再从okx提到钱包。okx提现费0.4~0.8美元，binance最低1美元
+  atLeastEarn: 3 #美元
   #最低利润率(差价除以价格)，跟滑点有关：因为uniswap上面建议的滑点是0.05%,比原链超导兑换建议1%
-  atLeastRate: 0.0015 #0.0001
+  atLeastRate: 0.002 #0.0015
   positionRate: 1 #仓位上限，占余额的比例。0.5表示50%，那么下跌2/3时爆仓。1表示100%，那么下跌50%时爆仓
   #dex和cex同步挂单吗？如果dex失败率高，就不要同步挂单。而是先让dex执行，执行成功后会发现资金失衡，然后通过调平资金的方式去执行cex
   #考虑两种策略：
@@ -77,8 +77,9 @@ trade:
   needCheckTotalAmount: true #是否维持资金总量不变？如果账户被其它程序自动操控，资金量会不断变化。这时如果不想调节。
   tokenAllInDex: true #资金全部放在dex平台吗？等dex交易成功了，卖eth得到usdc了，再把得到的usdc转入cex,这样就不用在cex存放资金，资金利用率翻倍。这只使用于熊市、价格不频繁震荡。
 
+
 engine:
-  time_queryOrder: 0.1 #间隔多少【秒】查询一次市场挂单(可以是小数). for循环是3秒。如果引擎是被websocket驱动的，那么就是0.1秒执行一次
+  time_queryOrder: 0.1 #间隔多少【秒】查询一次市场挂单. 请用3、6、9、12等等
   time_oneCycle: 30 #每循环一次，最大允许占用多少【秒】.dex执行一次可能要30秒，那么这期间这个系统都被阻塞
   time_sleep: 1000 #每次对平台进行写操作后，休眠多少【毫秒】
   waitSecondAfterException: 3 #如果抛出异常，暂停多少【秒】
@@ -176,9 +177,9 @@ uniswap:
   url: http://127.0.0.1:8093
   ethAddress: "0x7c487F80BEe3D7aF9047Ee0E790f2B2A8BDBF1eC" # "0xe068a01e11aCfA03A4c8de63dAd451E77a22CFfF" # "0xB0d1435590B4f14A5f4414f93489945546162ffc"
   feeRate: 0.0005 #uniswap平台的交易手续费是多少？不同币种，手续费不一样，wbtc是0.3%或0.05%，稳定币兑换是0.01%. celo-cusd是0.3%
-  gasPercent: 1.0 #强制调高gas价格，对矿工费进行悲观的估算.
+  gasPercent: 1 #强制调高gas价格，对矿工费进行悲观的估算.
   gasLimit: 4000000
-  slipPage: 0.002 #滑点，0.001表示0.1%；或者 0.0005表示0.05%
+  slipPage: 0.002 #滑点，0.001表示0.1%；或者 0.0005表示0.05% 设置大一点会导致亏损，但是这个参数就是提供了自愿亏损的机会:建议比atLeastRate稍微大一点
 
 oneInch: # 在下列限制区，不可用 https://help.1inch.io/en/articles/5778756-restricted-territory
   netWork: arbitrum #网络名称叫什么？ 各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串

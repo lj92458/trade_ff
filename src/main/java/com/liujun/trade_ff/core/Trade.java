@@ -160,7 +160,7 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
         for (int i = 0; i < 2; i++) {// 处理市场ask和bid. 0代表ask, 1代表bid
             backupDepth[i].clear();
             double freeToken = 0;
-            if (engine.tokenAllInDex && fixFee == 0 && engine.firstDexTrade != null && !this.equals(engine.virtualTrade)) {//如果有dex，那么cex的资金等于dex的资金
+            if (engine.isDexOn() && engine.tokenAllInDex && fixFee == 0 && !this.equals(engine.virtualTrade)) {//如果有dex，那么cex的资金等于dex的资金
                 //处理币安的卖单时，需要把dex的money变成币安money
                 freeToken = engine.firstDexTrade.accInfo.freeToken[1 - i];
                 freeToken *= 0.995;
@@ -373,7 +373,7 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
      * @throws Exception
      */
     public boolean tokenTransferDex2Cex(UserOrder order) throws Exception {
-        if (engine.tokenAllInDex && engine.firstDexTrade != null && engine.firstCexTrade != null) {
+        if (engine.isDexOn() && engine.tokenAllInDex && engine.firstCexTrade != null) {
             if (order.getType().equals("buy") && accInfo.freeToken[1] / (order.getVolume() * order.getPrice()) < 0.90) {
                 double receiveAmount = TransTokenUtil.trans(engine, engine.firstDexTrade, this, 1,
                         Double.parseDouble(prop.transTokenFromat.format(order.getVolume() * order.getPrice() - accInfo.freeToken[1]))

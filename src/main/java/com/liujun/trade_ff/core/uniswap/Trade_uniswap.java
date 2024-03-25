@@ -116,7 +116,7 @@ public class Trade_uniswap extends Trade {
         synchronized (getMarketDepth()) {
             ArrayList<MarketOrder>[] depth = getMarketDepth();
             try {
-                Book book = productAPIService.bookProductsByProductId(coinPair, prop.marketOrderSize + "", "" + (feeRate + 0.0002), getPoolFee());
+                Book book = productAPIService.bookProductsByProductId(coinPair, getPoolFee());
 
                 // 处理卖方、卖方挂单
                 List<String[]>[] listArr = new List[]{book.getAsks(), book.getBids()};
@@ -237,7 +237,7 @@ public class Trade_uniswap extends Trade {
         if (this.profitRate < slipPage) {
             return slipPage;
         } else {
-            return this.profitRate * 1;
+            return this.profitRate -0.001;
         }
     }
 
@@ -262,13 +262,13 @@ public class Trade_uniswap extends Trade {
         if (o.getType().equals("sell")) {
             double diffMoney = accInfo.totalToken[1] - backupAccInfo.totalToken[1];//money增加
             double actualslipPage = 100 * (1.0 - diffMoney / (o.getVolume() * o.getPrice()));
-            double actualProfit = 100 * o.getDiffPrice() / o.getPrice() - actualslipPage;
+            double actualProfit = 100 * engine.profitRate - actualslipPage;
             if (diffMoney > 0)
                 log_haveTrade.info("uniswap-------提交sell单导致money增加了：" + diffMoney + ",价格下滑" + actualslipPage + "%，利润还剩" + actualProfit + "%");
         } else {
             double diffGoods = accInfo.totalToken[0] - backupAccInfo.totalToken[0];//goods增加
             double actualslipPage = 100 * (1.0 - diffGoods / o.getVolume());
-            double actualProfit = 100 * o.getDiffPrice() / o.getPrice() - actualslipPage;
+            double actualProfit = 100 * engine.profitRate - actualslipPage;
             if (diffGoods > 0)
                 log_haveTrade.info("uniswap-------提交buy单导致goods增加了：" + diffGoods + ",价格上滑" + actualslipPage + "%，利润还剩" + actualProfit + "%");
         }

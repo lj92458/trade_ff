@@ -103,7 +103,7 @@ public class Trade_binance extends Trade {
     private List<CoinInfo> coinInfoList;
     private WebSocketStreamClient webSocketStreamClient;
     private Depth depth;
-    private long timeAdd = 0;//本机时间与币安时间的差距: 用币安时间减去本机时间
+    private long timeAdd = -1000;//本机时间与币安时间的差距: 用币安时间减去本机时间
     //------------------------
 
 
@@ -135,7 +135,7 @@ public class Trade_binance extends Trade {
 
         }
         //String json = IOUtils.toString(Trade_binance.class.getResourceAsStream("allCoin.json"), StandardCharsets.UTF_8);
-        String json = walletAPIService.queryAllCoin(DateUtils.getUnixTimeMilli());
+        String json = walletAPIService.queryAllCoin(getBinanceTime());
         coinInfoList = JSON.parseArray(json, CoinInfo.class);
 
         //连接websocket
@@ -286,22 +286,22 @@ public class Trade_binance extends Trade {
                 return 0;
 
             changeMyOrderPrice(1 - feeRate, 1 + feeRate);//这一行一定要在tokenTransferDex2Cex之后，否则，传过去的币不够用
-            // 为了确保能成交，可以将卖单价格降低。买单不能动。因为可能导致money不够。
+            // 为了确保能成交，可以根据滑点调整价格。
             double addPrice = (order.getType().equals("sell") ? -1 * prop.huaDian2 : prop.huaDian2);
             PlaceOrderParam param = new PlaceOrderParam(recvWindow, timeAdd);
             param.setSymbol(coinPair);//symbol
             param.setSide(Enum.valueOf(OrderSide.class, order.getType().toUpperCase()));// orderSide
-            param.setType(OrderType.MARKET);//todo LIMIT还是MARKET
+            param.setType(OrderType.LIMIT);//todo LIMIT还是MARKET
             if (param.getType().equals(OrderType.LIMIT) || param.getType().equals(OrderType.STOP_LOSS_LIMIT) || param.getType().equals(OrderType.TAKE_PROFIT_LIMIT)) {
                 param.setTimeInForce(TimeInForce.GTC);//timeInForce
                 param.setPrice(Double.parseDouble(Prop.fmt_money.get().format(order.getPrice() * (1 + addPrice))));// price
-                param.setQuantity(Double.parseDouble(Prop.fmt_goods.get().format(order.getVolume())));// quantity
-            } else {//MARKET，那么可以设置quantity或quoteOrderQty，二选一。
-                if (order.getType().equals("buy")) {
-                    param.setQuoteOrderQty(Double.parseDouble(Prop.fmt_money.get().format(Math.min(accInfo.freeToken[1], order.getPrice() * order.getVolume()))));
-                } else {//sell
-                    param.setQuantity(Double.parseDouble(Prop.fmt_goods.get().format(Math.min(accInfo.freeToken[0], order.getVolume()))));
-                }
+            }
+            if (order.getType().equalsIgnoreCase("buy")) {
+                //市价单可以用setQuoteOrderQty替代setQuantity
+                //param.setQuoteOrderQty(Double.parseDouble(Prop.fmt_money.get().format(Math.min(accInfo.freeToken[1], order.getPrice() * order.getVolume()))));
+                param.setQuantity(Double.parseDouble(Prop.fmt_goods.get().format(Math.min(accInfo.freeToken[1] / param.getPrice(), order.getVolume()))));// quantity
+            } else {//sell
+                param.setQuantity(Double.parseDouble(Prop.fmt_goods.get().format(Math.min(accInfo.freeToken[0], order.getVolume()))));
             }
             try {
                 this.onTrading = true;
@@ -451,7 +451,7 @@ public class Trade_binance extends Trade {
                 DepositQueryParam param = new DepositQueryParam(recvWindow, timeAdd);
                 param.setTxId(txId);
                 DepositQueryResult queryResult = this.walletAPIService.depositQuery(param);
-                if (queryResult != null && queryResult.getStatus() == 6) {//1表示成功，但需要25分钟才能成功。因此用6表示“以上账但不能提取”
+                if (queryResult != null && queryResult.getStatus() == 6) {//1表示成功，但需要25分钟才能成功。因此用6表示“以上账但不能提取”，只要账户有其它币用来锁定，那么本次充的币就可以提走
                     log.info("binance充值已到账" + ", 确认次数confirmTimes=" + queryResult.getConfirmTimes());
                     return Double.parseDouble(queryResult.getAmount());
                 } else {

@@ -24,18 +24,16 @@ public class ProductAPIServiceImpl implements ProductAPIService {
      * 查询订单。最多35秒返回。
      *
      * @param coinPair
-     * @param marketOrderSize
-     * @param orderStepRatio  两个相邻的挂单之间价格差距比例是多少？对少于这个差距的挂单合并。建议为价格的万一/万五。uniswap要求必须大于手续费费率
-     * @param poolFee         手续费。 500表示百万分之500，也就是0.0005，也就是0.05%
+     * @param poolFee  手续费。 500表示百万分之500，也就是0.0005，也就是0.05%
      * @return
      */
     @Override
-    public Book bookProductsByProductId(String coinPair, String marketOrderSize, String orderStepRatio, int poolFee) {
+    public Book bookProductsByProductId(String coinPair, int poolFee) {
 
         int maxRetry = 5;
         for (int retryCount = 0; ; retryCount++) {
             try {
-                Book book = productRpc.bookProduct(coinPair, marketOrderSize, orderStepRatio, poolFee).toFuture().get(15L, TimeUnit.SECONDS);
+                Book book = productRpc.bookProduct(coinPair, poolFee).toFuture().get(15L, TimeUnit.SECONDS);
                 return book;
             } catch (Exception e) {
                 log.error("queryTokenBalance异常", e);
