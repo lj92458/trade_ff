@@ -157,16 +157,16 @@ public class TransTokenUtil {
         //route.fromTrade发送什么币. 默认和route.fromTrade一致,满足withdrawNeedWrap条件才会用NaitveToken
         String sendToken = withdrawNeedWrap ? route.fromTrade.getNaitveToken() : route.fromTrade.token[tokenIndex];
 
-        String txId = route.fromTrade.withdraw(sendToken, amount, route.toTrade.getTokenAddress()[tokenIndex], route.netWorkShort, withdrawNeedWrap);
+        Trade.WithdrawResult withdrawResult = route.fromTrade.withdraw(sendToken, amount, route.toTrade.getTokenAddress()[tokenIndex], route.netWorkShort, withdrawNeedWrap);
 
         //from发送完了，to开始接收
-        if (StringUtils.isNotEmpty(txId)) {
+        if (withdrawResult != null) {
             //收到币后，是否需要wrap. to作为dex接收到eth，to却只想要weth 就应该转换
             boolean depositNeedWrap = route.toTrade.fixFee > 0
                     && route.toTrade.token[tokenIndex].equalsIgnoreCase("w" + sendToken)
                     && sendToken.equalsIgnoreCase(route.toTrade.getNaitveToken());
 
-            double receiveAmount = route.toTrade.depositToken(sendToken, txId, amount, depositNeedWrap);//from发送什么币，to就接收什么
+            double receiveAmount = route.toTrade.depositToken(sendToken, withdrawResult.txId, withdrawResult.amount, depositNeedWrap);//from发送什么币，to就接收什么
             if (receiveAmount > 0) {
                 log.info(route.toTrade.getPlatName() + "收款成功，receiveAmount=" + receiveAmount);
                 return receiveAmount;

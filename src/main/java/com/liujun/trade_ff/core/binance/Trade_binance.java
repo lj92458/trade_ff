@@ -15,7 +15,6 @@ import com.liujun.trade_ff.core.binance.api.bean.wallet.param.WithdrawParam;
 import com.liujun.trade_ff.core.binance.api.bean.wallet.param.WithdrawQueryParam;
 import com.liujun.trade_ff.core.binance.api.bean.wallet.result.DepositQueryResult;
 import com.liujun.trade_ff.core.binance.api.bean.wallet.result.WithdrawQueryResult;
-import com.liujun.trade_ff.core.binance.api.bean.wallet.result.WithdrawResult;
 import com.liujun.trade_ff.core.binance.api.config.APIConfiguration;
 import com.liujun.trade_ff.core.binance.api.enums.*;
 import com.liujun.trade_ff.core.binance.api.service.spot.SpotAccountAPIService;
@@ -32,7 +31,6 @@ import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
 import com.liujun.trade_ff.core.modle.WebSocketState;
 import com.liujun.trade_ff.core.util.HttpUtil;
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +40,6 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -391,11 +388,11 @@ public class Trade_binance extends Trade {
      * 提取资产。为什么一定要等待，直到被打包呢？因为要拿到哈希值。有了哈希值，才能调用nodeJS的receiveToken服务，进而把eth包装成weth
      *
      * @param needWrap 只有dex需要
-     * @return txId, 或者""表示异常. 链上交易哈希
+     * @return Trade.WithdrawResult txId为""表示异常. 链上交易哈希
      * @throws Exception
      */
     @Override
-    public String withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
+    public Trade.WithdrawResult withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
         String myOrderId = System.currentTimeMillis() + "";
         WithdrawParam param = new WithdrawParam(productName, address, amount, recvWindow, timeAdd);
         //提取货物，就用货物的网络
@@ -404,10 +401,10 @@ public class Trade_binance extends Trade {
         param.setNetwork(netWork);
         param.setWithdrawOrderId(myOrderId);
         param.setTransactionFeeFlag(true);// 手续费从谁扣
-        WithdrawResult result = this.walletAPIService.withdraw(param);
+        com.liujun.trade_ff.core.binance.api.bean.wallet.result.WithdrawResult result = this.walletAPIService.withdraw(param);
         log.info(getPlatName() + "提币请求已提交，id=" + result.getId() + "，请求参数" + param);
         if (result.getId() == null) {
-            return "";
+            return null;
         }
         //轮番查询状态，直到返回链上交易哈希tranId. 最多等10分钟
         int sleepSecond = 3;
@@ -417,21 +414,19 @@ public class Trade_binance extends Trade {
                 WithdrawQueryParam queryParam = new WithdrawQueryParam(recvWindow, timeAdd);
                 queryParam.setWithdrawOrderId(myOrderId);
                 WithdrawQueryResult queryResult = this.walletAPIService.withdrawQuery(queryParam);
-                if (queryResult != null && queryResult.getStatus() == 6) {
+                if (queryResult == null) {
+                    log.info("等待binance提现到账，queryResult=null");
+                } else if (queryResult.getStatus() == 6) {
                     log.info("binance提币已到账" + ", ConfirmNo=" + queryResult.getConfirmNo());
-                    return queryResult.getTxId();
+                    return new Trade.WithdrawResult(queryResult.getTxId(), Double.parseDouble(queryResult.getAmount()));
                 } else {
-                    if (queryResult != null) {
-                        log.info("等待binance提现到账，status=" + queryResult.getStatus() + ", ConfirmNo=" + queryResult.getConfirmNo() + ", info=" + queryResult.getInfo());
-                    } else {
-                        log.info("等待binance提现到账，queryResult=null");
-                    }
+                    log.info("等待binance提现到账，status=" + queryResult.getStatus() + ", ConfirmNo=" + queryResult.getConfirmNo() + ", info=" + queryResult.getInfo());
                 }
             } catch (Exception e) {
                 log.error("walletAPIService.withdrawQuery异常：", e);
             }
         }//end for
-        return "";
+        return null;
     }
 
     /**

@@ -424,14 +424,14 @@ public class Trade_binanceF extends Trade {
      * @throws Exception
      */
     @Override
-    public String withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
+    public WithdrawResult withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
 
         String myOrderId = System.currentTimeMillis() + "";
         WithdrawParam param = new WithdrawParam(productName, address, amount, recvWindow, timeAdd);
 
-        WithdrawResult result = this.walletAPIService.withdraw(param);
+        com.liujun.trade_ff.core.binance.api.bean.wallet.result.WithdrawResult result = this.walletAPIService.withdraw(param);
         log.info(getPlatName() + "提币成功：" + result.getId() + "，请求参数" + param);
-        return "";
+        return new WithdrawResult("", amount);
     }
 
     public double depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception {

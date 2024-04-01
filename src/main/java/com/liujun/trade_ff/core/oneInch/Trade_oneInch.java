@@ -311,17 +311,17 @@ public class Trade_oneInch extends Trade {
      * @throws Exception
      */
     @Override
-    public String withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
+    public WithdrawResult withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
         WithdrawParam param = new WithdrawParam(productName, address, amount, needWrap);
 
-        WithdrawResult result = this.walletAPIService.withdraw(param, gasPriceGwei);
+        com.liujun.trade_ff.core.uniswap.api.bean.WithdrawResult result = this.walletAPIService.withdraw(param, gasPriceGwei);
         if (result.isSuccess()) {
             log.info("提币成功：" + result.getOrderId() + ":" + result.getMsg());
         } else {
             log.error("提币失败：" + result.getMsg());
             throw new Exception("提币失败：" + result.getMsg());
         }
-        return result.getOrderId();
+        return new WithdrawResult(result.getOrderId(), amount);
     }
 
     @Override

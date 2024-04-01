@@ -238,6 +238,7 @@ public class Trade_okcoin extends Trade {
             //查询账户信息  https://www.okx.com/docs-v5/zh/#rest-api-account-get-balance
             JSONArray arr0 = accountAPIService.getBalance(token[0]).getJSONArray("data").getJSONObject(0).getJSONArray("details");
             JSONArray arr1 = accountAPIService.getBalance(token[1]).getJSONArray("data").getJSONObject(0).getJSONArray("details");
+            //log.info(arr0.toJSONString());
             JSONArray[] arrArr = new JSONArray[]{arr0, arr1};
             for (int i = 0; i < 2; i++) {
                 //cashBal(币种余额)= availBal(可用余额) + frozenBal(被占用金额)　？　ordFrozen(挂单冻结数量)又是什么？
@@ -440,11 +441,11 @@ public class Trade_okcoin extends Trade {
      * @param amount
      * @param address     必须是认证过的地址
      * @param needWrap    只有dex需要。当dex被要求发送eth而不是weth，needWrap应该为true，这样就能把weth变成eth并发送。当dex被要求发送weth, needWrap却还是设为true,就会把eth转成weth并发送(这好像没什么意义)
-     * @return txId 交易哈希
+     * @return WithdrawResult 交易哈希
      * @throws Exception
      */
     @Override
-    public String withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
+    public WithdrawResult withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
         JSONArray jsonArr = this.fundingAPIService.getCurrencies(productName).getJSONArray("data");//如果要查询多个币种，用逗号分隔
         JSONObject ccy = null;
         List<JSONObject> ccyList = new ArrayList<>();
@@ -488,7 +489,7 @@ public class Trade_okcoin extends Trade {
             JSONObject transResult = fundingAPIService.fundsTransfer(fundsTransfer);
             if (!transResult.getString("code").equals("0")) {
                 log.info("资金划转失败， " + transResult.toJSONString());
-                return "";
+                return null;
             } else {
                 log.info("资金账户余额不足，已划转" + transAmount + ",等待到账....");
             }
@@ -504,7 +505,7 @@ public class Trade_okcoin extends Trade {
                 }
             }//end for
             if (financeAmount2 < amount) {//如果还是不行，就没办法了
-                return "";
+                return null;
             }
         }
 
@@ -517,16 +518,16 @@ public class Trade_okcoin extends Trade {
         double fee = (Double.parseDouble(ccy.getString("minFee")) + Double.parseDouble(ccy.getString("maxFee"))) / 2.0;
         w.setFee(prop.transTokenFromat.format(fee));
         w.setChain(ccy.getString("chain"));
-        w.setAmt("" + (amount - fee));
+        w.setAmt(String.valueOf(amount - fee));
         log.info("提币请求" + w);
         JSONObject jsonObject = this.fundingAPIService.Withdrawal(w);
         log.info("提币结果：" + jsonObject.toJSONString());
         if (!jsonObject.getString("code").equals("0")) {
-            return "";
+            return null;
         }
         JSONObject drawResult = (JSONObject) jsonObject.getJSONArray("data").get(0);
         if (drawResult.getString("wdId") == null) {
-            return "";
+            return null;
         }
         //轮番查询状态，直到返回链上交易哈希tranId. 最多等10分钟
         int sleepSecond = 3;
@@ -537,7 +538,7 @@ public class Trade_okcoin extends Trade {
                         .getJSONArray("data").get(0);
                 if (queryResult != null && queryResult.getString("state") != null && queryResult.getString("state").equals("2")) {
                     log.info("okx提币已到账" + ", txId=" + queryResult.getString("txId"));
-                    return queryResult.getString("txId");
+                    return new WithdrawResult(queryResult.getString("txId"), Double.parseDouble(w.getAmt()));
                 } else {
                     if (queryResult != null && queryResult.getString("state") != null) {
                         log.info("等待okx提现到账，state=" + queryResult.getString("state") + ", 含义：-3撤销中，-2已撤销-1失败，0等待提币，1提币中，2提币成功，7: 审核通过，10: 等待划转，［4, 5, 6, 8, 9, 12］等待客服审核");
@@ -549,7 +550,7 @@ public class Trade_okcoin extends Trade {
                 log.error("fundingAPIService.getWithdrawalHistory异常：", e);
             }
         }//end for
-        return "";
+        return null;
     }
 
     private double queryFinanceAmount(String productName) {

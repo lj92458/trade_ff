@@ -94,7 +94,7 @@ public class VirtualTrade extends Trade {
      * @throws Exception
      */
     @Override
-    public String withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
+    public WithdrawResult withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
         throw new Exception("不支持提币");
     }
 

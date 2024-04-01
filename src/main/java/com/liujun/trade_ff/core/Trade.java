@@ -6,8 +6,7 @@ import com.liujun.trade_ff.core.modle.UserOrder;
 import com.liujun.trade_ff.core.modle.WebSocketState;
 import com.liujun.trade_ff.core.util.HttpUtil;
 import com.liujun.trade_ff.core.util.TransTokenUtil;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -151,7 +150,7 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
      * @return txId 交易哈希
      * @throws Exception
      */
-    public abstract String withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception;
+    public abstract WithdrawResult withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception;
 
     /**
      * 将不超出账户余额的挂单保存起来
@@ -390,4 +389,11 @@ public abstract class Trade {//goods和money放到了数组。数组中有两个
     }
 
     public abstract void cleanResource();
+
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class WithdrawResult {
+        public String txId = "";
+        public double amount = 0.0;
+    }
 }

@@ -148,7 +148,7 @@ binance:
   #apiKey: P2MJ2DU0eHocpAIlCLbc3NSZ4Kr5FwyN2kk24d3lMap7wxyP6tfINBIVfCkjOAWl #他
   #secretKey: m8BFeXKETjPuDgf6LY7wlJmAZDlnQcKiW3vfm6x1b5TcjEX4eIulvMrzu1vgqvVN #她
   feeRate: 0.001
-  url: https://api.binance.com
+  url: https://api.binance.com #美国地区访问不了com域名
   websocket:
     url: wss://stream.binance.com:9443
     level: 20 #市场深度包含几条数据：可选值5，10，20
