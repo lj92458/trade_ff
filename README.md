@@ -1,12 +1,11 @@
 # trade
-两个现货平台之间套利
-观测：将rpcServer端slippage提高到0.03，java端atLeastRate
-降到0.004
+多平台之间现货套利，也把dex看作现货平台。采用Spring Boot架构。
+
 #### 介绍
 数字货币自动交易/对冲套利/赚差价/量化交易。支持中心化平台和去中心化平台。
 集成了springMVC，sqlite，webSocket。将日志显示到页面。
 #### 软件架构
-软件架构说明：springMVC, 用hprose做RPC，实现跨语言调用(调用别人用js/python开发的功能模块)。
+软件架构说明：Spring Boot, 用hprose做RPC，实现跨语言调用(调用别人用js/python开发的功能模块)。
 
 
 #### 安装教程
