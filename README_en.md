@@ -1,6 +1,6 @@
 # 🔀 Crypto Cross-Exchange Arbitrage Engine
 
-> **Automated Cross-Exchange Arbitrage System** — Captures price discrepancies across CEX and DEX exchanges, supporting spot arbitrage, futures-spot hedging, and on-chain DEX arbitrage.
+> **Automated Cross-Exchange Arbitrage System** — Captures price discrepancies across CEX and DEX exchanges, supporting spot arbitrage, futures-spot hedging, on-chain DEX arbitrage, with built-in cross-chain fund auto-rebalancing.
 
 [🇨🇳 中文](README.md)
 
@@ -8,7 +8,7 @@
 
 ## 📌 Overview
 
-This is a **fully automated cryptocurrency cross-exchange arbitrage engine**. It discovers price differences across multiple exchanges in real-time and automatically executes buy/sell orders to capture spread profits. Supports both CEX (Binance, OKX, Bitfinex, Huobi, etc.) and DEX (Uniswap), covering three major strategies: **spot cross-exchange arbitrage**, **futures-spot hedging arbitrage**, and **DEX on-chain arbitrage**.
+This is a **fully automated cryptocurrency cross-exchange arbitrage engine**. It discovers price differences across multiple exchanges in real-time and automatically executes buy/sell orders to capture spread profits. Supports both CEX (Binance, OKX, Bitfinex, Huobi, etc.) and DEX (Uniswap), covering three major strategies: **spot cross-exchange arbitrage**, **futures-spot hedging arbitrage**, and **DEX on-chain arbitrage**, with a built-in **cross-chain fund auto-rebalancing** system.
 
 ---
 
@@ -57,6 +57,24 @@ For Uniswap and similar DEX on-chain trading, implements sophisticated gas optim
 - Generates multi-platform deviation trend charts to assist in identifying arbitrage timing and pricing anomalies
 - Supports customizable time granularity and display range
 
+### 6. Cross-Chain Fund Auto-Rebalancing (Dijkstra Routing)
+
+One of the system's most unique capabilities. When funds are unevenly distributed across platforms, the system can **automatically withdraw, transfer across chains, and intelligently route** assets to where they're needed:
+
+- **Dijkstra Shortest Path Routing** — Models exchanges as graph nodes and shared blockchain networks as edges, using Dijkstra's algorithm to find optimal transfer paths
+- **Multi-Hop Routing** — When two platforms share no common network, automatically finds intermediary platforms (e.g., Binance → OKX → Uniswap) for indirect cross-chain transfers
+- **7+ Chain Network Support** — Arbitrum, Optimism, Polygon, Avalanche, zkSync, OKTC, TRC20, and more
+- **Automatic ETH/WETH Wrapping** — Handles ETH ↔ WETH conversion during transfers automatically
+- **Configurable Network Filtering** — Supports `netWorkContain` / `netWorkNotContain` for precise network name matching
+- **Async Parallel Rebalancing** — Multiple transfer groups execute in parallel via `CompletableFuture`, with timeout waiting up to 10 minutes
+
+### 7. Intelligent Fund Distribution Strategy
+
+- **DEX-Centric Fund Mode** — Via `tokenAllInDex` config, keeps all funds on DEX by default; CEX holds no funds. After DEX trade success, automatically transfers proceeds to CEX — doubling capital efficiency
+- **Virtual Order Rebalancing** — When total fund amounts drift, `VirtualTrade` generates synthetic buy/sell orders to guide other platforms into reverse trading, restoring balance
+- **Goods/Money Ratio Control** — Via `goodsRate` parameter, controls the proportion of goods value to total assets, with automatic buy/sell adjustment
+- **Deviation Trigger Threshold** — Via `whenBalance` parameter, sets how much any platform's funds must deviate before triggering a transfer, avoiding excessive small transfers
+
 ---
 
 ## ⚡ Key Capabilities
@@ -69,6 +87,8 @@ For Uniswap and similar DEX on-chain trading, implements sophisticated gas optim
 - 🔀 **Smart Order Merging** — Automatically merges multiple small orders into larger ones, reducing API calls and improving fill rates
 - 📡 **Real-Time Log Streaming** — Pushes trading logs and spread data to the web frontend via WebSocket
 - 🛡️ **Risk Control** — Built-in minimum profit rate, minimum trade size, slippage control, position cap, and multiple risk management strategies
+- 🔗 **Cross-Chain Fund Auto-Rebalancing** — Dijkstra-based multi-hop routing, supports 7+ chain networks for automatic withdrawal and fund balancing
+- 💼 **DEX-Centric Fund Strategy** — All funds on DEX by default, auto-transfers to CEX after trades, doubling capital efficiency
 
 ---
 
@@ -125,6 +145,8 @@ src/main/java/com/liujun/trade_ff/
 │   ├── modle/               # Domain models (MarketDepth, Order, Balance, PriceInfo, etc.)
 │   ├── thread/              # Background threads (price deviation tracking, avg price)
 │   └── util/                # Utilities (HTTP, signing, XML config parsing, etc.)
+│       ├── TransTokenUtil.java  # Cross-chain transfer routing (Dijkstra algorithm)
+│       └── graph/             # Graph algorithms (Graph, Node)
 ├── controller/              # Web Controllers (engine start/stop, deviation queries)
 ├── config/                  # Configuration (WebSocket, MVC, Servlet)
 ├── common/                  # Filters, interceptors, exception handling, WebSocket log output
@@ -152,7 +174,10 @@ graph TD
     I --> J["DEX executes first → CEX follows asynchronously"]
     J --> K["Query order status & cancel unfilled"]
     K --> L["Record balance & PnL & price deviation"]
-    L --> G
+    L --> M{"Fund distribution balanced?"}
+    M -->|No| N["Dijkstra routing → Cross-chain auto withdrawal/transfer"]
+    N --> G
+    M -->|Yes| G
 ```
 
 ---
