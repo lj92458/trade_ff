@@ -17,8 +17,8 @@ public class SpotAccountAPIServiceImpl implements SpotAccountAPIService {
     }
 
     @Override
-    public Account accountInfo(long recvWindow) {
-        return this.client.executeSync(this.api.accountInfo(recvWindow, DateUtils.getUnixTimeMilli()));
+    public Account accountInfo(long recvWindow, long timestame) {
+        return this.client.executeSync(this.api.accountInfo(recvWindow, timestame));
     }
 
 

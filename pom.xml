@@ -69,7 +69,7 @@
 
         <dependency>
             <groupId>com.okcoin.commons</groupId>
-            <artifactId>okex-java-sdk-api</artifactId>
+            <artifactId>okex-java-sdk-api-v5</artifactId>
             <version>1.0.0</version>
             <exclusions>
                 <exclusion>
@@ -95,10 +95,6 @@
                 <exclusion>
                     <artifactId>logback-classic</artifactId>
                     <groupId>ch.qos.logback</groupId>
-                </exclusion>
-                <exclusion>
-                    <artifactId>fastjson</artifactId>
-                    <groupId>com.alibaba</groupId>
                 </exclusion>
                 <exclusion>
                     <artifactId>commons-logging</artifactId>
@@ -127,12 +123,6 @@
                 </exclusion>
 
             </exclusions>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/com.alibaba/fastjson -->
-        <dependency>
-            <groupId>com.alibaba</groupId>
-            <artifactId>fastjson</artifactId>
-            <version>2.0.24</version>
         </dependency>
 
 
@@ -233,34 +223,34 @@
             <artifactId>commons-codec</artifactId>
             <version>${commons-codec.version}</version>
         </dependency>
-<!--        <dependency>-->
-<!--            <groupId>commons-fileupload</groupId>-->
-<!--            <artifactId>commons-fileupload</artifactId>-->
-<!--            <version>${commons-fileupload.version}</version>-->
-<!--        </dependency>-->
+        <!--        <dependency>-->
+        <!--            <groupId>commons-fileupload</groupId>-->
+        <!--            <artifactId>commons-fileupload</artifactId>-->
+        <!--            <version>${commons-fileupload.version}</version>-->
+        <!--        </dependency>-->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-collections4</artifactId>
             <version>${commons-collection.version}</version>
         </dependency>
-<!--        <dependency>-->
-<!--            <groupId>commons-logging</groupId>-->
-<!--            <artifactId>commons-logging</artifactId>-->
-<!--            <version>${commons-logging.version}</version>-->
-<!--        </dependency>-->
+        <!--        <dependency>-->
+        <!--            <groupId>commons-logging</groupId>-->
+        <!--            <artifactId>commons-logging</artifactId>-->
+        <!--            <version>${commons-logging.version}</version>-->
+        <!--        </dependency>-->
         <!-- jcaptcha -->
-<!--        <dependency>-->
-<!--            <groupId>com.octo.captcha</groupId>-->
-<!--            <artifactId>jcaptcha</artifactId>-->
-<!--            <version>${jcaptcha.veresion}</version>-->
-<!--            <exclusions>-->
-<!--                <exclusion>-->
-<!--                    <artifactId>commons-logging</artifactId>-->
-<!--                    <groupId>commons-logging</groupId>-->
-<!--                </exclusion>-->
-<!--            </exclusions>-->
+        <!--        <dependency>-->
+        <!--            <groupId>com.octo.captcha</groupId>-->
+        <!--            <artifactId>jcaptcha</artifactId>-->
+        <!--            <version>${jcaptcha.veresion}</version>-->
+        <!--            <exclusions>-->
+        <!--                <exclusion>-->
+        <!--                    <artifactId>commons-logging</artifactId>-->
+        <!--                    <groupId>commons-logging</groupId>-->
+        <!--                </exclusion>-->
+        <!--            </exclusions>-->
 
-<!--        </dependency>-->
+        <!--        </dependency>-->
 
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
@@ -269,27 +259,27 @@
 
         </dependency>
         <!-- jackson -->
-<!--        <dependency>-->
-<!--            <groupId>com.fasterxml.jackson.core</groupId>-->
-<!--            <artifactId>jackson-core</artifactId>-->
-<!--            <version>${jackson.version}</version>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>com.fasterxml.jackson.jaxrs</groupId>-->
-<!--            <artifactId>jackson-jaxrs-json-provider</artifactId>-->
-<!--            <version>${jackson.version}</version>-->
+        <!--        <dependency>-->
+        <!--            <groupId>com.fasterxml.jackson.core</groupId>-->
+        <!--            <artifactId>jackson-core</artifactId>-->
+        <!--            <version>${jackson.version}</version>-->
+        <!--        </dependency>-->
+        <!--        <dependency>-->
+        <!--            <groupId>com.fasterxml.jackson.jaxrs</groupId>-->
+        <!--            <artifactId>jackson-jaxrs-json-provider</artifactId>-->
+        <!--            <version>${jackson.version}</version>-->
 
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>com.fasterxml.jackson.core</groupId>-->
-<!--            <artifactId>jackson-annotations</artifactId>-->
-<!--            <version>${jackson.version}</version>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>com.fasterxml.jackson.core</groupId>-->
-<!--            <artifactId>jackson-databind</artifactId>-->
-<!--            <version>${jackson.version}</version>-->
-<!--        </dependency>-->
+        <!--        </dependency>-->
+        <!--        <dependency>-->
+        <!--            <groupId>com.fasterxml.jackson.core</groupId>-->
+        <!--            <artifactId>jackson-annotations</artifactId>-->
+        <!--            <version>${jackson.version}</version>-->
+        <!--        </dependency>-->
+        <!--        <dependency>-->
+        <!--            <groupId>com.fasterxml.jackson.core</groupId>-->
+        <!--            <artifactId>jackson-databind</artifactId>-->
+        <!--            <version>${jackson.version}</version>-->
+        <!--        </dependency>-->
 
         <dependency>
             <groupId>com.mangofactory</groupId>
@@ -347,11 +337,18 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.26</version>
+            <version>1.18.30</version>
             <scope>provided</scope>
         </dependency>
-
-
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.binance</groupId>
+            <artifactId>binance-connector-java</artifactId>
+            <version>3.2.0</version>
+        </dependency>
     </dependencies>
 
     <repositories>
@@ -379,7 +376,7 @@
         </repository>
         <repository>
             <id>MavenCentral</id>
-            <url>http://repo1.maven.org/maven2/</url>
+            <url>https://repo1.maven.org/maven2/</url>
         </repository>
         <repository>
             <id>aliyunmavenApache</id>
@@ -390,7 +387,7 @@
     <pluginRepositories>
         <pluginRepository>
             <id>nexus</id>
-            <url>http://maven.aliyun.com/nexus/content/groups/public/</url>
+            <url>https://maven.aliyun.com/repository/public</url>
             <snapshots>
                 <enabled>true</enabled>
             </snapshots>
@@ -401,15 +398,51 @@
     </pluginRepositories>
 
     <build>
+        <!--生成的jar包名称为项目的artifactId-->
+        <finalName>${project.artifactId}</finalName>
+
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <fork>false</fork> <!--重要，否则devtools不生效。 实际上是会在 maven 编译的时候新创建一个虚拟机执行。这个新创建 JVM 就是这里的 fork-->
+                    <fork>true</fork> <!--重要，否则devtools不生效。 实际上是会在 maven 编译的时候新创建一个虚拟机执行。这个新创建 JVM 就是这里的 fork-->
                 </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal> <!-- 把很多jar包放入同一个jar包 -->
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
-    </build>
 
+        <!-- 一旦自己写了resources，就会把继承的覆盖掉。因此应该把spring-boot-starter-parent里面的内容复制过来 -->
+        <resources>
+            <resource>
+                <directory>${basedir}/src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>**/application*.yml</include>
+                    <include>**/application*.yaml</include>
+                    <include>**/application*.properties</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>${basedir}/src/main/resources</directory>
+                <excludes>
+                    <exclude>**/application*.yml</exclude>
+                    <exclude>**/application*.yaml</exclude>
+                    <exclude>**/application*.properties</exclude>
+                </excludes>
+            </resource>
+            <resource>
+                <directory>${basedir}/src/main/java</directory>
+                <excludes>
+                    <exclude>**/*.java</exclude>
+                </excludes>
+            </resource>
+        </resources>
+    </build>
 </project>

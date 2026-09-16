@@ -4,22 +4,27 @@ import com.liujun.trade_ff.core.binance.api.enums.NewOrderRespType;
 import com.liujun.trade_ff.core.binance.api.enums.OrderSide;
 import com.liujun.trade_ff.core.binance.api.enums.OrderType;
 import com.liujun.trade_ff.core.binance.api.enums.TimeInForce;
+import com.liujun.trade_ff.core.binance.api.utils.DateUtils;
 
 public class PlaceOrderParam {
     String symbol;
     OrderSide side;
     OrderType type;
     TimeInForce timeInForce;
-    double quantity;
-    double quoteOrderQty;
-    double price;
+    Double quantity;
+    Double quoteOrderQty;//quoteOrderQty=100:下买单的时候, 订单会尽可能的买进价值100USDT的BTC.下卖单的时候, 订单会尽可能的卖出价值100USDT的BTC.
+    Double price;
     String newClientOrderId;
-    double stopPrice;
-    double icebergQty;
+    Double stopPrice;
+    Double icebergQty;
     NewOrderRespType newOrderRespType;
     long recvWindow;
-    long timestamp;
+    Long timestamp = DateUtils.getUnixTimeMilli();
 
+    public PlaceOrderParam(long recvWindow, long timestampAdd) {
+        this.recvWindow = recvWindow;
+        this.timestamp += timestampAdd;
+    }
 
     public String getSymbol() {
         return symbol;
@@ -53,27 +58,27 @@ public class PlaceOrderParam {
         this.timeInForce = timeInForce;
     }
 
-    public double getQuantity() {
+    public Double getQuantity() {
         return quantity;
     }
 
-    public void setQuantity(double quantity) {
+    public void setQuantity(Double quantity) {
         this.quantity = quantity;
     }
 
-    public double getQuoteOrderQty() {
+    public Double getQuoteOrderQty() {
         return quoteOrderQty;
     }
 
-    public void setQuoteOrderQty(double quoteOrderQty) {
+    public void setQuoteOrderQty(Double quoteOrderQty) {
         this.quoteOrderQty = quoteOrderQty;
     }
 
-    public double getPrice() {
+    public Double getPrice() {
         return price;
     }
 
-    public void setPrice(double price) {
+    public void setPrice(Double price) {
         this.price = price;
     }
 
@@ -85,19 +90,19 @@ public class PlaceOrderParam {
         this.newClientOrderId = newClientOrderId;
     }
 
-    public double getStopPrice() {
+    public Double getStopPrice() {
         return stopPrice;
     }
 
-    public void setStopPrice(double stopPrice) {
+    public void setStopPrice(Double stopPrice) {
         this.stopPrice = stopPrice;
     }
 
-    public double getIcebergQty() {
+    public Double getIcebergQty() {
         return icebergQty;
     }
 
-    public void setIcebergQty(double icebergQty) {
+    public void setIcebergQty(Double icebergQty) {
         this.icebergQty = icebergQty;
     }
 
@@ -109,19 +114,19 @@ public class PlaceOrderParam {
         this.newOrderRespType = newOrderRespType;
     }
 
-    public long getRecvWindow() {
+    public Long getRecvWindow() {
         return recvWindow;
     }
 
-    public void setRecvWindow(long recvWindow) {
+    public void setRecvWindow(Long recvWindow) {
         this.recvWindow = recvWindow;
     }
 
-    public long getTimestamp() {
+    public Long getTimestamp() {
         return timestamp;
     }
 
-    public void setTimestamp(long timestamp) {
+    public void setTimestamp(Long timestamp) {
         this.timestamp = timestamp;
     }
 }

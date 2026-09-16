@@ -33,7 +33,7 @@ public class SessionFilter extends OncePerRequestFilter {
 
         //设置cookies
         Cookie localCookie = new Cookie("_client_check_flag_", "true");         //设置cookie 由客户端检测 是否启用cookie
-        localCookie.setMaxAge(60 * 60);// 设置cookie过期时间为1小时
+        localCookie.setMaxAge(60 * 60 * 24 * 7);// 设置cookie过期时间为1小时
         httpServletResponse.addCookie(localCookie);// 在响应头部添加cookie
 
         String servletPath = httpServletRequest.getServletPath();

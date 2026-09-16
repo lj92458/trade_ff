@@ -1,34 +1,40 @@
 package com.liujun.trade_ff.core;
 
 import com.liujun.trade_ff.core.modle.AccountInfo;
-import com.liujun.trade_ff.core.modle.MarketDepth;
 import com.liujun.trade_ff.core.modle.MarketOrder;
 import com.liujun.trade_ff.core.modle.UserOrder;
+import com.liujun.trade_ff.core.modle.WebSocketState;
 import com.liujun.trade_ff.core.util.HttpUtil;
-import lombok.Getter;
-import lombok.Setter;
+import com.liujun.trade_ff.core.util.TransTokenUtil;
+import lombok.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Getter
 @Setter
-public abstract class Trade {
+public abstract class Trade {//goods和money放到了数组。数组中有两个元素，分别是goods和token，别搞反了
     private static final Logger log = LoggerFactory.getLogger(Trade.class);
     public final int platId;
     public final double usdRate;
     protected Prop prop;
     protected Engine engine;
     public boolean initSuccess = false;
+
+    public String[] token = new String[2];
+    public String[] tokenAddress = new String[2];
     /**
-     * 每次交易需要的固定费用(例如uniswap的矿工费)，单位是trade.money，例如usdt、btc
+     * 最对币安，支持多种提币网络。必须指定一种一种网络。例如：uniswap运行在在arbitrum网络上，所以为了给uniswap充值，应该从币安把币提到arbitrum
+     */
+    public String[][] tokenNetWork = new String[2][];
+    /**
+     * 每次交易需要的固定费用(例如dex的矿工费)，单位是trade.money，例如usdt、btc
      */
     public double fixFee = 0.0;
+    private String naitveToken;//仅针对dex
     /**
      * 即将要提交的订单的收益率，它一定会大于atLeastRate。这个也用来限制dex滑点
      */
@@ -37,34 +43,47 @@ public abstract class Trade {
      * 为了在差价长期不出现翻转的平台之间搬运， 对查到的市场挂单，减去该价格，对要发送出的订单，加上该价格。
      */
     private double changePrice = 0.0;
+    public double[] pToken = new double[2];//pgoods和pmoney. pgoods每个平台的goods占总goods的比例。 0表示该平台被忽略，0.001是最小值
     /**
      * 模式锁定：0无锁，1只能跨平台搬运 ， 2只能在自己平台内部btc/ltc/cny之间转换。因为平台内和跨平台是冲突的
      */
     private int modeLock = 0;
+    public boolean onTrading = false;
 
     /**
-     * 市场深度
+     * 市场深度,分别存储ask和bid
      */
-    private MarketDepth marketDepth = new MarketDepth();
+    private ArrayList<MarketOrder>[] marketDepth = new ArrayList[]{new ArrayList<MarketOrder>(), new ArrayList<MarketOrder>()};
+
     /**
-     * 备份的市场深度
+     * 备份的市场深度,分别存储ask和bid
      */
-    private MarketDepth backupDepth = new MarketDepth();
+    private ArrayList<MarketOrder>[] backupDepth = new ArrayList[]{new ArrayList<MarketOrder>(), new ArrayList<MarketOrder>()};
     /**
      * 账户资产信息
      */
-    private AccountInfo accInfo;
+    public AccountInfo accInfo;
     /**
-     * 当前价格
+     * 当前价格。执行了flushMarketDeeps才会赋值
      */
-    private double currentPrice = 1;
+    private double currentPrice = 0;
     public HttpUtil httpUtil;
 
     /**
      * 程序将要挂的单。包括买单、卖单。买单按照价格从低往高排列，卖单从高往低。
      * 这是由于helpCreateOrders()方法的机制导致的，因为这里的买单，是为了吃掉市场的卖单，而卖单价格是从低到高
      */
-    private List<UserOrder> userOrderList;
+    private List<UserOrder> userOrderList = new ArrayList<>();
+
+    /**
+     * token数量比平均值差了多少
+     */
+    public double[] diffToken = new double[2];
+    /**
+     * 根据WebSocketState.StreamType查询数据流的状态
+     */
+
+    public Map<WebSocketState.StreamType, WebSocketState> webSocketStateMap = new HashMap<>();
 
 
     // ==========================================================
@@ -94,11 +113,11 @@ public abstract class Trade {
     /**
      * 对市场挂单排序。买方从大到小排序,卖方从小到大排序
      */
-    public void sort(MarketDepth m) {
+    public void sort(ArrayList<MarketOrder>[] arrayLists) {
 
-        Collections.sort(m.getAskList()); // 对卖方排序，从小到大
-        Collections.sort(m.getBidList());// 对买方排序,然后颠倒
-        Collections.reverse(m.getBidList());
+        Collections.sort(arrayLists[0]); // 对卖方排序，从小到大
+        Collections.sort(arrayLists[1]);// 对买方排序,然后颠倒
+        Collections.reverse(arrayLists[1]);
 
     }
 
@@ -119,54 +138,49 @@ public abstract class Trade {
      */
     public abstract void cancelOrder() throws Exception;
 
+
     /**
-     * 提取Goods
+     * 提取资产，发送token到外界.为什么一定要等待，直到被打包呢？因为要拿到哈希值。有了哈希值，才能调用nodeJS的receiveToken服务，进而把eth包装成weth。
      *
+     * @param productName
+     * @param amount
+     * @param address
+     * @param netWorkShort 简短的网络名称，跟yml中配置的一致。例如avax又叫Avalanche,它们的共同部分就是ava
+     * @param needWrap     只有dex需要。当dex被要求发送eth而不是weth，needWrap应该为true，这样就能把weth变成eth并发送。当dex被要求发送weth, needWrap却还是设为true,就会把eth转成weth并发送(这好像没什么意义)
+     * @return txId 交易哈希
      * @throws Exception
      */
-    public abstract void withdraw(String productName, double amount, String address) throws Exception;
+    public abstract WithdrawResult withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception;
 
     /**
      * 将不超出账户余额的挂单保存起来
      */
     public void backupUsefulOrder() {
-        // 处理市场卖单。如果有足够的货币余额，能将该订单买下，就将它备份起来
-        backupDepth.getAskList().clear();
-        double freeMoney = accInfo.getFreeMoney();
-        for (MarketOrder o : marketDepth.getAskList()) {
-            double needMoney = o.getPrice() * o.getVolume();
-            MarketOrder order = o.clone();
-            if (freeMoney >= needMoney) {
-                backupDepth.getAskList().add(order);
-                freeMoney -= needMoney;
-            } else if (0 < freeMoney) {
-                order.setVolume(freeMoney / order.getPrice());
-                if (order.getVolume() >= prop.minCoinNum) {
-                    backupDepth.getAskList().add(order);
-                }
-                freeMoney = 0.00;
-            } else {
-                break;
+        for (int i = 0; i < 2; i++) {// 处理市场ask和bid. 0代表ask, 1代表bid
+            backupDepth[i].clear();
+            double freeToken = 0;
+            if (engine.isDexOn() && engine.tokenAllInDex && fixFee == 0 && !this.equals(engine.virtualTrade)) {//如果有dex，那么cex的资金等于dex的资金
+                //处理币安的卖单时，需要把dex的money变成币安money
+                freeToken = engine.firstDexTrade.accInfo.freeToken[1 - i];
+                freeToken *= 0.995;
             }
-        }
-        // 处理市场买单。如果有足够的货物，能卖给该订单，就将它备份起来
-        backupDepth.getBidList().clear();
-        double freeGoods = accInfo.getFreeGoods();
-        for (MarketOrder o : marketDepth.getBidList()) {
-            double needGoods = o.getVolume();
-            MarketOrder order = o.clone();
-            if (freeGoods >= needGoods) {
-                backupDepth.getBidList().add(order);
-                freeGoods -= needGoods;
-            } else if (0 < freeGoods) {
-                order.setVolume(freeGoods);
-                if (freeGoods >= prop.minCoinNum) {
-                    backupDepth.getBidList().add(order);
-                }
-                freeGoods = 0.00;
-            } else {
-                break;
+            freeToken += accInfo.freeToken[1 - i];//处理市场卖单时，这里的freeToken指我拥有的money；反之处理市场买单，我需要出goods. 所以0和1要交换
+
+            for (MarketOrder o : marketDepth[i]) {
+                double needToken = (i == 0 ? o.getPrice() : 1) * o.getVolume();//0表示市场卖单，我需要出钱买下来.
+                MarketOrder order = o.clone();
+                if (freeToken >= needToken) {
+                    backupDepth[i].add(order);
+                    freeToken -= needToken;
+                } else if (0 < freeToken) {
+                    order.setVolume(freeToken / (i == 0 ? order.getPrice() : 1));
+                    if (order.getVolume() >= prop.minAmount) {
+                        backupDepth[i].add(order);
+                    }
+                    freeToken = 0.00;
+                } else break;
             }
+
         }
     }
 
@@ -174,11 +188,15 @@ public abstract class Trade {
      * 市场挂单价格减去调整值。考虑到手续费
      */
     public void changeMarketPrice(double buyRate, double sellRate) {
-        for (MarketOrder o : marketDepth.getAskList()) {
-            o.setPrice(o.getPrice() * sellRate - getChangePrice());
+        if (marketDepth[0] != null) {
+            for (MarketOrder o : marketDepth[0]) {
+                o.setPrice(o.getPrice() * sellRate - getChangePrice());
+            }
         }
-        for (MarketOrder o : marketDepth.getBidList()) {
-            o.setPrice(o.getPrice() * buyRate - getChangePrice());
+        if (marketDepth[1] != null) {
+            for (MarketOrder o : marketDepth[1]) {
+                o.setPrice(o.getPrice() * buyRate - getChangePrice());
+            }
         }
     }
 
@@ -187,9 +205,9 @@ public abstract class Trade {
      */
     public void changeMyOrderPrice(double buyRate, double sellRate) {
         for (UserOrder o : userOrderList) {
-            if (o.getType().equals("buy")) {//如果是买单，说明跟市场卖单相对应
+            if (o.getType().equals("buy")) {//如果是我的买单，说明跟市场卖单相对应
                 o.setPrice((o.getPrice() + getChangePrice()) / sellRate);
-            } else {//如果是卖单，说明跟市场买单相对应
+            } else {//如果是我的卖单，说明跟市场买单相对应
                 o.setPrice((o.getPrice() + getChangePrice()) / buyRate);
             }
             //对将要发送的挂单，调整精度
@@ -198,106 +216,14 @@ public abstract class Trade {
         }
     }
 
-    /**
-     * 订单预处理：对每个订单逐个检查：若账户余额不够,则将订单设为失效(backupUsefulOrder方法确保了账户余额不可能不够)。
-     * 各平台预处理需要一起做，因为订单是成双成对的失效!
-     *
-     * @see 【不要在本方法内删除失效订单，因为删不干净】
-     */
-    public void processOrders() {
-        List<UserOrder> userOrderList = getUserOrderList();
-        // log.info(getPlatName()+"所有订单:" + userOrderList.toString());// 输出所有的订单
-        AccountInfo accInfo = getAccInfo();
-        // 计算总共需要多少money、goods,并记录日志
-        double maxNeed_money = 0;// 最大需要的money
-        double maxNeed_goods = 0;// 最大需要的goods
-        double need_money = 0;// 实际需要的money
-        double need_goods = 0;// 实际需要的goods
-        for (int i = 0; i < userOrderList.size(); i++) {
-            UserOrder order = userOrderList.get(i);
-            if (order.isEnable()) {
-                // 如果数量小于Const.minCoinNum，
-                if (order.getVolume() < prop.minCoinNum) {
-                    if (i + 1 < userOrderList.size()) {// 如果下一个订单存在，将订单合并到下一个，并设置失效
-                        UserOrder nextOrder = userOrderList.get(i + 1);
-                        nextOrder.setVolume(nextOrder.getVolume() + order.getVolume());
-                        order.setEnable(false);
-                    } else if (order.getVolume() / prop.minCoinNum >= 0.7) {// 如果不能合并，并且数量接近最小值，就修改成最小值
-                        order.setVolume(prop.minCoinNum);
-                        order.getAnotherOrder().setVolume(prop.minCoinNum);
-
-                    } else {// 实在没办法，就放弃这个订单
-                        order.disableOrder();
-                    }
-
-                }
-                if (order.isEnable()) {// 如果数量不是太小
-
-
-                    if (order.getType().equals("buy")) {// 如果是买单
-                        maxNeed_money += order.getPrice() * order.getVolume();
-                        double virtualRemain_money = accInfo.getFreeMoney() - need_money;// 模拟剩余金额
-                        // 如果“模拟剩余额”足够
-                        if ((virtualRemain_money - 1.0 / prop.moneyPrice) > order.getPrice() * order.getVolume()) {
-                            need_money += order.getPrice() * order.getVolume();
-                            // 否则,根据"模拟剩余金额",调整交易量
-                        } else if (virtualRemain_money > 1.0 / prop.moneyPrice && (virtualRemain_money / order.getPrice()) >= prop.minCoinNum) {
-                            order.changeVolume(virtualRemain_money / order.getPrice() - prop.minCoinNum);
-                            need_money += virtualRemain_money;
-                        } else {
-                            order.disableOrder();
-                            // need_money = accInfo.getFreeMoney();
-                        }
-                    } else {// 如果是卖单
-                        maxNeed_goods += order.getVolume();
-                        double virtualRemain_goods = accInfo.getFreeGoods() - need_goods;// 模拟剩余goods
-                        // 如果“模拟剩goods”足够
-                        if ((virtualRemain_goods - 0.0) > order.getVolume()) {
-                            need_goods += order.getVolume();
-                            // 否则,根据"模拟剩余goods",调整交易量
-                        } else if (virtualRemain_goods >= prop.minCoinNum) {
-                            order.changeVolume(virtualRemain_goods - prop.minCoinNum);
-                            need_goods += virtualRemain_goods;
-                        } else {
-                            order.disableOrder();
-                            // need_goods = accInfo.getFreeGoods();
-                        }
-                    }// else
-                }// end if enable
-            }// end if enable
-
-        }// end for
-        // 如果需要搬运
-        if (maxNeed_money + maxNeed_goods > 0) {
-            log.info(getPlatName() + "最多需要money:" + prop.formatMoney(maxNeed_money) + " , 最多需要goods:" + prop.formatGoods(maxNeed_goods) + "================");
-            log.info(getPlatName() + "预计消耗money:" + prop.formatMoney(need_money) + " , 预计消耗goods:" + prop.formatGoods(need_goods));
-            log.info(getPlatName() + "当前余额money：" + accInfo.getFreeMoney() + ",当前余额goods：" + accInfo.getFreeGoods());
-            // 计算最大缺乏
-            double maxLack_money = maxNeed_money - accInfo.getFreeMoney();// 缺乏多少money
-            double maxLack_goods = maxNeed_goods - accInfo.getFreeGoods();// 缺乏多少goods
-            if (maxLack_money > 0 || maxLack_goods > 0) {
-                log.info(getPlatName() + "--------------最多缺乏money:" + prop.formatMoney(maxLack_money) + ", 最多缺乏goods:" + prop.formatGoods(maxLack_goods));
-            }
-            // 计算实际缺乏
-            double lack_money = need_money - accInfo.getFreeMoney();// 缺乏多少money
-            double lack_goods = need_goods - accInfo.getFreeGoods();// 缺乏多少goods
-            if (lack_money > 0 || lack_goods > 0) {
-                log.warn(getPlatName() + "--------------实际缺乏money:" + prop.formatMoney(lack_money) + ", 实际缺乏goods:" + prop.formatGoods(lack_goods));
-            }
-
-        } else {// 如果不需要搬运
-            log.info(getPlatName() + "不需要搬运！");
-        }
-
-    }
 
     /**
      * 卖 goods
      */
     public void sellGoods(double amount) throws Exception {
-        setUserOrderList(new ArrayList<UserOrder>());
+        setUserOrderList(new ArrayList<>());
         UserOrder order = new UserOrder();
-        double price = getCurrentPrice() - 3.0 / prop.moneyPrice;
+        double price = getCurrentPrice() - 0.43 / prop.moneyPrice;
         order.setType("sell");
         order.setPrice(price);
         order.setDiffPrice(0);
@@ -314,9 +240,9 @@ public abstract class Trade {
      * 买 goods
      */
     public void buyGoods(double amount) throws Exception {
-        setUserOrderList(new ArrayList<UserOrder>());
+        setUserOrderList(new ArrayList<>());
         UserOrder order = new UserOrder();
-        double price = getCurrentPrice() + 3.0 / prop.moneyPrice;
+        double price = getCurrentPrice() + 0.43 / prop.moneyPrice;
         order.setType("buy");
         order.setPrice(price);
         order.setDiffPrice(0);
@@ -370,99 +296,35 @@ public abstract class Trade {
         }
     }
 
-    //对订单进行合并。
+    //对订单进行合并。如果1inch同时存在买单和卖单，就分别合并。
     protected void merge() {
-
-        //将订单分成买单、卖单
-        List<UserOrder> buyList = new ArrayList<UserOrder>();
-        List<UserOrder> sellList = new ArrayList<UserOrder>();
-        for (UserOrder order : userOrderList) {
-            if (order.getType().equals("buy")) {
-                buyList.add(order);
-            } else {
-                sellList.add(order);
+        log.info(getPlatName() + "存在订单:" + userOrderList.toString());
+        List<UserOrder> mergedList = new ArrayList<>();
+        String[] orderTypes = new String[]{"buy", "sell"};
+        for (String orderType : orderTypes) {
+            List<UserOrder> orderList = userOrderList.stream().filter(o -> o.getType().equals(orderType)).collect(Collectors.toList());
+            if (orderList.size() > 0) {
+                double totalMoney = orderList.stream().mapToDouble(o -> o.getPrice() * o.getVolume()).sum();
+                double totalVolume = orderList.stream().mapToDouble(UserOrder::getVolume).sum();
+                //todo 买单按照价格从低往高排列，所以用最高价买，更容易成交? dex不能这样，因为容易亏损：如果你用高价买，会导致needAmountOut和slippage失去意义
+                UserOrder lastOrder = orderList.get(orderList.size() - 1);
+                lastOrder.setVolume(totalVolume);
+                if (this.fixFee == 0) {//cex可以
+                    lastOrder.setPrice(lastOrder.getPrice()
+                            //+ (lastOrder.getType().equals("buy") ? 1 : -1) * 0.0142 / prop.moneyPrice//为了确保成交，就提高买价，压低卖价
+                    );
+                } else {//dex不可以
+                    lastOrder.setPrice(totalMoney / totalVolume);
+                }
+                if (lastOrder.getVolume() >= prop.minTradeMoney / engine.currentBalance.getPrice()) {
+                    mergedList.add(lastOrder);
+                } else {
+                    log.warn(getPlatName() + "数量太小" + lastOrder.getVolume());
+                }
             }
-        }
+        }//end for
         userOrderList.clear();
-
-        //合并买单
-        if (buyList.size() > 0) {
-            log.info(getPlatName() + "存在买单:" + buyList.toString());
-            double totalMoney = 0;
-            double totalVolume = 0;//给一个准确的总数量，先不考虑资金不足的情况
-            for (UserOrder order : buyList) {
-                totalMoney += order.getPrice() * order.getVolume();
-                totalVolume += order.getVolume();
-            }
-            UserOrder lastOrder = buyList.get(buyList.size() - 1);//todo 买单按照价格从低往高排列，所以用最高价买，更容易成交?
-            /*
-            double volume = (totalMoney / lastOrder.getPrice()) * 0.998;//让预备消耗的资金等于totalMoney，防止资金不足。但是这会导致成交量不足
-            lastOrder.setVolume(volume);
-            */
-            lastOrder.setVolume(totalVolume);
-            lastOrder.setPrice(lastOrder.getPrice() + 0.1 / prop.moneyPrice);//为了确保成交，就提高买价
-            if (lastOrder.getVolume() >= prop.minCoinNum) {
-                userOrderList.add(lastOrder);
-            } else {
-                log.warn(getPlatName() + "数量太小" + lastOrder.getVolume());
-            }
-        }
-        //合并卖单
-        if (sellList.size() > 0) {
-            log.info(getPlatName() + "存在卖单:" + sellList.toString());
-            double totalVolume = 0;
-            for (UserOrder order : sellList) {
-                totalVolume += order.getVolume();
-            }
-            UserOrder lastOrder = sellList.get(sellList.size() - 1);//todo 卖单按照价格从高往低排列，所以用最低价卖，更容易成交?
-
-            lastOrder.setVolume(totalVolume - 0.00);
-            lastOrder.setPrice(lastOrder.getPrice() - 0.1 / prop.moneyPrice);//为了确保成交，就降低卖价
-            if (lastOrder.getVolume() >= prop.minCoinNum) {
-                userOrderList.add(lastOrder);
-            } else {
-                log.warn(getPlatName() + "数量太小" + lastOrder.getVolume());
-            }
-        }
-        //如果同时存在买单、卖单，就警告
-        if (userOrderList.size() >= 2) {
-            log.warn(getPlatName() + "同时存在买单、卖单:" + userOrderList.toString());
-        }
-        /*
-        //如果是买单，只能对相同价格的合并
-		if (userOrderList.size() > 1 && userOrderList.get(0).getType().equals("buy")) {
-			int size1 = userOrderList.size();
-			for (int i = 0; i < userOrderList.size() - 1;) {
-				UserOrder order1 = userOrderList.get(i);
-				UserOrder order2 = userOrderList.get(i + 1);
-				if (order2.getPrice() - order1.getPrice() < 0.001) {
-					order2.setVolume(order2.getVolume() + order1.getVolume());
-					userOrderList.remove(i);
-				} else {
-					i++;
-				}
-			}
-			int size2 = userOrderList.size();
-			if (size1 > size2) {
-				log.info(getPlatName() + "已合并" + (size1 - size2) + "个买单");
-			}
-			// 卖单，可以把所有订单合并
-		} else if (userOrderList.size() > 1 && userOrderList.get(0).getType().equals("sell")) {
-			int size1 = userOrderList.size();
-			for (int i = 0; i < userOrderList.size() - 1;) {
-				UserOrder order1 = userOrderList.get(i);
-				UserOrder order2 = userOrderList.get(i + 1);
-				order2.setVolume(order2.getVolume() + order1.getVolume());
-				userOrderList.remove(i);
-			}
-			int size2 = userOrderList.size();
-			if (size1 > size2) {
-				log.info(getPlatName() + "已合并" + (size1 - size2) + "个卖单");
-			}
-		} else {// 没有订单
-
-		}
-		*/
+        userOrderList.addAll(mergedList);
     }
 
 
@@ -470,10 +332,68 @@ public abstract class Trade {
 
 
     public double getTotalGoods() {
-        return accInfo.getFreeGoods() + accInfo.getFreezedGoods();
+        return accInfo.freeToken[0] + accInfo.freezedToken[0];
     }
 
     public double getTotalMoney() {
-        return accInfo.getFreeMoney() + accInfo.getFreezedMoney();
+        return accInfo.freeToken[1] + accInfo.freezedToken[1];
+    }
+
+    /**
+     * 接收来自外界的转账。
+     *
+     * @param asset    资产名称，symbol
+     * @param txId     交易哈希
+     * @param amount   金额
+     * @param needWrap 只有dex需要。当dex收到eth而不是weth，needWrap应该为true，这样就能把eth变成weth。当dex收到weth, needWrap却还是设为true,就会把weth转成eth(这好像没什么意义)
+     * @return 收到资金量。-1表示失败
+     * @throws Exception
+     */
+    public abstract double depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception;
+
+    public void setCurrentPrice(double currentPrice) throws Exception {
+        if (currentPrice <= 0) {
+            throw new Exception("currentPrice必须大于0， 当前值是" + currentPrice);
+        }
+        this.currentPrice = currentPrice;
+    }
+
+    /**
+     * 备注：本方法需要在cex的tradeOrder方法调用。把币从dex转移到cex然后交易。因为cex平时不存储币，只有需要交易时才会临时调拨。
+     * 本方法改进了程序：即然价格涨跌，都是okx引领的，然后uniswap只负责跟进，那么可以把goods和money都放在uniswap，因为总是会等uniswap成交后才会在okx成交。
+     * 等交易成功了，卖eth得到usdc了，再把得到的usdc转入okx.这样就能防止uniswap乌龙。坏处是浪费了4秒时间。整个过程如下：
+     * 1.不在乎okx余额，就假设它有无限。比价后，发现了差价，就在uniswap成交。
+     * 2.成交后，新一轮循环会查询余额并且checkTotalGoods, 发现goods不足，就让virtual参与三方比价。如果部分订单被派到okx.addOrder函数，就在该函数检查实际余额。
+     * 3.如果没有余额，就在addOrder发起转账，等转账完成(视作addOrder被调用成功了)，新一轮循环又会checkTotalGoods并发现goods不足。如果有余额，才执行挂单。
+     * 问题1：两次循环间隔，会把已经转到okx的币再转回dex吗？ 答案：不会，因为checkTotalGoods一旦执行生效，balanceTokens就不会被执行。
+     *
+     * @param order 要提交的订单
+     * @return true需要传输且已经传输了。false不用传输
+     * @throws Exception
+     */
+    public boolean tokenTransferDex2Cex(UserOrder order) throws Exception {
+        if (engine.isDexOn() && engine.tokenAllInDex && engine.firstCexTrade != null) {
+            if (order.getType().equals("buy") && accInfo.freeToken[1] / (order.getVolume() * order.getPrice()) < 0.90) {
+                double receiveAmount = TransTokenUtil.trans(engine, engine.firstDexTrade, this, 1,
+                        Double.parseDouble(prop.transTokenFromat.format(order.getVolume() * order.getPrice() - accInfo.freeToken[1]))
+                );
+                log.info(getPlatName() + "最终收到money:" + receiveAmount);
+                return true;
+            } else if (order.getType().equals("sell") && accInfo.freeToken[0] / order.getVolume() < 0.90) {
+                double receiveAmount = TransTokenUtil.trans(engine, engine.firstDexTrade, this, 0, order.getVolume() - accInfo.freeToken[0]);
+                log.info(getPlatName() + "最终收到goods:" + receiveAmount);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public abstract void cleanResource();
+
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class WithdrawResult {
+        public String txId = "";
+        public double amount = 0.0;
     }
 }

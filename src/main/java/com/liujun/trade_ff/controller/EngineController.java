@@ -74,15 +74,34 @@ public class EngineController {
     }
 
 
-    @RequestMapping(value = "/engine/adjustPrice", method = RequestMethod.POST)
+    @RequestMapping(value = "/engine/adjust", method = RequestMethod.POST)
     @ResponseBody
-    public Map<String, String> saveAdjustPrice(@RequestParam String adjustPrice) {
+    public Map<String, String> saveAdjustX(String key, String value) {
         Map<String, String> map = new HashMap<>();
         map.put("retCode", "0000");
-
         stopEngine();
         try {
-            engineThread.engine.saveAdjustPrice(adjustPrice);
+            engineThread.engine.saveAdjustX(key, value);
+            map.put("retMsg", "设置成功，引擎已经重启。");
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+            map.put("retMsg", "出现异常:" + e.getMessage());
+        }
+        startEngine();
+        return map;
+    }
+
+    @RequestMapping(value = "/engine/goodsRate", method = RequestMethod.POST)
+    @ResponseBody
+    public Map<String, String> saveGoodsRate(double goodsRate) {
+        Map<String, String> map = new HashMap<>();
+        map.put("retCode", "0000");
+        stopEngine();
+        try {
+            if (goodsRate < 0 || goodsRate > 1) {
+                throw new Exception("goodsRate的取值范围应该是[0,1]");
+            }
+            engineThread.engine.setGoodsRate(goodsRate);
             map.put("retMsg", "设置成功，引擎已经重启。");
         } catch (Exception e) {
             log.error(e.getMessage(), e);
@@ -148,15 +167,18 @@ public class EngineController {
                     map.put("engineState", "已暂停");
                 }
                 //价格调整(adjustPrice)
-                Map<String, Double> adjustPriceMap = new HashMap<>();
-                for (Trade trade : engineThread.engine.platList) {
-                    if (!trade.getPlatName().equals("virtual")) {
-                        adjustPriceMap.put(trade.getPlatName(), trade.getChangePrice());
-                    }
-
+                Map<String, Double> priceMap = new HashMap<>();
+                Map<String, Double> pgoodsMap = new HashMap<>();
+                Map<String, Double> pmoneyMap = new HashMap<>();
+                for (Trade trade : engineThread.engine.actualPlats()) {
+                    priceMap.put(trade.getPlatName(), trade.getChangePrice());
+                    pgoodsMap.put(trade.getPlatName(), trade.pToken[0]);
+                    pmoneyMap.put(trade.getPlatName(), trade.pToken[1]);
                 }
-                map.put("adjustPrice", adjustPriceMap);
-                //上次什么时候调整的偏差？
+                map.put("price", priceMap);
+                map.put("pgoods", pgoodsMap);
+                map.put("pmoney", pmoneyMap);
+                map.put("goodsRate", engineThread.engine.getGoodsRate());
 
                 map.put("retCode", "0000");
             } else {

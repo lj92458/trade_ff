@@ -1,0 +1,194 @@
+debug: false
+server:
+  port: 8083
+  servlet:
+    context-path: /trade_c2c_arbitrum
+    session:
+      timeout: P7DT0H0M0S #300秒，必须是合法的Duration, P1Y2M10DT2H30M15.03S表示1年2个月10天
+      persistent: true #重启时，保存到磁盘
+  tomcat:
+    basedir: /var/log/tomcat_${server.servlet.context-path}
+    accesslog:
+      enabled: true
+      suffix: .log
+      prefix: access_log
+      file-date-format: .yyyy-MM-dd
+      directory: logs
+      pattern: common
+  shutdown: graceful #优雅停机，参考https://zhuanlan.zhihu.com/p/143469078
+
+# spring-boot-starter-actuator相关配置。暴露shutdown接口.
+# https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#overview
+# https://docs.spring.io/spring-boot/docs/current/reference/html/actuator.html
+management:
+  endpoint:
+    shutdown:
+      enabled: true #除了shutdown，其它的endpoint默认都是开启的
+    health:
+      show-details: always #获得健康检查中所有指标的详细信息
+    logfile:
+      external-file: /var/log${server.servlet.context-path}/trade-root.log #高优先级.
+  endpoints:
+    web:
+      exposure: #默认值访问health端点，用*可以包含全部端点(*号有特殊含义，因此需要加双引号)
+        include: shutdown,health,info,loggers,logfile
+    jmx:
+      exposure:
+        include:
+
+logging:
+  config: classpath:logback-spring.xml
+  file:
+    path: /var/log${server.servlet.context-path} #使用了logback之后，file.path或者file.name就已经失效了. path是怎么拼接成文件路径的，参考LogFile.toString
+  level:
+    org.apache.tomcat: INFO
+    org.apache.catalina: INFO
+
+#余额文件的路径
+balanceFilePath: ${logging.file.path}/balance.txt
+
+#properties.location: classpath:application-prd.yml
+
+chat.maxHistory:  3
+
+trade:
+  core.package: com.liujun.trade_ff.core
+  goods: eth #交易哪种商品。大小写随意，由各平台对应的trade类负责转换
+  money: usd #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
+  formatGoodsStr: "0.0000"
+  formatMoneyStr: "0.00"
+  earnMoney: true #赚取什么？钱还是货?如果赚钱，那么系统会保证货物数量保持不变
+  minTradeValue: 11 #买卖币时，最小交易金额【美元】.币安规定不得小于10
+  moneyPrice: 1 #计价货币值多少美元
+  marketOrderSize: 20 #获取市场深度时，买单、卖单分别获取多少个？【对okcoin有效,chbtc固定是50】 币安webSocket是20
+  #交易一次(不包含"调节商品数量"等特殊交易)，最少要赚多少【美元】？如果扣除了各种成本，那么一毛钱也值得赚。亏损频率越高，atLeastEarn就应该越高。
+  # 请不要考虑矿工费，因为maxEarnCost.earn已经减去了矿工费。这里应该拍脑袋决定
+  atLeastEarn: 3 #美元
+  #最低利润率(差价除以价格)，跟滑点有关：因为uniswap上面建议的滑点是0.05%,比原链超导兑换建议1%
+  atLeastRate: 0.004 #0.0015
+  positionRate: 1 #仓位上限，占余额的比例。0.5表示50%，那么下跌2/3时爆仓。1表示100%，那么下跌50%时爆仓
+  #dex和cex同步挂单吗？如果dex失败率高，就不要同步挂单。而是先让dex执行，执行成功后会发现资金失衡，然后通过调平资金的方式去执行cex
+  #考虑两种策略：
+  #    1.冒进型，跟别人激烈争抢，尽量设大滑点，然后两个平台同时提交(这个亏起来很厉害的)。
+  #    2.保守型，设置很小的滑点，让dex先成交，如果成交失败，cex就不用执行了，也就没什么损失。这个不容易亏，但是也不容易抓住机会。
+  dexSync: false
+  whenBalance: 0.1 #百分数的小数形式。任意平台的coin数量比目标值偏移了多少，就触发转账
+  canBalance: true #多个平台之间，能互相转账吗？双方的money和goods用的是同一条链的同一种货币？ cusd和usdc不在同一个链上，因此无法调拨.即使双方都是usdc,只要币安平台不支持该链的转账，也不行。
+  needCheckTotalAmount: true #是否维持资金总量不变？如果账户被其它程序自动操控，资金量会不断变化。这时如果不想调节。
+  tokenAllInDex: false #资金全部放在dex平台吗？等dex交易成功了，卖eth得到usdc了，再把得到的usdc转入cex,这样就不用在cex存放资金，资金利用率翻倍。这只使用于熊市、价格不频繁震荡。
+
+
+engine:
+  time_queryOrder: 0.1 #间隔多少【秒】查询一次市场挂单. 请用3、6、9、12等等
+  time_oneCycle: 30 #每循环一次，最大允许占用多少【秒】.dex执行一次可能要30秒，那么这期间这个系统都被阻塞
+  time_sleep: 1000 #每次对平台进行写操作后，休眠多少【毫秒】
+  waitSecondAfterException: 3 #如果抛出异常，暂停多少【秒】
+  trade_model: simple #采取哪种模式匹配订单？simple, exact
+  time_beginBalance: 0 #每天几点开始记录余额【单位：小时】
+  time_waitBalance: 6 #间隔多久,记录余额？ 【单位：小时】
+
+######################       平台相关的配置            #########################################
+#-------------okcoin-------------------------------
+okcoin:
+  goods: eth #交易哪种商品。大小写随意，由各平台对应的trade类负责转换
+  goodsAddress: "0x0e7a26909abecd20de80f849b41d692d40abe773" #平台给出的充值地址
+  #提币时，提到哪个网络？空着表示不参与转账。eth支持5个网络：ERC20，Arbitrum one，OKTC， Optimism，zkSync Lite
+  # usdc支持7个网络：ERC20, Arbitrum one, OKTC, Polygon, Optimism, TRC20, Avalanche C-Chain
+  #各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串(okex的Avalanche和币安的avaxc,共同点是ava; okex的polygon和币安的matic共同点是:币安的network字段或name字段包含polygon)。
+  goodsNetWork: arbitrum,optimism,oktc,zksync #空着表示不参与转账。各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串
+  goodsNetWorkContain: #goodsNetWork还应该包含什么?例如ETH-Arbitrum one和ETH-Arbitrum one (bridge) 的区分
+  goodsNetWorkNotContain: #goodsNetWork不包含什么
+  money: usdt #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
+  moneyAddress: "0x0e7a26909abecd20de80f849b41d692d40abe773" #平台给出的充值地址
+  moneyNetWork: arbitrum,optimism,polygon,ava,zkSync,oktc,trc20 #提币时，提到哪个网络？空着表示不参与转账。
+  moneyNetWorkContain: #moneyNetWork还应该包含什么?例如ETH-Arbitrum one和ETH-Arbitrum one (bridge) 的区分
+  moneyNetWorkNotContain: #moneyNetWork不包含什么
+  apiKey: 7df12b34-954b-4692-9da1-e85309fcbaf9
+  secretKey: 1ECA10614A2F1D968C889B877AEC9F26
+  url: https://www.okx.com
+  passphrase: ${okx.passphrase} #放在启动参数里，启动参数会自动覆盖它 https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.external-config
+  feeRate: 0.001
+  websocket:
+    url: wss://ws.okx.com:8443/ws/v5/public
+
+okcoinF: #期货标的
+  goods:  #交易哪种商品。大小写随意，由各平台对应的trade类负责转换
+  money:  #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
+  underlying: BTC-USD
+  alias: quarter #期货类别。本周 this_week  次周 next_week  季度 quarter  次季度 bi_quarter
+  feeRate: 0.0005
+okcoinF2.alias: bi_quarter
+
+#---------  bitfinex liujun2
+bitfinex.apiKey: ZiPkmu74WueMT8Ewo0ckRt8MBU9QIRH44AeajOc6Vfa
+bitfinex.secretKey: Os8W2NBsOknX86zdwwZMeY9KmimzsPPP1TJBwRsH5Fn
+#------------huobi -----------------
+huobi.apiKey: vfd5ghr532-b7b99598-fb760722-98117
+huobi.secretKey: 0d4d0ced-221743d0-d83b34d6-952d1
+huobi.feeRate: 0.002
+huobi.url: https://api.huobi.com
+#------------poloniex-----------------------  https://poloniex.com/support/api/    https://github.com/TheCookieLab/poloniex-api-java
+poloniex.apiKey: 2T6JBKDG-QKWFZK6R-8L9P74W0-LHFC7ILZ
+poloniex.secretKey: a620d6783c2e8d806f8c1b3254d0c73a03f7efe75466f08e6cc96212200610ad651c73a3722e340c409f0a8741741b519305a5f3defd3832aedb10e47bf39f4c
+# ---------  binance  ------
+binance:
+  goods: eth #交易哪种商品。大小写随意，由各平台对应的trade类负责转换
+  goodsAddress: "0x6803c2566b114196e56949999b4bbbee413777f0" #我#平台给出的充值地址
+  #goodsAddress: "0x7b74755C1252804EAA265003C0a9E745C792d68f" #她#平台给出的充值地址
+  #调用WalletAPIService.queryAllCoin，能查出各种币的网络名称。例如USDC有10种网络：BSC,AVAXC,ALGO,BNB,ETH,MATIC,RON,SOL,XLM,TRX; usdt还支持EOS,NEAR,XTZ.
+  #ETH支持5种网络：BSC,ETH,ARBITRUM,BNB,OPTIMISM;    反过来看，OPTIMISM支持的币有：SNX,ETH,OP,BUSD,SYN;
+  #BNB支持种3网络：BSC,BNB,ETH;  BUSD支持7种网络: BSC,AVAXC,BNB,ETH,OPTIMISM,MATIC,TRX;
+  goodsNetWork: arbitrum,optimism,bsc #提币时，提到哪个网络。各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串。
+  money: usdt #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
+  moneyAddress: "0x6803c2566b114196e56949999b4bbbee413777f0" #我#平台给出的充值地址
+  #moneyAddress: "0x7b74755C1252804EAA265003C0a9E745C792d68f" #她#平台给出的充值地址
+  moneyNetWork: arbitrum,polygon,ava,bsc,sol,trx # 币安的usdc提币，不支持arb网络。所以，可以借道okex平台。由于币安和okex都支持polygon和ava链，我就可以把usdc从币安，提到okex, 再从okex提到arb
+  apiKey: 1mAOQOu33xJixjS2yI7BpT1w0QsVCKPdLYS5RbQOYBPDuug5VxQXnWtmOe0FjhsA #我
+  secretKey: 8StAUYBofm79mKfil9rRTgwePOKGMVYvSH4bnUJHCXbL9qW7qlYLxzWNCFlneX2W #我
+  #apiKey: P2MJ2DU0eHocpAIlCLbc3NSZ4Kr5FwyN2kk24d3lMap7wxyP6tfINBIVfCkjOAWl #他
+  #secretKey: m8BFeXKETjPuDgf6LY7wlJmAZDlnQcKiW3vfm6x1b5TcjEX4eIulvMrzu1vgqvVN #她
+  feeRate: 0.001
+  url: https://api.binance.com #美国地区访问不了com域名
+  websocket:
+    url: wss://stream.binance.com:9443
+    level: 20 #市场深度包含几条数据：可选值5，10，20
+    speed: 100 #数据推送间隔为：1000毫秒或100毫秒
+#合约交易，币本位
+binanceF:
+  goods:  #交易哪种商品。大小写随意，由各平台对应的trade类负责转换
+  goodsAddress:
+  money:  #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
+  moneyAddress:
+  url: https://dapi.binance.com
+  feeRate: 0.0004
+  #合约类型：本季：CURRENT_QUARTER， 下季：NEXT_QUARTER， 永续合约：PERPETUAL
+  contractType: CURRENT_QUARTER
+
+#-------------uniswap-------------------------------gas limit: 162773，实际使用：122694，总共0.009325eth
+#矿工费4美元。要求利润大于这个数，才能交易。
+#dex执行一次可能要30秒，那么这期间这个系统都被阻塞
+uniswap:
+  netWork: arbitrum #网络名称叫什么？ 各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串
+  naitveToken: eth #链的原生币，大小写都行。也是gas消耗的币的名称。因为uniswap能用在多个区块链
+  goods: weth #交易哪种商品。大小写随意，由各平台对应的trade类负责转换
+  goodsAddress: "0x7c487F80BEe3D7aF9047Ee0E790f2B2A8BDBF1eC" #平台给出的充值地址 # "0xe068a01e11aCfA03A4c8de63dAd451E77a22CFfF" # "0xB0d1435590B4f14A5f4414f93489945546162ffc"
+  money: usdt #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
+  moneyAddress: "0x7c487F80BEe3D7aF9047Ee0E790f2B2A8BDBF1eC" #平台给出的充值地址 # "0xe068a01e11aCfA03A4c8de63dAd451E77a22CFfF" # "0xB0d1435590B4f14A5f4414f93489945546162ffc"
+  url: http://127.0.0.1:8093
+  ethAddress: "0x7c487F80BEe3D7aF9047Ee0E790f2B2A8BDBF1eC" # "0xe068a01e11aCfA03A4c8de63dAd451E77a22CFfF" # "0xB0d1435590B4f14A5f4414f93489945546162ffc"
+  feeRate: 0.0005 #uniswap平台的交易手续费是多少？不同币种，手续费不一样，wbtc是0.3%或0.05%，稳定币兑换是0.01%. celo-cusd是0.3%
+  gasPercent: 1 #强制调高gas价格，对矿工费进行悲观的估算.
+  gasLimit: 4000000
+  slipPage: 0.002 #滑点，0.001表示0.1%；或者 0.0005表示0.05% 设置大一点会导致亏损，但是这个参数就是提供了自愿亏损的机会:建议比atLeastRate稍微大一点
+
+oneInch: # 在下列限制区，不可用 https://help.1inch.io/en/articles/5778756-restricted-territory
+  netWork: arbitrum #网络名称叫什么？ 各平台的网络名称必须相同， 而且是各平台的网络名称中共同的子字符串
+  naitveToken: eth #链的原生币，大小写都行。也是gas消耗的币的名称。因为uniswap能用在多个区块链
+  goods: weth #交易哪种商品。大小写随意，由各平台对应的trade类负责转换
+  goodsAddress: "0x7c487F80BEe3D7aF9047Ee0E790f2B2A8BDBF1eC" # "0xe068a01e11aCfA03A4c8de63dAd451E77a22CFfF" # "0xB0d1435590B4f14A5f4414f93489945546162ffc"
+  money: usdt #用哪种货币完成交易。大小写随意，由各平台对应的trade类负责转换
+  moneyAddress: "0x7c487F80BEe3D7aF9047Ee0E790f2B2A8BDBF1eC" # "0xe068a01e11aCfA03A4c8de63dAd451E77a22CFfF" # "0xB0d1435590B4f14A5f4414f93489945546162ffc"
+  url: http://127.0.0.1:8093
+  ethAddress: "0x7c487F80BEe3D7aF9047Ee0E790f2B2A8BDBF1eC" # "0xe068a01e11aCfA03A4c8de63dAd451E77a22CFfF" # "0xB0d1435590B4f14A5f4414f93489945546162ffc"
+  feeRate: 0.0005 #oneInch平台的交易手续费是多少
+  gasLimit: 4000000

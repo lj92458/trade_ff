@@ -22,14 +22,24 @@
 
 <br/>
 <form id="adjustForm" action="#" method="post" title="">
-    价格偏差：
-    <table id="table_adjPrice" cellpadding=0 cellspacing=0>
-
+    <table cellpadding=0 cellspacing=0>
+        <tr id="tr_price"></tr>
+        <tr id="tr_pgoods"></tr>
+        <tr id="tr_pmoney"></tr>
+        <tr id="tr_goodsRate"></tr>
     </table>
+
     <br><br>
-    <input type="button" id="setPrice" value="设置偏差" style="width:70px;height: 30px"/> &nbsp;&nbsp;&nbsp;
-    <input type="button" id="stop" value="停止" style="width:70px;height: 30px"/>&nbsp;&nbsp;&nbsp;
+    <input type="button" id="set_price" value="设置偏差" style="width:70px;height: 30px"/>
+    <input type="button" id="set_pgoods" value="设置pgoods" style="width:85px;height: 30px"/>
+    <input type="button" id="set_pmoney" value="设置Pmoney" style="width:85px;height: 30px"/>
+    <input type="button" id="set_goodsRate" value="设置goodsRate" style="width:85px;height: 30px"/>
+    <input type="button" id="stop" value="停止" style="width:70px;height: 30px"/>
     <input type="button" id="start" value="启动" style="width:70px;height: 30px"/>
+    <input type="button" id="shutdown" value="结束tomcat" style="width:70px;height: 30px"/>
+    <input type="button" id="logfile" value="查看日志" style="width:70px;height: 30px"/>
+    <a target="_blank" href="./actuator/"><input type="button" id="AllActuator" value="更多监控"
+                                                 style="width:70px;height: 30px"/></a>
     <div id="retMsg" style="color: red;"></div>
 </form>
 <div id="rootLog" class="console"></div>

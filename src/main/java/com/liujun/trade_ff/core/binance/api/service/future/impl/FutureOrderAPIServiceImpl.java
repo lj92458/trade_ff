@@ -6,7 +6,6 @@ import com.liujun.trade_ff.core.binance.api.client.APIClient;
 import com.liujun.trade_ff.core.binance.api.config.APIConfiguration;
 import com.liujun.trade_ff.core.binance.api.service.future.FutureOrderAPIService;
 import com.liujun.trade_ff.core.binance.api.utils.MapUtil;
-import org.apache.commons.beanutils.PropertyUtils;
 
 public class FutureOrderAPIServiceImpl implements FutureOrderAPIService {
     private final APIClient client;
@@ -19,7 +18,7 @@ public class FutureOrderAPIServiceImpl implements FutureOrderAPIService {
     @Override
     public OrderResult addOrder(Order order) throws Exception{
 
-        return this.client.executeSync(futureOrderAPI.addOrder(MapUtil.toMap(order)));
+        return this.client.executeSync(futureOrderAPI.addOrder(MapUtil.toMapWithoutNullField(order)));
     }
 
     @Override

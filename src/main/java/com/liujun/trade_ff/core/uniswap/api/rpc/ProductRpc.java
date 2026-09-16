@@ -5,7 +5,7 @@ import hprose.util.concurrent.Promise;
 
 public interface ProductRpc {
     //最多需要7秒返回
-    Promise<Book> bookProduct(String coinPair, String marketOrderSize, String orderStepRatio, int poolFee);
+    Promise<Book> bookProduct(String coinPair, int poolFee);
 
     /**
      * 查询gas费，以及eth相对某种币的价格
@@ -13,6 +13,6 @@ public interface ProductRpc {
      * @param moneySymbol 交易对中的计价货币
      * @return
      */
-    Promise<double[]> getGasPriceGweiAndEthPrice(String moneySymbol,int poolFee);
+    Promise<double[]> getGasPriceGweiAndEthPrice(String moneySymbol, int poolFee);
 
 }

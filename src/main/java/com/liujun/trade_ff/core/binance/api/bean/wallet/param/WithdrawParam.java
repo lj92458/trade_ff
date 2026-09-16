@@ -1,95 +1,35 @@
 package com.liujun.trade_ff.core.binance.api.bean.wallet.param;
 
+import com.liujun.trade_ff.core.binance.api.utils.DateUtils;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+
+@AllArgsConstructor
+@ToString
+@Getter
+@Setter
 public class WithdrawParam {
 
-    String asset;//
-    String withdrawOrderId;//	自定义提币ID
-    String network;//	提币网络
-    String address;//	提币地址
-    String addressTag;//	某些币种例如 XRP,XMR 允许填写次级地址标签
-    Double amount;//
-    Boolean transactionFeeFlag;//	当站内转账时免手续费, true: 手续费归资金转入方; false: 手续费归资金转出方; . 默认 false.
-    String name;//	地址的备注，填写该参数后会加入该币种的提现地址簿。地址簿上限为20，超出后会造成提现失败。
-    Long recvWindow;//
-    Long timestamp;//
+    private String coin;//yes
+    private String withdrawOrderId;//no	自定义提币ID
+    private String network;//no	提币网络
+    private String address;//yes	提币地址
+    private String addressTag;//no	某些币种例如 XRP,XMR 允许填写次级地址标签
+    private Double amount;//yes
+    private Boolean transactionFeeFlag = false;//no	当站内转账时免手续费, true: 手续费从转入方扣(收到的比预计的少); false: 手续费从转出方扣(你发送多少，对方就收到多少); 默认 false
+    private String name;//no	地址的备注，填写该参数后会加入该币种的提现地址簿。地址簿上限为20，超出后会造成提现失败。
+    private Integer walletType = 0;//no 表示出金使用的钱包，0为现货钱包，1为资金钱包。默认walletType为"充币账户"是您设置在钱包->现货账户或资金账户->充值
+    private Long recvWindow;//no
+    private Long timestamp = DateUtils.getUnixTimeMilli();//yes
 
-    public String getAsset() {
-        return asset;
-    }
-
-    public void setAsset(String asset) {
-        this.asset = asset;
-    }
-
-    public String getWithdrawOrderId() {
-        return withdrawOrderId;
-    }
-
-    public void setWithdrawOrderId(String withdrawOrderId) {
-        this.withdrawOrderId = withdrawOrderId;
-    }
-
-    public String getNetwork() {
-        return network;
-    }
-
-    public void setNetwork(String network) {
-        this.network = network;
-    }
-
-    public String getAddress() {
-        return address;
-    }
-
-    public void setAddress(String address) {
+    public WithdrawParam(String coin, String address, Double amount, long recvWindow, long timestampAdd) {
+        this.coin = coin;
         this.address = address;
-    }
-
-    public String getAddressTag() {
-        return addressTag;
-    }
-
-    public void setAddressTag(String addressTag) {
-        this.addressTag = addressTag;
-    }
-
-    public Double getAmount() {
-        return amount;
-    }
-
-    public void setAmount(Double amount) {
         this.amount = amount;
-    }
-
-    public Boolean getTransactionFeeFlag() {
-        return transactionFeeFlag;
-    }
-
-    public void setTransactionFeeFlag(Boolean transactionFeeFlag) {
-        this.transactionFeeFlag = transactionFeeFlag;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public Long getRecvWindow() {
-        return recvWindow;
-    }
-
-    public void setRecvWindow(Long recvWindow) {
         this.recvWindow = recvWindow;
+        this.timestamp += timestampAdd;
     }
 
-    public Long getTimestamp() {
-        return timestamp;
-    }
-
-    public void setTimestamp(Long timestamp) {
-        this.timestamp = timestamp;
-    }
 }

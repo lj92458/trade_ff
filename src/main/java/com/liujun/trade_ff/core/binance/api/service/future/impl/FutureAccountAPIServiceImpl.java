@@ -9,13 +9,14 @@ import com.liujun.trade_ff.core.binance.api.utils.DateUtils;
 public class FutureAccountAPIServiceImpl implements FutureAccountAPIService {
     private final APIClient client;
     private final FutureAccountAPI futureAccountAPI;
+
     public FutureAccountAPIServiceImpl(APIConfiguration config) {
         this.client = new APIClient(config);
         this.futureAccountAPI = this.client.createService(FutureAccountAPI.class);
     }
 
     @Override
-    public Account accountInfo(long recvWindow) {
-        return this.client.executeSync(this.futureAccountAPI.accountInfo(recvWindow, DateUtils.getUnixTimeMilli()));
+    public Account accountInfo(long recvWindow, long timestamp) {
+        return this.client.executeSync(this.futureAccountAPI.accountInfo(recvWindow, timestamp));
     }
 }

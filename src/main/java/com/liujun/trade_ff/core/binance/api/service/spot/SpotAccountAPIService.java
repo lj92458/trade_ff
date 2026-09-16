@@ -7,7 +7,7 @@ import com.liujun.trade_ff.core.binance.api.bean.spot.result.Account;
  */
 public interface SpotAccountAPIService {
 
-    Account accountInfo(long recvWindow);
+    Account accountInfo(long recvWindow, long timestame);
 
 
 }

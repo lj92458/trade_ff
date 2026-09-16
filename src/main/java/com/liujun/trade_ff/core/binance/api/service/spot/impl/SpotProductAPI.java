@@ -18,6 +18,4 @@ public interface SpotProductAPI {
     Call<Depth> marketDepth(@Query("symbol") String symbol,
                             @Query("limit") Integer limit);
 
-
-
 }

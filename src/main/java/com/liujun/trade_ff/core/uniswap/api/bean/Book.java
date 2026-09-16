@@ -2,7 +2,7 @@ package com.liujun.trade_ff.core.uniswap.api.bean;
 
 
 import java.util.List;
-//list中每个元素是一个数组。数组中有两个字符串,依次代表：price,volume
+//list中每个元素是一个数组。数组中有两个字符串,依次代表：price,volume. oneInch还会返回更多信息：protocols和estimatedGas
 public class Book {
 
     private List<String[]> asks;

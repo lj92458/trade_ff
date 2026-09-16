@@ -1,6 +1,8 @@
 package com.liujun.trade_ff.model;
 
-public class UserAccount {
+import java.io.Serializable;
+
+public class UserAccount implements Serializable {
     private String userAccount;
 
     private String password;

@@ -28,7 +28,6 @@ public class VirtualTrade extends Trade {
 
         // 初始查询账户信息。今后只有交易后,才需要重新查询。
         flushAccountInfo();
-        setAccInfo(new AccountInfo());
     }
 
     /**
@@ -38,21 +37,27 @@ public class VirtualTrade extends Trade {
      */
     public void flushMarketDeeps() throws Exception {
         changeMarketPrice(1 - feeRate, 1 + feeRate);
-        backupUsefulOrder();
+        //backupUsefulOrder();
     }
 
     /**
      * 查询账户资产信息 初始化时,需要查询账户信息。今后只有交易后,才需要重新查询。
      */
     public void flushAccountInfo() throws Exception {
-
+        setAccInfo(new AccountInfo());
+        accInfo.freeToken = new double[]{10000000000.0, 10000000000.0};
     }
 
     /**
      * 各平台都完成预处理后,删掉已失效的订单,对没失效的订单,进行挂单操作,并记录订单号,然后删除挂单失败的
      */
     public int tradeOrder() throws Exception {
-
+        // 清空市场挂单
+        getMarketDepth()[0].clear();
+        getMarketDepth()[1].clear();
+        // 清空账户信息
+        //getAccInfo().freeToken[0] = 0;
+        //getAccInfo().freeToken[1] = 0;
         return 0;
     }
 
@@ -79,7 +84,8 @@ public class VirtualTrade extends Trade {
     }
 
     public boolean isActive() {
-        return getAccInfo().getFreeGoods() > 0 || getAccInfo().getFreeMoney() > 0;
+        //return getAccInfo().freeToken[0] > 0 || getAccInfo().freeToken[1] > 0;
+        return getMarketDepth()[0].size() > 0 || getMarketDepth()[1].size() > 0;
     }
 
     /**
@@ -88,8 +94,20 @@ public class VirtualTrade extends Trade {
      * @throws Exception
      */
     @Override
-    public void withdraw(String productName, double amount, String address) throws Exception {
+    public WithdrawResult withdraw(String productName, double amount, String address, String netWorkShort, boolean needWrap) throws Exception {
         throw new Exception("不支持提币");
+    }
+
+    public double depositToken(String asset, String txId, double amount, boolean needWrap) throws Exception {
+        throw new Exception("不支持充值");
+    }
+
+    /**
+     *
+     */
+    @Override
+    public void cleanResource() {
+
     }
 
 }
