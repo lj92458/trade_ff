@@ -71,7 +71,7 @@ One of the system's most unique capabilities. When funds are unevenly distribute
 ### 7. Intelligent Fund Distribution Strategy
 
 - **DEX-Centric Fund Mode** — Via `tokenAllInDex` config, keeps all funds on DEX by default; CEX holds no funds. After DEX trade success, automatically transfers proceeds to CEX — doubling capital efficiency
-- **Virtual Order Rebalancing** — When total fund amounts drift, `VirtualTrade` generates synthetic buy/sell orders to guide other platforms into reverse trading, restoring balance
+- **Virtual Platform Reversal (Original Design)** — In cross-exchange arbitrage, it's common for only one side of a trade to succeed (due to API timeouts, insufficient balance, network jitter, etc.), causing goods/funds on that platform to become imbalanced and requiring immediate reversal (rollback). `VirtualTrade` injects a fictitious "exchange" into the matching engine. When a goods quantity deviation is detected, the virtual platform posts an artificial spread (e.g., if goods increased, it posts a low-price sell order), tempting the matching engine into executing counter-trades on other real platforms, automatically completing the reversal. **The entire reversal process fully reuses the existing matching engine — zero additional reversal logic required**
 - **Goods/Money Ratio Control** — Via `goodsRate` parameter, controls the proportion of goods value to total assets, with automatic buy/sell adjustment
 - **Deviation Trigger Threshold** — Via `whenBalance` parameter, sets how much any platform's funds must deviate before triggering a transfer, avoiding excessive small transfers
 
@@ -131,7 +131,7 @@ src/main/java/com/liujun/trade_ff/
 │   ├── Engine.java          # Main engine entry (1200+ lines), orchestrates all operations
 │   ├── Trade.java           # Abstract base class for exchange adapters (polymorphic design)
 │   ├── ChangeLimit.java     # Adaptive price limit engine (3 strategies, hot-reload)
-│   ├── VirtualTrade.java    # Virtual platform (for internal hedging simulation)
+│   ├── VirtualTrade.java    # Virtual exchange injected into matching engine (zero-code single-side reversal)
 │   ├── EngineThread.java    # Engine daemon thread (self-healing, auto-restart)
 │   ├── Prop.java            # Global configuration properties
 │   ├── binance/             # Binance spot adapter (full API SDK)
