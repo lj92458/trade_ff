@@ -72,6 +72,7 @@ One of the system's most unique capabilities. When funds are unevenly distribute
 
 - **DEX-Centric Fund Mode** — Via `tokenAllInDex` config, keeps all funds on DEX by default; CEX holds no funds. After DEX trade success, automatically transfers proceeds to CEX — doubling capital efficiency
 - **Virtual Platform Reversal (Original Design)** — In cross-exchange arbitrage, it's common for only one side of a trade to succeed (due to API timeouts, insufficient balance, network jitter, etc.), causing goods/funds on that platform to become imbalanced and requiring immediate reversal (rollback). `VirtualTrade` injects a fictitious "exchange" into the matching engine. When a goods quantity deviation is detected, the virtual platform posts an artificial spread (e.g., if goods increased, it posts a low-price sell order), tempting the matching engine into executing counter-trades on other real platforms, automatically completing the reversal. **The entire reversal process fully reuses the existing matching engine — zero additional reversal logic required**
+- **Zero-Transfer Self-Rebalancing (Original Design)** — When a platform's funds are exhausted, the system does not force a cross-chain transfer to replenish. Instead, it waits for the spread to naturally reverse, automatically recovering funds through counter-trading. This design of "giving up" transfer capability makes the system simpler, safer, and lower-cost — and enables it to work with any multi-platform trading instrument (e.g., A-share ETFs, sports betting, etc.), even those that don't support cross-chain transfers
 - **Goods/Money Ratio Control** — Via `goodsRate` parameter, controls the proportion of goods value to total assets, with automatic buy/sell adjustment
 - **Deviation Trigger Threshold** — Via `whenBalance` parameter, sets how much any platform's funds must deviate before triggering a transfer, avoiding excessive small transfers
 
@@ -89,6 +90,7 @@ One of the system's most unique capabilities. When funds are unevenly distribute
 - 🛡️ **Risk Control** — Built-in minimum profit rate, minimum trade size, slippage control, position cap, and multiple risk management strategies
 - 🔗 **Cross-Chain Fund Auto-Rebalancing** — Dijkstra-based multi-hop routing, supports 7+ chain networks for automatic withdrawal and fund balancing
 - 💼 **DEX-Centric Fund Strategy** — All funds on DEX by default, auto-transfers to CEX after trades, doubling capital efficiency
+- 🔄 **Zero-Transfer Self-Rebalancing** — When funds are exhausted, no transfers needed; waits for spread reversal to naturally recover, zero risk, zero cost, compatible with any multi-platform instrument
 
 ---
 
